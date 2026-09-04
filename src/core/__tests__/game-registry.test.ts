@@ -10,6 +10,9 @@ describe('game-registry', () => {
   });
 
   it('encuentra un juego registrado por id', () => {
-    expect(getGameById('memorice')).toBeUndefined(); // se registra en fase 1
+    const game = getGameById('memorice');
+    expect(game).toBeDefined();
+    expect(game?.id).toBe('memorice');
+    expect(typeof game?.Component).toBe('function');
   });
 });
