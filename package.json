@@ -39,7 +39,11 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e:web": "node scripts/e2e.mjs",
+    "e2e:headed": "node scripts/e2e.mjs --headed",
+    "e2e:ui": "node scripts/e2e.mjs --ui",
+    "e2e:report": "playwright show-report"
   },
   "jest": {
     "preset": "jest-expo",
