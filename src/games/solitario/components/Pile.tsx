@@ -1,8 +1,9 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 import { useDragGesture } from '@/core/ui/drag/useDraggable';
+import { useTheme } from '@/core/ui/ThemeProvider';
 import type { Card } from '../engine/deck';
 import { cardPosition, type Rect, type SolitaireLayout } from '../engine/layout';
 import { isValidSequence, type PileRef } from '../engine/rules';
@@ -17,6 +18,8 @@ interface PileProps {
   pileIndex?: number;
   cards: Card[];
   emptySymbol?: string;
+  /** Drop legal sobre esta pila: se resalta el slot */
+  highlighted?: boolean;
   dragKey: string | null;
   tx: SharedValue<number>;
   ty: SharedValue<number>;
@@ -54,11 +57,18 @@ function PileCard({
 }: PileCardProps) {
   const gesture = useDragGesture(card.id, { onDragStart, onDragEnd }, draggable);
   const position = cardPosition(layout, pileRef, cards, index);
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    scale.value = dragActive ? withSpring(1.05, { damping: 20 }) : withSpring(1);
+  }, [dragActive, scale]);
+
   const animatedStyle = useAnimatedStyle(
     () => ({
       transform: [
         { translateX: dragActive ? tx.value : 0 },
         { translateY: dragActive ? ty.value : 0 },
+        { scale: scale.value },
       ],
     }),
     [dragActive],
@@ -71,6 +81,7 @@ function PileCard({
         style={[
           styles.cardSlot,
           { left: position.x, top: position.y, zIndex: dragActive ? 100 + index : index },
+          dragActive ? styles.cardLift : null,
           animatedStyle,
         ]}
       >
@@ -87,6 +98,7 @@ export function Pile({
   pileIndex = 0,
   cards,
   emptySymbol,
+  highlighted = false,
   dragKey,
   tx,
   ty,
@@ -94,6 +106,7 @@ export function Pile({
   onDragEnd,
   onPressStock,
 }: PileProps) {
+  const theme = useTheme();
   const pileRef: PileRef =
     kind === 'waste'
       ? { kind: 'waste' }
@@ -139,18 +152,31 @@ export function Pile({
     );
   }
 
-  // Solo las cartas visibles se renderizan (el resto queda debajo en la pila)
-  const visibleCount = kind === 'waste' ? 3 : 1;
-  const firstRendered = Math.max(0, cards.length - visibleCount);
+  // Cartas visibles por pila: tableau muestra TODAS (fan), waste las últimas 3,
+  // foundation solo el top (el resto queda tapado).
+  const firstRendered =
+    kind === 'tableau' ? 0 : Math.max(0, cards.length - (kind === 'waste' ? 3 : 1));
 
   return (
     <Fragment>
       <View
         accessibilityLabel={`solitario-${kind}${kind === 'waste' ? '' : `-${pileIndex}`}`}
-        style={[styles.slot, { left: rect.x, top: rect.y, width: rect.width, height: rect.height }]}
+        style={[
+          styles.slot,
+          { left: rect.x, top: rect.y, width: rect.width, height: rect.height },
+          highlighted ? { borderColor: theme.primary, borderWidth: 2, borderStyle: 'solid' } : null,
+          highlighted ? styles.slotGlow : null,
+        ]}
       >
         {emptySymbol ? (
-          <Text style={[styles.emptySymbol, { fontSize: Math.round(rect.width * 0.4) }]}>{emptySymbol}</Text>
+          <Text
+            style={[
+              styles.emptySymbol,
+              { fontSize: Math.round(rect.width * 0.4), color: highlighted ? theme.primary : undefined },
+            ]}
+          >
+            {emptySymbol}
+          </Text>
         ) : null}
       </View>
 
@@ -187,6 +213,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  slotGlow: {
+    boxShadow: '0 0 10px rgba(59, 130, 246, 0.55)',
+  },
   stockHit: {
     borderStyle: 'solid',
     overflow: 'visible',
@@ -202,5 +231,8 @@ const styles = StyleSheet.create({
   },
   cardSlot: {
     position: 'absolute',
+  },
+  cardLift: {
+    boxShadow: '0 6px 14px rgba(15, 23, 42, 0.35)',
   },
 });

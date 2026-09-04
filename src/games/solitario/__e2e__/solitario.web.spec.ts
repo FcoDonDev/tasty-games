@@ -45,9 +45,9 @@ test('solitario: movimiento legal a foundation e intento ilegal con snap-back', 
   const ace = page.getByLabel('solitario-card-S-1', { exact: true });
   await expect(ace).toBeVisible();
 
-  // Ilegal: A♠ sobre columna vacía (solo acepta K) → snap-back
+  // Ilegal: A♠ sobre columna vacía (solo acepta K) → snap-back (spring)
   await dragCard(page, 'solitario-card-S-1', 'solitario-tableau-1');
-  await page.waitForTimeout(400); // snap-back animado (160 ms) + render
+  await page.waitForTimeout(700); // snap-back animado con spring + render
   const aceCenter = await centerOf(ace);
   const wasteCenter = await centerOf(page.getByLabel('solitario-waste', { exact: true }));
   expect(Math.hypot(aceCenter.x - wasteCenter.x, aceCenter.y - wasteCenter.y)).toBeLessThan(10);
@@ -56,6 +56,7 @@ test('solitario: movimiento legal a foundation e intento ilegal con snap-back', 
   // Legal: A♠ → foundation de ♠ (index 0)
   await dragCard(page, 'solitario-card-S-1', 'solitario-foundation-0');
   await expect(page.getByText('Movimientos: 2')).toBeVisible();
+  await page.waitForTimeout(300); // settle animado (120 ms) antes de medir posición
   const aceAfter = await centerOf(ace);
   const foundationCenter = await centerOf(
     page.getByLabel('solitario-foundation-0', { exact: true }),
@@ -98,6 +99,11 @@ test('solitario: salir vuelve al Home', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Jugar Solitario').click();
   await expect(page.getByText(/Movimientos:/)).toBeVisible({ timeout: 15_000 });
+
+  // Fan del tableau: reparto estándar renderiza 28 cartas en tableau + 1 en stock
+  const cardCount = await page.getByLabel(/^solitario-card-/).count();
+  expect(cardCount).toBeGreaterThanOrEqual(29);
+
   await page.getByLabel('salir-solitario').click();
   await expect(page.getByText('Tasty Games')).toBeVisible();
 });

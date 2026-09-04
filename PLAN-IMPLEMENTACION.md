@@ -191,6 +191,49 @@ Cambios fuera de la carpeta del juego (mínimos):
 
 ---
 
+### Fase 2b — Ajustes post-Feedback (fan + UX de drag) (~½ día) ✅ COMPLETADA
+
+Feedback de usuario tras el merge de Fase 2: (1) no se ven las cartas "debajo" en el
+tableau (solo el top), (2) el drag funciona pero sin experiencia (sin lift, sin feedback
+de targets, drop "teletransportado", snap-back rígido).
+
+#### Ajuste 1 — Fan del tableau (bug de render)
+
+- Causa raíz: en `Pile.tsx`, `firstRendered` calculaba cartas visibles como
+  `waste ? 3 : 1` — el tableau solo renderizaba el top. Los offsets de `layout.ts`
+  (`faceDownOffset`/`faceUpOffset`) existen pero las cartas debajo no se pintaban.
+- [x] `Pile.tsx`: `firstRendered` por tipo — tableau → 0 (todas), waste → últimas 3,
+      foundation → solo top. `zIndex: index` ya garantiza el apilado correcto.
+
+#### Ajuste 2 — Experiencia drag & drop (solo capa de presentación; engine/ sin cambios)
+
+Decisión: **solo resaltar targets válidos** (inválidos sin cambio visual); specs E2E
+ajustados sin asserts de estilos mid-drag (lo visual se verifica manualmente).
+
+- [x] **Lift** (`PileCard`): `useSharedValue` de escala → `withSpring(1.05)` al activar,
+      `withSpring(1)` al soltar + sombra estática condicional a `dragActive`
+- [x] **Highlight de targets válidos** (`SolitarioScreen` + `Pile`): en drag start,
+      precomputar `validTargets: Set<string>` con `canDropOnTableau`/`canDropOnFoundation`
+      contra las 7 columnas + 4 foundations (cero cómputo por frame); slots válidos con
+      borde `theme.primary` + glow suave
+- [x] **Settle animado en drop válido** (`handleDragEnd`): commit `moveCards` →
+      `tx/ty = posiciónVisual − posiciónFinal` → `withTiming(0, ~120ms)` con `dragKey`
+      retenido hasta terminar. La carta glisa del punto de suelte a su asiento (sin
+      salto cuando el drop cae a mitad de columna)
+- [x] **Snap-back con spring**: `withSpring` en vez de `withTiming`
+
+#### Ajuste 3 — Spec E2E
+
+- [x] Tras drop válido: `waitForTimeout(300)` antes de medir bounding boxes (settle 120 ms)
+- [x] Assertion de fan: reparto aleatorio → count de `solitario-card-*` ≥ 29 (28 tableau + 1 stock)
+- [x] Los 3 specs existentes mantienen su lógica
+
+#### Verificación
+
+- [x] `pnpm typecheck` verde · `pnpm test` 89/89 (sin cambios en engine) · `pnpm e2e:web` 5/5 · verificación visual con captura (fan correcto)
+
+---
+
 ### Fase 3 — Damas (~4–6 días)
 
 - [ ] `engine/board.ts`: tablero 8×8, índices 0..63, peón/dama
