@@ -15,12 +15,22 @@
  *   pnpm e2e:web -- -g "salir"  # filtros de Playwright
  */
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 
 const PORT = 4173;
 // 127.0.0.1: evita el problema localhost→::1 (issue #22144 de Playwright)
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-// `pnpm e2e:web -- -g "salir"`: pnpm reenvía el "--" tal cual; filtrarlo
 const passthroughArgs = process.argv.slice(2).filter((arg, i, all) => !(arg === '--' && i === 0));
+
+// Binario de serve resuelto directamente: evita `pnpm exec` (que en Windows
+// es pnpm.cmd y no se puede spawnear sin shell) y nos da el PID real del
+// proceso de node para poder matarlo cross-platform.
+const require = createRequire(import.meta.url);
+const servePkgPath = require.resolve('serve/package.json');
+const servePkg = require('serve/package.json');
+const serveBinRel = typeof servePkg.bin === 'string' ? servePkg.bin : servePkg.bin.serve;
+const serveBinPath = path.join(path.dirname(servePkgPath), serveBinRel);
 
 const isServerUp = async () => {
   try {
@@ -53,12 +63,11 @@ let serveChild = null;
 
 const startServe = () => {
   // detached: true → grupo de proceso propio: Ctrl+C no lo alcanza directo,
-  // solo stopServe() lo mata (y con él toda la cadena pnpm → serve).
-  serveChild = spawn(
-    'pnpm',
-    ['exec', 'serve', 'dist', '-l', String(PORT), '--single'],
-    { stdio: 'ignore', detached: true },
-  );
+  // solo stopServe() lo mata.
+  serveChild = spawn(process.execPath, [serveBinPath, 'dist', '-l', String(PORT), '--single'], {
+    stdio: 'ignore',
+    detached: true,
+  });
 };
 
 const stopServe = () => {
