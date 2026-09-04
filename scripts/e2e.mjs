@@ -50,11 +50,12 @@ const waitForServer = async (timeoutMs = 15_000) => {
   return false;
 };
 
-const runForeground = (cmd, args) =>
+const runForeground = (cmd, args, options = {}) =>
   new Promise((resolve) => {
     const child = spawn(cmd, args, {
       stdio: 'inherit',
       shell: process.platform === 'win32',
+      ...options,
     });
     child.on('exit', (code) => resolve(code ?? 1));
   });
@@ -105,7 +106,13 @@ const main = async () => {
       'web',
       '--output-dir',
       'dist',
-    ]);
+      // sin clear, el cache de Metro puede servir transforms de un build previo
+      // sin EXPO_PUBLIC_E2E y el gate de seeds compila a undefined
+      '--clear',
+    ], {
+      // Gate E2E: habilita el canal de seeds de test (victoria forzada, etc.)
+      env: { ...process.env, EXPO_PUBLIC_E2E: '1' },
+    });
     if (exportCode !== 0) {
       console.error(`✖ [e2e] expo export falló (código ${exportCode})`);
       process.exit(exportCode);

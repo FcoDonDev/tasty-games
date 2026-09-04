@@ -20,6 +20,11 @@ export interface GameResult {
 export interface GameScreenProps {
   onExit: () => void;
   onGameEnd: (result: GameResult) => void;
+  /**
+   * Seed opcional para escenarios de test (E2E). Solo se propaga desde
+   * app/juego/[id].tsx cuando el build se exporta con EXPO_PUBLIC_E2E=1.
+   */
+  initialSeed?: string;
 }
 
 export interface GameDefinition {
