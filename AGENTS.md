@@ -2,12 +2,20 @@
 
 App de juegos 2D simples (Web + Android) con Expo SDK 57 / Expo Router / React Native 0.86 / TypeScript. 
 
+## Estado del proyecto
+
+- Completadas: **Fase 0** (bootstrap), **Fase 1** (Memorice), **Fase 2 + 2b** (Solitario con drag & drop) y **Fase 3** (Damas chilenas, 2 jugadores locales, MVP sin récord). Detalle y checkboxes en `PLAN-IMPLEMENTACION.md`.
+- Siguiente: **Fase 4** — pulido/release (settings globales, ScoreBoard en Home, ayuda in-app, releases web/Android, CI). Al cierre: **Fase E** (E2E Android con Maestro, requiere Java 17 + SDK).
+- Verificación actual: `pnpm test` 144/144 · `pnpm e2e:web` 8/8 specs (memorice 2, solitario 3, damas 3).
+- Drag & drop: patrón reutilizable en `src/core/ui/drag/useDraggable.ts` (Pan + shared values + `runOnJS`); lo consumen solitario y damas (lift, targets válidos resaltados, settle animado, snap-back).
+
 ## Comandos
 
 - Gestor de paquetes: **pnpm únicamente** (no npm/yarn). `.npmrc` fija `node-linker=hoisted` — requerido por Metro, no borrar.
 - Instalar paquetes nativos/de Expo **solo** con `pnpm exec expo install <pkg>` (respeta la matriz de compatibilidad del SDK). `pnpm add` directo solo para paquetes JS puros (ej. zustand).
 - Verificación: `pnpm typecheck` (tsc --noEmit) → `pnpm test` (jest, preset jest-expo). Un solo test: `pnpm test -- <patron>`.
 - Verificar build web sin dev server: `CI=1 pnpm exec expo export --platform web` (genera `dist/`, ya gitignored).
+- E2E web: `pnpm e2e:web` (orquestador único: export → serve :4173 → Playwright → cleanup). Tras bump de `@playwright/test` re-instalar binarios: `pnpm exec playwright install chromium`.
 - Android dev build requiere Java 17 + Android SDK/ADB — **no están instalados en este entorno**; `pnpm android` fallará hasta instalarlos.
 
 ## Arquitectura
@@ -39,7 +47,8 @@ Nunca editar el DDL existente en `src/core/db/schema.ts`. Sumar `SCHEMA_VERSION`
 - Tests unitarios en `__tests__/` junto al código, patrón `**/__tests__/**/*.test.@(ts|tsx)`.
 - Pruebas E2E
     - Android: contra dev build (`expo run:android`)
-    - WEB: Playwright.
+    - WEB: Playwright (specs en `src/games/<id>/__e2e__/*.web.spec.ts`).
+- Escenarios deterministas E2E vía seeds sentinelas (`initialSeed`, ej. `test-win`) — solo activos cuando el build se exporta con `EXPO_PUBLIC_E2E=1` (lo hace `scripts/e2e.mjs`); en producción no existe canal para alterar el reparto.
 
 ### Estrategia de testing
 

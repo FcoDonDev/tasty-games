@@ -1,7 +1,7 @@
 # Plan de implementación — App de juegos simples (Web + Android)
 
 > Basado en `propuesta-app-juegos.md`. Gestor de paquetes: **pnpm**.
-> Estado de ejecución marcado con checkboxes. Completadas: Fase 0, Fase 1 y Fase 2 (merge a main). Siguiente: Fase 3 — Damas.
+> Estado de ejecución marcado con checkboxes. Completadas: Fase 0, Fase 1, Fase 2, Fase 2b y Fase 3 (rama `feature/fase-3-damas`). Siguiente: Fase 4.
 
 ---
 
@@ -234,15 +234,86 @@ ajustados sin asserts de estilos mid-drag (lo visual se verifica manualmente).
 
 ---
 
-### Fase 3 — Damas (~4–6 días)
+### Fase 3 — Damas (~5 días) — variante chilena, MVP sin récord ✅ COMPLETADA
 
-- [ ] `engine/board.ts`: tablero 8×8, índices 0..63, peón/dama
-- [ ] `engine/rules.ts`: movimientos diagonales, capturas obligatorias, multi-salto, coronación, fin de juego
-- [ ] `engine/state.ts`: turnos, selección, movimientos legales resaltados
-- [ ] UI: tablero grid de Views, tap-seleccionar/tap-mover (MVP 2 jugadores locales)
-- [ ] `rules.test.ts` con fixtures (captura obligatoria, multi-salto, coronación, fin)
-- [ ] E2E: partida corta con movimientos fijos hasta captura y fin
-- [ ] README + RULES
+Decisiones aprobadas con usuario antes de iniciar:
+- **Variante chilena/latina** (dama "vuela", peón captura adelante y atrás).
+- **Sin récord en MVP**: `onGameEnd` no se invoca; el modal solo anuncia al ganador.
+  Score/se persistencia se define en Fase 4 (IA). No se tocan `[id].tsx` ni repos.
+- **Interacción drag & drop** (reutiliza `src/core/ui/drag/useDraggable.ts`), paridad
+  de experiencia con solitario: lift, resaltado de targets válidos, settle animado,
+  snap-back en drop inválido.
+
+#### Decisiones de diseño de la fase
+
+| # | Decisión | Detalle |
+|---|---|---|
+| L1 | **Reglas chilenas 8×8** | Peón: mueve 1 diagonal adelante; **captura adelante y atrás**. Dama "vuela": mueve/captura cualquier distancia en diagonal, aterrizando en cualquier casilla vacía detrás de la pieza capturada |
+| L2 | **Captura obligatoria, elección libre** | Si existe captura, es obligatoria; el jugador elige cuál (sin regla de captura máxima internacional). Multi-salto obligatorio mientras haya capturas desde la casilla de llegada |
+| L3 | **Coronación termina el turno** | Si un peón llega a la última fila durante una cadena de capturas, se corona y el turno termina (simplificación documentada en RULES.md) |
+| L4 | **Fin de juego** | Pierde quien queda sin piezas o sin movimientos legales. Sin regla de tablas en MVP (movimientos repetidos) |
+| L5 | **Sin récord** | `onGameEnd` **no se invoca**; modal de fin anuncia "Gana jugador 1/2". En Fase 4 (IA) se define el score |
+| L6 | **Victoria forzada E2E** | Patrón solitario (S4): `initialSeed` con sentinels `test-capture` / `test-win` → tableros artesanales fijos. `types.ts` ya soporta `initialSeed` — **cero cambios en core** (solo +1 línea en registry) |
+
+#### Estructura de archivos
+
+```
+src/games/damas/
+  index.ts                # GameDefinition + línea en game-registry.ts
+  DamasScreen.tsx         # header (salir), indicador de turno, modales fin
+  components/
+    Piece.tsx             # ficha (peón/dama, color por jugador), a11y estable
+  engine/
+    board.ts              # PURO: tablero 8×8, índices 0..63, setup inicial, sentinels E2E
+    rules.ts              # PURO: movimientos legales peón/dama, capturas obligatorias,
+                          # cadenas de multi-salto, coronación, hasAnyMove, isGameOver
+    state.ts              # store Zustand: turno, selección, movimientos legales, applyMove, reset
+  __tests__/              # board.test.ts, rules.test.ts (el más exhaustivo), state.test.ts
+  __e2e__/
+    damas.web.spec.ts
+README.md + RULES.md
+```
+
+#### Desglose de tareas (orden de ejecución)
+
+**Día 1 — `board.ts`** + tests
+- [x] Representación 0..63 (solo casillas oscuras jugables), tipos Piece {player, king}, setup inicial (12 fichas por bando), sentinels `TEST_CAPTURE_SEED`/`TEST_WIN_SEED` (tableros artesanales, no dependen del PRNG)
+
+**Día 2 — `rules.ts`** (mayor riesgo de la fase) + tests exhaustivos
+- [x] Movimientos de peón, captura adelante/atrás, dama voladora, cadenas de multi-salto (generación recursiva de secuencias completas), obligatoriedad de captura, coronación, fin de juego. Fixtures con tableros artesanales
+
+**Día 3 — `state.ts`** + tests + registro
+- [x] Turno por jugador, selección y resaltado de movimientos legales, `applyMove` (cadena completa en un gesto: tap/drop sobre el destino final ejecuta la secuencia), detección de fin, `reset(seed?)`
+- [x] `index.ts` + línea en `game-registry.ts`; typecheck + web exporta
+
+**Día 4 — UI con drag & drop**
+- [x] Grid de Views 8×8, drag de ficha con `useDraggable` (lift + escala, targets válidos resaltados, settle animado, snap-back), indicador de turno, modales de fin. Labels a11y: `damas-celda-<0..63>`, `damas-turno-1|2`, `modal-fin-damas`, `salir-damas`, `jugar-de-nuevo-damas`
+
+**Día 5 — E2E web + docs**
+- [x] `damas.web.spec.ts`: snap-back ilegal (captura obligatoria); captura legal con cambio de turno; `?seed=test-win` → un drag → modal de fin (sin récord, L5) → jugar de nuevo reinicia; salir al Home
+- [x] README.md (técnico) + RULES.md (QA)
+
+#### Verificación final de la fase
+
+- [x] `pnpm typecheck` verde · `pnpm test` 144/144 (55 de damas, incl. regresión memorice+solitario) · export web OK · `pnpm e2e:web` 8/8 specs (3 de damas + 3 de solitario + 2 de memorice)
+
+#### Notas aprendidas durante la fase (para no repetir)
+
+- Bump de Playwright (1.62) exige re-instalar binarios: `pnpm exec playwright
+  install chromium` antes de correr E2E tras actualizar dependencias.
+- Índices de tablero: `index = row*8 + col` — al diseñar fixtures artesanales
+  verificar paridad oscura `(row+col) % 2 === 1` y mapeo exacto (ej: 10 = r1c2,
+  12 = r1c4, 3 = r0c3); el engine se validó correcto en los 7 fallos iniciales,
+  todos eran expectativas mal calculadas.
+
+#### Riesgos específicos de la fase
+
+| Riesgo | Mitigación |
+|---|---|
+| Dama voladora + multi-salto (complejidad combinatoria de secuencias) | Generación recursiva de cadenas completas en `rules.ts` puro, fixtures artesanales por caso |
+| Turnos 2 jugadores = máximo riesgo de "estado atascado" | `hasAnyMove` testeado; si no hay movimientos → fin de juego (L4) |
+| E2E sin récord | Se valida modal + flujo de salida; récord se verificará en Fase 4 al agregar IA/score |
+| Drag en grid (hit-test por casilla) | `layout.ts`/`hitTestSquare` matemático sobre coords del tablero — misma fuente para render e hit-test (patrón solitario) |
 
 ---
 
