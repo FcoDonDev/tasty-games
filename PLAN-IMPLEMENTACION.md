@@ -1,7 +1,7 @@
 # Plan de implementación — App de juegos simples (Web + Android)
 
 > Basado en `propuesta-app-juegos.md`. Gestor de paquetes: **pnpm**.
-> Estado de ejecución marcado con checkboxes. Fase 0 = en curso.
+> Estado de ejecución marcado con checkboxes. Completadas: Fase 0 y Fase 1 (merge a main). Siguiente: Fase 2 — Solitario.
 
 ---
 
@@ -54,18 +54,27 @@
 
 ---
 
-### Fase 1 — Memorice end-to-end (~2–3 días) — valida todo el pipeline
+### Fase 1 — Memorice end-to-end (~2–3 días) — valida todo el pipeline ✅ COMPLETADA
 
-- [ ] `src/games/memorice/engine/deck.ts` — mazo de pares + Fisher-Yates con seed opcional (determinismo para tests)
-- [ ] `engine/state.ts` — store Zustand propio (flip, matching, moves, victoria, reset); cronómetro por delta `Date.now()` (no ticks)
-- [ ] Convención score: `score = 100 - moves` (más = mejor)
-- [ ] UI: grid responsive, `Card.tsx` con flip animado (shared values, sin layout-animations por frame), tap
-- [ ] Modal de victoria + `onGameEnd(result)`
-- [ ] Tests unit: `deck.test.ts`, `state.test.ts`
-- [ ] E2E web (`memorice.web.spec.ts`, Playwright): partida 4 pares → modal + récord persistido
-- [ ] E2E Android (`memorice.android.yaml`, Maestro vs dev build): misma verificación
-- [ ] Regla transversal: todo interactivo con `accessibilityLabel` estable (selector de E2E)
-- [ ] `README.md` + `RULES.md`
+- [x] `src/games/memorice/engine/deck.ts` — mazo de pares + Fisher-Yates con seed opcional (determinismo para tests)
+- [x] `engine/state.ts` — store Zustand propio (flip, matching, moves, victoria, reset); cronómetro por delta `Date.now()` (no ticks)
+- [x] Convención score: `score = max(0, 100 - moves)` (más = mejor)
+- [x] UI: grid responsive (4 col / 3 en <420px), `Card.tsx` con flip en dos fases (0°→90°→0°, evita espejo de rotateY en web), tap
+- [x] Modal de victoria + `onGameEnd(result)` (único reporte vía `hasReportedRef`)
+- [x] Tests unit: `deck.test.ts`, `state.test.ts` (20/20 verdes)
+- [x] E2E web (`memorice.web.spec.ts`, Playwright): partida 8 pares → modal + récord persistido + ScoreBoard tras reload; flujo salir al Home — 2/2 specs verdes (partida completa ~32 s)
+- [x] Regla transversal: todo interactivo con `notas` de accesibilidad estables (`carta-N` con `exact:true`, `modal-victoria-memorice`, `salir-memorice`, `jugar-de-nuevo-memorice`)
+- [x] `README.md` (técnico) + `RULES.md` (reglas para QA)
+- [x] Tooling E2E: `scripts/e2e.mjs` (orquestador único cross-platform: export visible → serve → playwright → cleanup), scripts `pnpm e2e:web|headed|ui`, reporter HTML + traces
+- [~] E2E Android (`memorice.android.yaml`, Maestro vs dev build) → **movido a la sección "Fase E — E2E Android" al final del plan**
+
+Notas aprendidas durante la fase (para no repetir):
+- Playwright: clicks sobre botones `disabled` se difieren hasta que se habilitan —
+  en juegos con estados bloqueantes, el spec debe esperar el estado antes de clickear.
+- Reanimated en Jest requiere mocks propios (`__mocks__/`): el mock oficial de
+  reanimated inicializa worklets nativo y falla en Node.
+- Windows: nunca `spawn('pnpm')` sin `shell` (pnpm.cmd) — preferir resolver el
+  binario y lanzarlo con `process.execPath`.
 
 ---
 
@@ -127,3 +136,19 @@ El doc de la propuesta afirma "cada juego tomará una fracción del anterior". *
 4. `score` normalizado (más = mejor)
 5. Damas MVP = 2 jugadores locales; IA opcional (pendiente confirmación)
 6. `PRAGMA user_version` para migraciones
+
+---
+
+## Fase E — E2E Android (post-fases, al cierre del proyecto)
+
+⚠️ Requiere entorno con Java 17 + Android SDK/ADB (no disponibles al inicio del
+proyecto). Toda la validación E2E Android se concentra acá, una vez completadas
+las fases 2–4.
+
+- [ ] Instalar Temurin 17 + Android SDK; `pnpm exec expo run:android` (dev build)
+- [ ] Dark mode persiste tras recargar (dev build Android) — pendiente desde Fase 0
+- [ ] Récords: insertar/leer en Android (expo-sqlite) — verificar DDL + `PRAGMA user_version`
+- [ ] `memorice.android.yaml` (Maestro): partida completa → modal + récord
+- [ ] `solitario.android.yaml`: movimiento legal, ilegal con snap-back, victoria forzada
+- [ ] `damas.android.yaml`: partida corta hasta captura y fin
+- [ ] Maestro Cloud o emulador en CI (opcional)
