@@ -29,11 +29,12 @@ export interface SolitaireLayout {
 const PADDING = 8;
 const GAP = 4;
 const COLUMNS = 7;
-const MAX_CARD_WIDTH = 92;
-/** Reserva vertical para header/scoreboard/márgenes fuera del tablero. */
-const CHROME_HEIGHT = 210;
-/** Factor máximo de columna (carta + fan de ~19 cartas). */
-const MAX_COLUMN_FACTOR = 6.2;
+/** Mobile-first: en pantallas grandes la carta crece hasta este tope. */
+const MAX_CARD_WIDTH = 128;
+/** Reserva vertical para chromeBar del contenedor + header + scoreboard. */
+const CHROME_HEIGHT = 200;
+/** Factor de columna para caber en el alto disponible (carta + fan típico). */
+const MAX_COLUMN_FACTOR = 4.6;
 
 /**
  * Geometría del tablero: fuente única para render e hit-testing.

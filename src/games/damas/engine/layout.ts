@@ -12,8 +12,8 @@ export interface DamasLayout {
 
 /** Reserva lateral. */
 const PADDING = 12;
-/** Reserva vertical para header/scoreboard/márgenes fuera del tablero. */
-const CHROME_HEIGHT = 190;
+/** Reserva vertical para chromeBar del contenedor + header. */
+const CHROME_HEIGHT = 200;
 
 /**
  * Geometría del tablero: fuente única para render e hit-testing.

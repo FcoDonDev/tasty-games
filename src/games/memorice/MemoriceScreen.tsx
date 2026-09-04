@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { GameScreenProps, GameResult } from '@/core/types';
+import { GameHeader } from '@/core/ui/GameHeader';
 import { ScoreBoard } from '@/core/ui/ScoreBoard';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { Card } from './components/Card';
+import { columnsForWidth, computeCardSize } from './engine/layout';
 import { MISMATCH_CLEAR_MS, PAIR_COUNT, scoreFor, useMemoriceStore } from './engine/state';
 
 export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
   const theme = useTheme();
-  const { width } = useWindowDimensions();
-  const columns = width < 420 ? 3 : 4;
+  const { width, height } = useWindowDimensions();
+  const columns = columnsForWidth(width);
 
   const cards = useMemoriceStore((state) => state.cards);
   const flipped = useMemoriceStore((state) => state.flipped);
@@ -23,6 +25,16 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
 
   const [showWin, setShowWin] = useState(false);
   const hasReportedRef = useRef(false);
+
+  // Tamaño de carta derivado de ancho Y alto: el grid completo cabe sin scroll
+  const { cardWidth, cardHeight } = useMemo(
+    () => computeCardSize(width, height, columns, PAIR_COUNT * 2),
+    [width, height, columns],
+  );
+  const rows = useMemo(
+    () => Array.from({ length: Math.ceil(cards.length / columns) }, (_, r) => cards.slice(r * columns, (r + 1) * columns)),
+    [cards, columns],
+  );
 
   useEffect(() => {
     hasReportedRef.current = false;
@@ -66,44 +78,44 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="salir-memorice"
-          onPress={onExit}
-          style={[styles.exitButton, { borderColor: theme.surfaceBorder }]}
-        >
-          <Text style={[styles.exitText, { color: theme.textMuted }]}>← Salir</Text>
-        </Pressable>
-        <Text style={[styles.moves, { color: theme.text }]}>Intentos: {moves}</Text>
-      </View>
+      <GameHeader
+        gameId="memorice"
+        onExit={onExit}
+        onRestart={handleReset}
+        center={<Text style={[styles.moves, { color: theme.text }]}>Intentos: {moves}</Text>}
+      />
 
       <ScoreBoard gameId="memorice" />
 
-      <FlatList
-        data={cards}
-        keyExtractor={(card) => card.id}
-        numColumns={columns}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.grid}
-        renderItem={({ item, index }) => (
-          <Card
-            card={item}
-            index={index}
-            faceUp={isFaceUp(item.id)}
-            matched={matched.includes(item.id)}
-            disabled={flipped.length >= 2}
-            onPress={() => flipCard(item.id)}
-            style={{
-              backgroundColor: theme.surface,
-              surfaceBorder: theme.surfaceBorder,
-              question: theme.textMuted,
-              matchedBg: theme.primary,
-              matchedBorder: theme.primary,
-            }}
-          />
-        )}
-      />
+      <View style={styles.board}>
+        {rows.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.row}>
+            {row.map((card, indexInRow) => {
+              const index = rowIndex * columns + indexInRow;
+              return (
+                <Card
+                  key={card.id}
+                  card={card}
+                  index={index}
+                  faceUp={isFaceUp(card.id)}
+                  matched={matched.includes(card.id)}
+                  disabled={flipped.length >= 2}
+                  onPress={() => flipCard(card.id)}
+                  width={cardWidth}
+                  height={cardHeight}
+                  style={{
+                    backgroundColor: theme.surface,
+                    surfaceBorder: theme.surfaceBorder,
+                    question: theme.textMuted,
+                    matchedBg: theme.primary,
+                    matchedBorder: theme.primary,
+                  }}
+                />
+              );
+            })}
+          </View>
+        ))}
+      </View>
 
       {showWin ? (
         <View
@@ -141,12 +153,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 52,
+  moves: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   exitButton: {
     borderWidth: 1,
@@ -158,17 +167,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  moves: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  grid: {
+  board: {
+    flex: 1,
+    justifyContent: 'center',
     paddingHorizontal: 12,
-    paddingBottom: 24,
-    gap: 4,
   },
   row: {
-    gap: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 8,
   },
   overlay: {
     position: 'absolute',

@@ -33,5 +33,7 @@ export interface GameDefinition {
   description: string;
   thumbnail?: ImageSourcePropType; // require('./assets/thumb.png')
   minDurationHint?: string; // ej: "5-10 min", solo informativo
+  /** Reglas condensadas para la ayuda in-app (RULES.md sigue siendo la fuente QA) */
+  rules?: string;
   Component: ComponentType<GameScreenProps>;
 }
