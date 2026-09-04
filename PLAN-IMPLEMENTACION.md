@@ -1,7 +1,7 @@
 # Plan de implementación — App de juegos simples (Web + Android)
 
 > Basado en `propuesta-app-juegos.md`. Gestor de paquetes: **pnpm**.
-> Estado de ejecución marcado con checkboxes. Completadas: Fase 0 y Fase 1 (merge a main). Siguiente: Fase 2 — Solitario.
+> Estado de ejecución marcado con checkboxes. Completadas: Fase 0, Fase 1 y Fase 2 (merge a main). Siguiente: Fase 3 — Damas.
 
 ---
 
@@ -78,15 +78,159 @@ Notas aprendidas durante la fase (para no repetir):
 
 ---
 
-### Fase 2 — Solitario (Klondike) (~4–6 días)
+### Fase 2 — Solitario (Klondike) (~5–6 días) ✅ COMPLETADA
 
-- [ ] `engine/deck.ts` + reparto (7 tableau, stock, waste, 4 foundations)
-- [ ] `engine/rules.ts` (puro): validez tableau↔foundation↔tableau, alternancia color, secuencias, volteo, reciclaje stock, victoria, sin-movimientos
-- [ ] `engine/state.ts`: `moveCard`, `drawStock`, undo (snapshots)
-- [ ] **Drag & drop real** (patrón reutilizable para damas): `Gesture.Pan` + shared values; drop-zones por layout calculado (evitar `measure()` async); snap-back si inválido; `runOnJS` para validar
-- [ ] `rules.test.ts` exhaustivo (mayor riesgo del proyecto)
-- [ ] E2E acotado: movimiento legal, intento ilegal con snap-back, victoria forzada vía flag de test (victoria orgánica queda cubierta por unit tests)
-- [ ] README + RULES
+#### Decisiones de la fase (aprobadas con usuario)
+
+| # | Decisión | Detalle |
+|---|---|---|
+| S1 | **Draw 1 / Draw 3 configurable** | Setting in-game (modal de ajustes con engranaje en el header), persistido en `preferencesRepository` (claves `solitario.drawMode`, `solitario.undo`). Aplica al **próximo reparto** (el cambio a mitad de partida no rebaraja) |
+| S2 | **Score = f(tiempo, movimientos, undos)** | `score = max(0, 1000 − 5·moves − floor(segundos/2) − 25·undos)`. Ganada típica (~120 moves, ~5 min) ≈ 250 pts. Función pura `scoreFor(moves, durationMs, undos)` en `engine/rules.ts`, testeada |
+| S3 | **Undo** | Default: **off** (botón oculto). Setting on = ilimitado vía snapshots inmutables en el store; cada undo se cuenta y penaliza el score (S2) |
+| S4 | **Victoria forzada E2E** | `deal(seed)` acepta sentinel `TEST_WIN_SEED` que devuelve estado artesanal (3 palos completos en foundations + 4º palo sin el As, que queda top de un tableau → un solo drag gana). Activado con query param `?seed=test-win`, reenviado a la pantalla solo si `process.env.EXPO_PUBLIC_E2E === '1'` |
+| S5 | **Solo se reportan victorias** vía `onGameEnd` (paridad con memorice). Sin-movimientos muestra modal de derrota sin récord; `hasAnyMove()` igualmente testeada |
+| S6 | `mulberry32` se **duplica** en `solitario/engine/deck.ts` (regla dura: nada bajo `src/games/<a>/` importa de `src/games/<b>/`). Extraerlo a `src/core/` queda como refactor opcional posterior |
+
+#### Estructura de archivos
+
+```
+src/games/solitario/
+  index.ts                      # GameDefinition + registro
+  SolitarioScreen.tsx           # pantalla, header (salir/undo/ajustes), modales
+  components/
+    PlayingCard.tsx             # carta visual (palo/rango/dorso), a11y label estable
+    Pile.tsx                    # pila (stock/waste/foundation/tableau) con "fan" vertical
+    SettingsModal.tsx           # draw 1|3 + undo on/off
+  engine/
+    deck.ts                     # Suit/Rank/Card, mazo 52, mulberry32, deal(seed), TEST_WIN_SEED
+    rules.ts                    # PURO: validez de movimientos, hasAnyMove, isWon, scoreFor
+    state.ts                    # store Zustand: piles, draw/recycle, moveCards, undo (snapshots)
+    layout.ts                   # PURO: rects de cada pila dado tamaño contenedor + hit-test
+  __tests__/
+    deck.test.ts
+    rules.test.ts               # el más exhaustivo del proyecto (≥25 casos)
+    state.test.ts
+    layout.test.ts              # hit-testing de rects
+  __e2e__/
+    solitario.web.spec.ts
+src/core/ui/drag/
+  useDraggable.ts               # patrón reutilizable Gesture.Pan + shared values (base para damas)
+```
+
+Cambios fuera de la carpeta del juego (mínimos):
+- [x] `src/core/game-registry.ts`: +1 línea
+- [x] `src/core/types.ts`: `GameScreenProps` gana `initialSeed?: string` (opcional, retrocompatible)
+- [x] `app/juego/[id].tsx`: reenvía `seed` de `useLocalSearchParams` solo con `EXPO_PUBLIC_E2E=1` (S4)
+- [x] `scripts/e2e.mjs`: exportar con `EXPO_PUBLIC_E2E=1` (+ `--clear`, ver notas aprendidas)
+
+#### Diseño técnico
+
+- **Engine puro**: `Card { suit: '♠'|'♥'|'♦'|'♣', rank: 1..13, id, faceUp }`; piles tipadas `{ tableau: Card[][], foundations: Card[][], stock, waste }`. `rules.ts`: `canDropOnTableau` (desc. + color alternado, K a columna vacía), `canDropOnFoundation` (mismo palo, asc.), `legalSequences(col)`, `hasAnyMove(state, drawMode)` (incluye draw/recycle), `isWon(state)`.
+- **state.ts**: `drawStock()` (respeta drawMode; recicla waste→stock al agotarse), `moveCards(from, to, count)`, flip implícito del top de tableau tras mover, `undo()` (snapshot push en cada acción solo si undo habilitado), `reset(seed?, settings)`.
+- **Drag & drop**: `layout.ts` calcula **matemáticamente** los rects de las 13 pilas desde el tamaño del contenedor (`onLayout`, síncrono) — nada de `measure()` async. Render (posición absoluta) e hit-test consumen la misma función → fuente única de verdad, testeable en Jest. `useDraggable.ts`: `Gesture.Pan` con `activeOffsetX/Y`, shared values `tx/ty/active`; en `onEnd` `runOnJS` → hit-test → si válido `moveCards`, si inválido snap-back (`withTiming` a 0). La subsecuencia arrastrada se mueve como grupo (un solo animated view).
+- **Responsive**: tamaño de carta derivado del ancho; en <420px solapamiento mayor en tableau (mobile primero).
+
+#### Desglose de tareas (orden de ejecución)
+
+**Día 1 — engine puro de reglas**
+- [x] `engine/deck.ts`: tipos, mazo 52, `mulberry32`, `deal(seed)` → 7 tableau (col i = i+1 cartas, top faceUp), stock 24, waste, 4 foundations; sentinels `TEST_WIN_SEED` + `TEST_MOVE_SEED` (S4) y `parseSeed()`
+- [x] `engine/rules.ts` (puro): validez tableau↔foundation↔tableau, alternancia color, secuencias (`isValidSequence`, `canPickUp`), `hasAnyMove`, `isWon`, `scoreFor` (S2)
+- [x] `__tests__/rules.test.ts` exhaustivo — **mayor riesgo del proyecto** (fixtures: alternancia, K a vacío, foundation→tableau, sin-movimientos, victoria, score con undos)
+- [x] Criterio: `pnpm test -- rules` verde — 32 casos
+
+**Día 2 — store y registro**
+- [x] `engine/state.ts`: `drawStock`/reciclaje, `moveCards`, undo snapshots, score, `reset(settings?)` determinista + `__tests__/state.test.ts`
+- [x] `index.ts` + línea en `game-registry.ts`; typecheck + web exporta
+
+**Día 3 — layout y render absoluto**
+- [x] `engine/layout.ts` (rects + `columnExtent` + `cardPosition` + `hitTestPile`) + `__tests__/layout.test.ts`
+- [x] `components/PlayingCard.tsx`, `Pile.tsx`, render absoluto de las 13 pilas
+
+**Día 4 — drag & drop (riesgo técnico)**
+- [x] `src/core/ui/drag/useDraggable.ts`: patrón reutilizable (`Gesture.Pan` + shared values + `runOnJS`)
+- [x] Wiring en pantalla: drag válido → `moveCards`; inválido → snap-back animado (`withTiming` 160 ms); flip de tableau; drag de subsecuencia como grupo (shared values `tx/ty` de la pantalla + `dragKey`)
+- [x] Drop point = origen de la carta + traslación del gesto (coords del tablero) — sin conversión a coords de pantalla
+
+**Día 5 — settings, modales y documentación**
+- [x] `SettingsModal.tsx` (draw 1|3, undo on/off) con persistencia vía `preferencesRepository` (`solitario.drawMode`, `solitario.undo`; drawMode aplica al próximo reparto, undo inmediato)
+- [x] Modales victoria/derrota; `onGameEnd` con patrón `hasReportedRef`; cronómetro por delta `Date.now()`
+- [x] README.md (técnico) + RULES.md (QA); labels a11y: `solitario-card-<id>`, `solitario-tableau-<i>`, `solitario-foundation-<i>`, `solitario-stock`, `solitario-waste`, `modal-victoria-solitario`, `modal-derrota-solitario`, `salir-solitario`, `solitario-undo`, `solitario-ajustes`
+
+**Día 6 — E2E web**
+- [x] Gate `EXPO_PUBLIC_E2E=1` en `e2e.mjs` y reenvío de `seed` en `[id].tsx` + `initialSeed` en `types.ts`
+- [x] `__e2e__/solitario.web.spec.ts` (Playwright, drag con `page.mouse` down → move escalonado → up):
+  1. Movimiento legal (A♠ → foundation) con seed `test-move` — ✓
+  2. Intento ilegal → snap-back (A♠ vuelve a la waste, moves sin cambiar) — ✓
+  3. `?seed=test-win` → un drag (K♣) → modal victoria → récord en `localStorage` → ScoreBoard tras reload — ✓
+  4. Salir al Home — ✓
+
+#### Verificación final de la fase
+
+- [x] `pnpm typecheck` verde · `pnpm test` verde (89/89, incl. regresión memorice) · `CI=1 expo export --platform web` OK · `pnpm e2e:web` 5/5 specs (3 de solitario + 2 de memorice)
+
+#### Notas aprendidas durante la fase (para no repetir)
+
+- **Cache de Metro ignora `EXPO_PUBLIC_*` en export:** exportar con la env var tras haber
+  exportado sin ella sirve transforms cacheados con la variable doblada a `undefined`
+  (`initialSeed:void 0`). Solución: `expo export --clear` en `scripts/e2e.mjs`.
+- **Servidor huérfano en :4173 corrompe el E2E:** un `serve` manual olvidado hace que
+  `e2e.mjs` "reutilice" un `dist/` viejo (síntoma: cambios recientes no aparecen en los
+  specs). Detenerlo por PID — ver sección "Procesos en background" en AGENTS.md.
+- **Stock como Pressable:** la carta top del stock se renderiza DENTRO del Pressable con
+  `pointerEvents="none"`; como hermana absoluta bloquearía el tap (hit-testing nativo).
+- TypeScript rechaza caracteres unicode (♠) como texto JSX directo — usar `{'♠'}`.
+
+#### Riesgos específicos de la fase
+
+| Riesgo | Mitigación |
+|---|---|
+| Pan gesture en web intercepta scroll/click | `activeOffsetX/Y` ±10; drag solo en cartas arrastrables; prototipo web el día 4 antes de pulir UI |
+| `runOnJS` + worklets en web (primera vez en el repo) | Hook mínimo y probado aislado antes de integrar a la pantalla |
+| Hit-test desincronizado con render | Render e hit-test consumen `layout.ts` (fuente única, testeada) |
+| Seed de victoria forzada frágil | Estado artesanal fijo, no depende del PRNG/shuffle |
+
+---
+
+### Fase 2b — Ajustes post-Feedback (fan + UX de drag) (~½ día) ✅ COMPLETADA
+
+Feedback de usuario tras el merge de Fase 2: (1) no se ven las cartas "debajo" en el
+tableau (solo el top), (2) el drag funciona pero sin experiencia (sin lift, sin feedback
+de targets, drop "teletransportado", snap-back rígido).
+
+#### Ajuste 1 — Fan del tableau (bug de render)
+
+- Causa raíz: en `Pile.tsx`, `firstRendered` calculaba cartas visibles como
+  `waste ? 3 : 1` — el tableau solo renderizaba el top. Los offsets de `layout.ts`
+  (`faceDownOffset`/`faceUpOffset`) existen pero las cartas debajo no se pintaban.
+- [x] `Pile.tsx`: `firstRendered` por tipo — tableau → 0 (todas), waste → últimas 3,
+      foundation → solo top. `zIndex: index` ya garantiza el apilado correcto.
+
+#### Ajuste 2 — Experiencia drag & drop (solo capa de presentación; engine/ sin cambios)
+
+Decisión: **solo resaltar targets válidos** (inválidos sin cambio visual); specs E2E
+ajustados sin asserts de estilos mid-drag (lo visual se verifica manualmente).
+
+- [x] **Lift** (`PileCard`): `useSharedValue` de escala → `withSpring(1.05)` al activar,
+      `withSpring(1)` al soltar + sombra estática condicional a `dragActive`
+- [x] **Highlight de targets válidos** (`SolitarioScreen` + `Pile`): en drag start,
+      precomputar `validTargets: Set<string>` con `canDropOnTableau`/`canDropOnFoundation`
+      contra las 7 columnas + 4 foundations (cero cómputo por frame); slots válidos con
+      borde `theme.primary` + glow suave
+- [x] **Settle animado en drop válido** (`handleDragEnd`): commit `moveCards` →
+      `tx/ty = posiciónVisual − posiciónFinal` → `withTiming(0, ~120ms)` con `dragKey`
+      retenido hasta terminar. La carta glisa del punto de suelte a su asiento (sin
+      salto cuando el drop cae a mitad de columna)
+- [x] **Snap-back con spring**: `withSpring` en vez de `withTiming`
+
+#### Ajuste 3 — Spec E2E
+
+- [x] Tras drop válido: `waitForTimeout(300)` antes de medir bounding boxes (settle 120 ms)
+- [x] Assertion de fan: reparto aleatorio → count de `solitario-card-*` ≥ 29 (28 tableau + 1 stock)
+- [x] Los 3 specs existentes mantienen su lógica
+
+#### Verificación
+
+- [x] `pnpm typecheck` verde · `pnpm test` 89/89 (sin cambios en engine) · `pnpm e2e:web` 5/5 · verificación visual con captura (fan correcto)
 
 ---
 

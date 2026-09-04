@@ -7,9 +7,12 @@ import { useTheme } from '@/core/ui/ThemeProvider';
 import type { GameResult } from '@/core/types';
 
 export default function GameScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, seed } = useLocalSearchParams<{ id: string; seed?: string }>();
   const theme = useTheme();
   const game = getGameById(id);
+  // El seed solo llega al juego en builds E2E (EXPO_PUBLIC_E2E=1): en producción
+  // nunca existe un canal para alterar el reparto.
+  const initialSeed = process.env.EXPO_PUBLIC_E2E === '1' ? seed : undefined;
 
   const handleGameEnd = useCallback(
     async (result: GameResult) => {
@@ -38,7 +41,7 @@ export default function GameScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <GameComponent onExit={() => router.back()} onGameEnd={handleGameEnd} />
+      <GameComponent onExit={() => router.back()} onGameEnd={handleGameEnd} initialSeed={initialSeed} />
     </View>
   );
 }

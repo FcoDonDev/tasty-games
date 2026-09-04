@@ -48,6 +48,17 @@ Nunca editar el DDL existente en `src/core/db/schema.ts`. Sumar `SCHEMA_VERSION`
 - Si la correción es sencilla entonces aplicala y notificala. Si es compleja y/o requiere definiciones que pueden afectar otros componentes, entonces valida con usuario antes de corregirla.
 - Si existen errores en modulos que no se modificaron en la sesion entonces no los corrijas automaticamente, reporta al usuario los hallazgos y enfocate en los errores que si se deben a los cambios aplicados. 
 
+## Procesos en background
+
+- **No usar `pkill`** (ni `pkill -f`, ni `pkill -9`): cuelga la sesión del agente y no se continúa el proceso. Aplica a cualquier proceso: servidores de dev (`expo start`), `serve dist`, etc.
+- Opción preferida: al lanzar un proceso en background, guardar su PID en `tmp/` (carpeta en la raíz del repo, gitignored; crear si no existe) y detenerlo por PID:
+  - Ejemplo: `npx serve dist -l 4173 --single & echo $! > tmp/serve.pid`
+  - Detener: `kill $(cat tmp/serve.pid)` (o crear un `tmp/dev-stop.sh` que haga `kill $(cat tmp/*.pid)` y borre los .pid).
+  - Si el proceso tiene hijos propios (como el `serve` de `scripts/e2e.mjs`), matar el grupo: `kill -- -$(cat tmp/serve.pid)` lanzándolo antes con `setsid`.
+- Alternativa: pedir al usuario que ejecute el comando de detención manualmente.
+- `scripts/e2e.mjs` ya gestiona su propio ciclo de vida (export → serve → cleanup al salir); no dejar serves huérfanos manuales: si un e2e falla a mitad de corrida, reintentar `node scripts/e2e.mjs` (reutiliza/mata el servidor en :4173) en vez de matar procesos a mano.
+- Síntoma de servidor huérfano en :4173: `e2e.mjs` imprime "Reutilizando servidor activo" y corre contra un `dist/` viejo (cambios recientes "no aparecen"). Detenerlo por PID (o pedir al usuario) y relanzar.
+
 ## Gotchas del toolchain
 
 - Reanimated 4 requiere New Architecture (default en SDK 57, no desactivar) y `react-native-worklets` — versiones deben venir de `expo install`, no manual.
