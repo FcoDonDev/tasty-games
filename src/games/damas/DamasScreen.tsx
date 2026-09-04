@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { runOnJS, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import type { GameScreenProps } from '@/core/types';
+import { GameHeader } from '@/core/ui/GameHeader';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { isDark, parseSetupSeed } from './engine/board';
 import { computeLayout, hitTestSquare, squarePosition } from './engine/layout';
@@ -105,6 +106,10 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
     reset();
   }, [reset]);
 
+  const handleRestart = useCallback(() => {
+    reset();
+  }, [reset]);
+
   if (!ready) {
     return (
       <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
@@ -115,25 +120,22 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="salir-damas"
-          onPress={onExit}
-          style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
-        >
-          <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>← Salir</Text>
-        </Pressable>
-
-        <Text
-          accessibilityLabel={`damas-turno-${turn}`}
-          style={[styles.turn, { color: theme.text }]}
-        >
-          Turno: Jugador {turn}
-        </Text>
-
-        <Text style={[styles.moves, { color: theme.textMuted }]}>Movimientos: {moves}</Text>
-      </View>
+      <GameHeader
+        gameId="damas"
+        onExit={onExit}
+        onRestart={handleRestart}
+        center={
+          <View style={styles.centerStack}>
+            <Text
+              accessibilityLabel={`damas-turno-${turn}`}
+              style={[styles.turn, { color: theme.text }]}
+            >
+              Turno: Jugador {turn}
+            </Text>
+            <Text style={[styles.moves, { color: theme.textMuted }]}>Movimientos: {moves}</Text>
+          </View>
+        }
+      />
 
       <View style={[styles.board, { height: layout.boardSize }]}>
         {Array.from({ length: 64 }, (_, i) => {
@@ -221,14 +223,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 52,
-    gap: 8,
-  },
   headerButton: {
     borderWidth: 1,
     borderRadius: 10,
@@ -243,8 +237,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  centerStack: {
+    alignItems: 'center',
+  },
   moves: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   board: {
@@ -266,6 +263,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 50,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,

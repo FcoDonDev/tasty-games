@@ -22,7 +22,19 @@ describe('computeLayout', () => {
     const short = computeLayout(390, 500);
     expect(short.cardWidth).toBeLessThanOrEqual(layout.cardWidth);
     const huge = computeLayout(1400, 1200);
-    expect(huge.cardWidth).toBeLessThanOrEqual(92); // cap
+    expect(huge.cardWidth).toBeLessThanOrEqual(128); // cap
+  });
+
+  it('mobile-first: el tablero completo cabe en un viewport 360×640', () => {
+    const mobile = computeLayout(360, 640);
+    const maxExtent = Math.max(
+      ...Array.from({ length: 7 }, (_, col) =>
+        columnExtent(mobile, Array.from({ length: col + 1 }, (_, i) => ({ id: `c${i}`, suit: 'S' as const, rank: 5, faceUp: i === col }))),
+      ),
+    );
+    const boardHeight = mobile.tableau[0].y + maxExtent + 16;
+    // el tablero inicial (peor columna con 7 cartas) cabe bajo el chrome
+    expect(boardHeight).toBeLessThanOrEqual(640 - 200);
   });
 
   it('el fan de faceUp es mayor que el de faceDown', () => {

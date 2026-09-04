@@ -40,6 +40,10 @@ export const recordsRepository = {
     return row ? toResult(row) : null;
   },
 
+  async clearAll(): Promise<void> {
+    getDb().runSync('DELETE FROM game_records');
+  },
+
   async historyFor(gameId: string): Promise<GameResult[]> {
     const rows = getDb().getAllSync<GameRecordRow>(
       `SELECT game_id, won, score, duration_ms, finished_at

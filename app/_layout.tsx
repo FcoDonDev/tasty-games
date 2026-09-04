@@ -22,6 +22,7 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="index" />
+            <Stack.Screen name="ajustes" />
             <Stack.Screen name="juego/[id]" />
           </Stack>
         </View>

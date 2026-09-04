@@ -1,8 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getGameById } from '@/core/game-registry';
 import { recordsRepository } from '@/core/db/repositories/recordsRepository';
+import { HelpModal } from '@/core/ui/HelpModal';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import type { GameResult } from '@/core/types';
 
@@ -13,6 +14,7 @@ export default function GameScreen() {
   // El seed solo llega al juego en builds E2E (EXPO_PUBLIC_E2E=1): en producción
   // nunca existe un canal para alterar el reparto.
   const initialSeed = process.env.EXPO_PUBLIC_E2E === '1' ? seed : undefined;
+  const [showHelp, setShowHelp] = useState(false);
 
   const handleGameEnd = useCallback(
     async (result: GameResult) => {
@@ -41,7 +43,26 @@ export default function GameScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <GameComponent onExit={() => router.back()} onGameEnd={handleGameEnd} initialSeed={initialSeed} />
+      <View style={styles.chromeBar}>
+        <Text style={[styles.chromeTitle, { color: theme.textMuted }]}>{game.name}</Text>
+        {game.rules ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`ayuda-contenedor-${game.id}`}
+            accessibilityHint="Muestra las reglas del juego"
+            onPress={() => setShowHelp(true)}
+            style={[styles.chromeHelp, { borderColor: theme.surfaceBorder }]}
+          >
+            <Text style={[styles.chromeHelpText, { color: theme.textMuted }]}>?</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={styles.gameArea}>
+        <GameComponent onExit={() => router.back()} onGameEnd={handleGameEnd} initialSeed={initialSeed} />
+      </View>
+      {game.rules ? (
+        <HelpModal gameId={game.id} rules={game.rules} visible={showHelp} onClose={() => setShowHelp(false)} />
+      ) : null}
     </View>
   );
 }
@@ -54,6 +75,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
+  },
+  chromeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 44,
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+  },
+  chromeTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  chromeHelp: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  chromeHelpText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  gameArea: {
+    flex: 1,
   },
   title: {
     fontSize: 20,

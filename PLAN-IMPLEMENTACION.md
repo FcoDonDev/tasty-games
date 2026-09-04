@@ -1,7 +1,7 @@
 # Plan de implementación — App de juegos simples (Web + Android)
 
 > Basado en `propuesta-app-juegos.md`. Gestor de paquetes: **pnpm**.
-> Estado de ejecución marcado con checkboxes. Completadas: Fase 0, Fase 1, Fase 2, Fase 2b y Fase 3 (rama `feature/fase-3-damas`). Siguiente: Fase 4.
+> Estado de ejecución marcado con checkboxes. Completadas: Fase 0, Fase 1, Fase 2, Fase 2b y Fase 3 (merge a main). Siguiente: Fase 4 (release Android pospuesto a Fase E).
 
 ---
 
@@ -12,6 +12,7 @@
 | D1 | **Render: Views nativos + Reanimated + gesture-handler.** Skia queda fuera del MVP. Si luego se quieren efectos (partículas al ganar, fondos), se agrega aislado en `src/core/ui/effects/` | Para UI interactiva (tap, drag & drop), cada carta/ficha como nodo nativo da hit-testing, accesibilidad y soporte web gratis. Skia habría exigido CanvasKit WASM de 2.9 MB en web, entry point custom (`index.web.tsx` + `LoadSkiaWeb`), bugs conocidos con tree-shaking (`SkiaViewApi is not defined`, issues #3345/#2914 de Shopify/react-native-skia) y el límite de 16 contextos WebGL/página |
 | D2 | **Persistencia: interfaz de repositorios con 2 implementaciones** — `*.ts` (expo-sqlite, nativo) y `*.web.ts` (localStorage, resuelto por Metro automáticamente). Sin COOP/COEP ni WASM en Metro | expo-sqlite web está en alpha y exige headers `Cross-Origin-Opener-Policy`/`Embedder-Policy` + SharedArrayBuffer. Para récords y preferencias, localStorage es suficiente y estable. La propuesta ya aísla el acceso a datos |
 | D3 | **E2E Android contra dev build** (`npx expo run:android`), no Expo Go | Maestro con Expo Go requiere `openLink: exp://...` y servidor Metro corriendo → flujos frágiles. Dev build = `launchApp` normal, determinista. Reanimated 4 + `react-native-worklets` funcionan más fiable en dev build |
+| D4 | **Mobile-first y responsive: toda interfaz debe verse bien a 360×640 sin scroll innecesario y aprovechar el espacio disponible** | La app targetea móvil (Web + Android). Los layouts de juego derivan de `computeLayout(width, height)`; la deuda actual (memorice con scroll, solitario sin usar toda la pantalla) se corrige en Fase 4 y queda como criterio de aceptación para cualquier UI nueva |
 
 **Corrección al contrato de la propuesta:** `bestFor()` ordena `score DESC` (más = mejor), pero memorice premia *menos* movimientos. **Regla:** cada juego define `score` donde más es mejor (memorice: `score = 100 - moves` o similar). Se fija en la Fase 1.
 
@@ -317,14 +318,249 @@ README.md + RULES.md
 
 ---
 
-### Fase 4 — Pulido y release (~2–3 días)
+### Fase 4 — Pulido: responsive mobile-first + release web (~4–5 días) ✅ COMPLETADA
 
-- [ ] Settings: dark mode + borrar récords (confirmación)
-- [ ] ScoreBoard en Home (mejor récord por juego)
-- [ ] Modal de ayuda in-app con reglas
-- [ ] Release web: `pnpm expo export --platform web` + deploy estático
-- [ ] Release Android: `eas build -p android` (preview APK / producción AAB); probar release build
-- [ ] CI: GitHub Actions (job web Playwright; job Android opcional con Maestro Cloud)
+#### Consideración crítica (regla transversal, aprobada con usuario)
+
+> **Todas las interfaces deben ser mobile-first y responsive.** Deuda actual:
+> memorice genera **scroll** (el tablero no cabe en la ventana) y solitario
+> **no aprovecha toda la pantalla** (espacio muerto bajo el tablero). Se
+> corrige en esta fase y queda como criterio de aceptación para cualquier UI nueva.
+
+#### Decisiones aprobadas con usuario
+
+| # | Decisión | Detalle |
+|---|---|---|
+| P1 | **Release Android pospuesto** | Se fusiona con **Fase E** (requiere Java 17 + SDK igualmente). CI Android/Maestro Cloud también se pospone |
+| P2 | **Release web sin deploy** | Solo build validado (`CI=1 expo export`); el deploy estático es manual/futuro, fuera de alcance |
+| P3 | **Récord dentro de cada GameCard** | ScoreBoard reutilizado en variante compacta; el récord queda asociado visualmente al juego |
+| P4 | **Header estandarizado en core** | `GameHeader` (salir / reiniciar / ayuda) + acciones propias por juego. Ayuda accesible desde el header del juego **y** desde el contenedor `[id].tsx` |
+| P5 | **CI mínima** | Solo `typecheck` + `test` en GitHub Actions (sin Playwright, sin Android; se amplía en Fase E) |
+| P6 | **Mobile-first y responsive** | Regla transversal; corrección de memorice y solitario (ver Item 0) |
+
+#### Riesgos específicos de la fase
+
+| Riesgo | Mitigación |
+|---|---|
+| Pan gesture en web intercepta scroll/click | `activeOffsetX/Y` ±10; drag solo en cartas arrastrables; prototipo web el día 4 antes de pulir UI |
+| `runOnJS` + worklets en web (primera vez en el repo) | Hook mínimo y probado aislado antes de integrar a la pantalla |
+| Hit-test desincronizado con render | Render e hit-test consumen `layout.ts` (fuente única, testeada) |
+| Seed de victoria forzada frágil | Estado artesanal fijo, no depende del PRNG/shuffle |
+
+---
+
+### Fase 2b — Ajustes post-Feedback (fan + UX de drag) (~½ día) ✅ COMPLETADA
+
+Feedback de usuario tras el merge de Fase 2: (1) no se ven las cartas "debajo" en el
+tableau (solo el top), (2) el drag funciona pero sin experiencia (sin lift, sin feedback
+de targets, drop "teletransportado", snap-back rígido).
+
+#### Ajuste 1 — Fan del tableau (bug de render)
+
+- Causa raíz: en `Pile.tsx`, `firstRendered` calculaba cartas visibles como
+  `waste ? 3 : 1` — el tableau solo renderizaba el top. Los offsets de `layout.ts`
+  (`faceDownOffset`/`faceUpOffset`) existen pero las cartas debajo no se pintaban.
+- [x] `Pile.tsx`: `firstRendered` por tipo — tableau → 0 (todas), waste → últimas 3,
+      foundation → solo top. `zIndex: index` ya garantiza el apilado correcto.
+
+#### Ajuste 2 — Experiencia drag & drop (solo capa de presentación; engine/ sin cambios)
+
+Decisión: **solo resaltar targets válidos** (inválidos sin cambio visual); specs E2E
+ajustados sin asserts de estilos mid-drag (lo visual se verifica manualmente).
+
+- [x] **Lift** (`PileCard`): `useSharedValue` de escala → `withSpring(1.05)` al activar,
+      `withSpring(1)` al soltar + sombra estática condicional a `dragActive`
+- [x] **Highlight de targets válidos** (`SolitarioScreen` + `Pile`): en drag start,
+      precomputar `validTargets: Set<string>` con `canDropOnTableau`/`canDropOnFoundation`
+      contra las 7 columnas + 4 foundations (cero cómputo por frame); slots válidos con
+      borde `theme.primary` + glow suave
+- [x] **Settle animado en drop válido** (`handleDragEnd`): commit `moveCards` →
+      `tx/ty = posiciónVisual − posiciónFinal` → `withTiming(0, ~120ms)` con `dragKey`
+      retenido hasta terminar. La carta glisa del punto de suelte a su asiento (sin
+      salto cuando el drop cae a mitad de columna)
+- [x] **Snap-back con spring**: `withSpring` en vez de `withTiming`
+
+#### Ajuste 3 — Spec E2E
+
+- [x] Tras drop válido: `waitForTimeout(300)` antes de medir bounding boxes (settle 120 ms)
+- [x] Assertion de fan: reparto aleatorio → count de `solitario-card-*` ≥ 29 (28 tableau + 1 stock)
+- [x] Los 3 specs existentes mantienen su lógica
+
+#### Verificación
+
+- [x] `pnpm typecheck` verde · `pnpm test` 89/89 (sin cambios en engine) · `pnpm e2e:web` 5/5 · verificación visual con captura (fan correcto)
+
+---
+
+### Fase 3 — Damas (~5 días) — variante chilena, MVP sin récord ✅ COMPLETADA
+
+Decisiones aprobadas con usuario antes de iniciar:
+- **Variante chilena/latina** (dama "vuela", peón captura adelante y atrás).
+- **Sin récord en MVP**: `onGameEnd` no se invoca; el modal solo anuncia al ganador.
+  Score/se persistencia se define en Fase 4 (IA). No se tocan `[id].tsx` ni repos.
+- **Interacción drag & drop** (reutiliza `src/core/ui/drag/useDraggable.ts`), paridad
+  de experiencia con solitario: lift, resaltado de targets válidos, settle animado,
+  snap-back en drop inválido.
+
+#### Decisiones de diseño de la fase
+
+| # | Decisión | Detalle |
+|---|---|---|
+| L1 | **Reglas chilenas 8×8** | Peón: mueve 1 diagonal adelante; **captura adelante y atrás**. Dama "vuela": mueve/captura cualquier distancia en diagonal, aterrizando en cualquier casilla vacía detrás de la pieza capturada |
+| L2 | **Captura obligatoria, elección libre** | Si existe captura, es obligatoria; el jugador elige cuál (sin regla de captura máxima internacional). Multi-salto obligatorio mientras haya capturas desde la casilla de llegada |
+| L3 | **Coronación termina el turno** | Si un peón llega a la última fila durante una cadena de capturas, se corona y el turno termina (simplificación documentada en RULES.md) |
+| L4 | **Fin de juego** | Pierde quien queda sin piezas o sin movimientos legales. Sin regla de tablas en MVP (movimientos repetidos) |
+| L5 | **Sin récord** | `onGameEnd` **no se invoca**; modal de fin anuncia "Gana jugador 1/2". En Fase 4 (IA) se define el score |
+| L6 | **Victoria forzada E2E** | Patrón solitario (S4): `initialSeed` con sentinels `test-capture` / `test-win` → tableros artesanales fijos. `types.ts` ya soporta `initialSeed` — **cero cambios en core** (solo +1 línea en registry) |
+
+#### Estructura de archivos
+
+```
+src/games/damas/
+  index.ts                # GameDefinition + línea en game-registry.ts
+  DamasScreen.tsx         # header (salir), indicador de turno, modales fin
+  components/
+    Piece.tsx             # ficha (peón/dama, color por jugador), a11y estable
+  engine/
+    board.ts              # PURO: tablero 8×8, índices 0..63, setup inicial, sentinels E2E
+    rules.ts              # PURO: movimientos legales peón/dama, capturas obligatorias,
+                          # cadenas de multi-salto, coronación, hasAnyMove, isGameOver
+    state.ts              # store Zustand: turno, selección, movimientos legales, applyMove, reset
+  __tests__/              # board.test.ts, rules.test.ts (el más exhaustivo), state.test.ts
+  __e2e__/
+    damas.web.spec.ts
+README.md + RULES.md
+```
+
+#### Desglose de tareas (orden de ejecución)
+
+**Día 1 — `board.ts`** + tests
+- [x] Representación 0..63 (solo casillas oscuras jugables), tipos Piece {player, king}, setup inicial (12 fichas por bando), sentinels `TEST_CAPTURE_SEED`/`TEST_WIN_SEED` (tableros artesanales, no dependen del PRNG)
+
+**Día 2 — `rules.ts`** (mayor riesgo de la fase) + tests exhaustivos
+- [x] Movimientos de peón, captura adelante/atrás, dama voladora, cadenas de multi-salto (generación recursiva de secuencias completas), obligatoriedad de captura, coronación, fin de juego. Fixtures con tableros artesanales
+
+**Día 3 — `state.ts`** + tests + registro
+- [x] Turno por jugador, selección y resaltado de movimientos legales, `applyMove` (cadena completa en un gesto: tap/drop sobre el destino final ejecuta la secuencia), detección de fin, `reset(seed?)`
+- [x] `index.ts` + línea en `game-registry.ts`; typecheck + web exporta
+
+**Día 4 — UI con drag & drop**
+- [x] Grid de Views 8×8, drag de ficha con `useDraggable` (lift + escala, targets válidos resaltados, settle animado, snap-back), indicador de turno, modales de fin. Labels a11y: `damas-celda-<0..63>`, `damas-turno-1|2`, `modal-fin-damas`, `salir-damas`, `jugar-de-nuevo-damas`
+
+**Día 5 — E2E web + docs**
+- [x] `damas.web.spec.ts`: snap-back ilegal (captura obligatoria); captura legal con cambio de turno; `?seed=test-win` → un drag → modal de fin (sin récord, L5) → jugar de nuevo reinicia; salir al Home
+- [x] README.md (técnico) + RULES.md (QA)
+
+#### Verificación final de la fase
+
+- [x] `pnpm typecheck` verde · `pnpm test` 144/144 (55 de damas, incl. regresión memorice+solitario) · export web OK · `pnpm e2e:web` 8/8 specs (3 de damas + 3 de solitario + 2 de memorice)
+
+#### Notas aprendidas durante la fase (para no repetir)
+
+- Bump de Playwright (1.62) exige re-instalar binarios: `pnpm exec playwright
+  install chromium` antes de correr E2E tras actualizar dependencias.
+- Índices de tablero: `index = row*8 + col` — al diseñar fixtures artesanales
+  verificar paridad oscura `(row+col) % 2 === 1` y mapeo exacto (ej: 10 = r1c2,
+  12 = r1c4, 3 = r0c3); el engine se validó correcto en los 7 fallos iniciales,
+  todos eran expectativas mal calculadas.
+
+#### Riesgos específicos de la fase
+
+| Riesgo | Mitigación |
+|---|---|
+| Dama voladora + multi-salto (complejidad combinatoria de secuencias) | Generación recursiva de cadenas completas en `rules.ts` puro, fixtures artesanales por caso |
+| Turnos 2 jugadores = máximo riesgo de "estado atascado" | `hasAnyMove` testeado; si no hay movimientos → fin de juego (L4) |
+| E2E sin récord | Se valida modal + flujo de salida; récord se verificará en Fase 4 al agregar IA/score |
+| Drag en grid (hit-test por casilla) | `layout.ts`/`hitTestSquare` matemático sobre coords del tablero — misma fuente para render e hit-test (patrón solitario) |
+
+---
+
+### Fase 4 — Pulido: responsive mobile-first + release web (~4–5 días) ✅ COMPLETADA
+
+#### Consideración crítica (regla transversal, aprobada con usuario)
+
+> **Todas las interfaces deben ser mobile-first y responsive.** Deuda actual:
+> memorice genera **scroll** (el tablero no cabe en la ventana) y solitario
+> **no aprovecha toda la pantalla** (espacio muerto bajo el tablero). Se
+> corrige en esta fase y queda como criterio de aceptación para cualquier UI nueva.
+
+#### Decisiones aprobadas con usuario
+
+| # | Decisión | Detalle |
+|---|---|---|
+| P1 | **Release Android pospuesto** | Se fusiona con **Fase E** (requiere Java 17 + SDK igualmente). CI Android/Maestro Cloud también se pospone |
+| P2 | **Release web sin deploy** | Solo build validado (`CI=1 expo export`); el deploy estático es manual/futuro, fuera de alcance |
+| P3 | **Récord dentro de cada GameCard** | ScoreBoard reutilizado en variante compacta; el récord queda asociado visualmente al juego |
+| P4 | **Header estandarizado en core** | `GameHeader` (salir / reiniciar / ayuda) + acciones propias por juego. Ayuda accesible desde el header del juego **y** desde el contenedor `[id].tsx` |
+| P5 | **CI mínima** | Solo `typecheck` + `test` en GitHub Actions (sin Playwright, sin Android; se amplía en Fase E) |
+| P6 | **Mobile-first y responsive** | Regla transversal; corrección de memorice y solitario (ver Item 0) |
+
+#### Item 0 — Responsive mobile-first (deuda técnica activa)
+
+- [x] Home: sin scroll a 360–390px (cards 1 col <380px / 2 col resto), alturas razonables en pantallas bajas
+- [x] **Memorice**: tablero completo visible **sin scroll** — tamaño de carta derivado de `min(ancho, alto disponible)` vía `computeLayout` (patrón damas/solitario), no de ancho fijo
+- [x] **Solitario**: el tablero **ocupa toda la altura disponible** — el layout escala (carta y offsets de fan) para caber entre header/scoreboard y el borde inferior; sin espacio muerto en pantallas altas
+- [x] Damas ya cumple (tablero cuadrado centrado) — verificar a 360×640
+- [x] Verificación visual con capturas en 360×640 y 1280×900; E2E: nuevo spec de viewport móvil (360×640) que entra a las 3 pantallas y confirma tablero visible sin scroll
+
+#### Item 1 — `GameHeader` en core + migración de los 3 juegos
+
+- [x] `src/core/ui/GameHeader.tsx`: props `gameId`, `onExit`, `onRestart`, `center?: ReactNode` (Turno/Movimientos/Intentos — aporta cada juego), `left?: ReactNode` (acciones propias: undo ⚙ solitario)
+- [x] Botones estándar manejados por el componente: **← Salir** (`salir-<gameId>`), **↻ Reiniciar** (`reiniciar-<gameId>` → confirmación `confirmar-reinicio-<gameId>` → callback del juego, que resetea conservando settings/seed), **? Ayuda** (`ayuda-<gameId>` → `HelpModal` con `getGameById(gameId).rules`)
+- [x] Migrar memorice, solitario y damas **preservando todos los labels a11y existentes** (los 8 specs E2E actuales corren sin cambios como candado de regresión; migrar juego por juego con su spec inmediatamente después)
+
+#### Item 2 — Ayuda in-app
+
+- [x] `GameDefinition.rules?: string` (condensado de cada RULES.md, texto plano sin parser markdown)
+- [x] `src/core/ui/HelpModal.tsx` genérico (`modal-ayuda-<gameId>`), reutilizado por GameHeader y por `app/juego/[id].tsx` (botón ? en su barra superior — ambas vías, mismo modal)
+- [x] Condensado de reglas en las 3 `GameDefinition`s (RULES.md sigue siendo la fuente para QA)
+- [x] Spec E2E del modal de ayuda (abrir/cerrar desde header y desde el contenedor)
+
+#### Item 3 — Settings globales (`app/ajustes.tsx`)
+
+- [x] Ruta Expo Router `app/ajustes.tsx` + engranaje en el header del Home (labels `abrir-ajustes`, volver)
+- [x] **Dark mode**: Switch wired a `useAppStore.toggleDarkMode` (ya persiste vía `preferencesRepository` — cero persistencia nueva), label `set-dark-mode`
+- [x] **Borrar récords**: confirmación (`confirmar-borrar-records`) → **`recordsRepository.clearAll()`** en **ambas** implementaciones (sqlite: `DELETE FROM game_records`; web: `removeItem('game_records')`) + tests unitarios de la impl. web (mock de localStorage)
+- [x] Spec E2E de settings: dark mode persiste tras reload; borrar récords limpia localStorage
+
+#### Item 4 — Récord por juego en GameCard
+
+- [x] `ScoreBoard` gana variante `compact` (una línea: "Mejor: N pts" / "Sin partidas ganadas", label `record-<gameId>`)
+- [x] `GameCard` renderiza el ScoreBoard compacto abajo (P3). Damas muestra el empty state (sin flag adicional — YAGNI)
+
+#### Item 5 — CI mínima (GitHub Actions)
+
+- [x] `.github/workflows/ci.yml`: push/PR a `main` → setup pnpm (con cache) → `pnpm install --frozen-lockfile` → `pnpm typecheck` → `pnpm test` (ubuntu-latest; sin navegador ni exports)
+
+#### Item 6 — Release web (build, sin deploy)
+
+- [x] `CI=1 pnpm exec expo export --platform web` validado; `dist/` listo para hosting manual (pasos de deploy documentados en README del repo, no automatizados — P2)
+
+#### Verificación final de la fase
+
+- [x] `pnpm typecheck` verde · `pnpm test` 154/154 (10 nuevos: layout memorice + recordsRepository.web) · `pnpm e2e:web` 15/15 specs (8 previos + ayuda 2, ajustes 1, responsive 4) · export release OK · capturas verificadas a 360×640 y 1280×900 (3 juegos + Home)
+
+#### Notas aprendidas durante la fase (para no repetir)
+
+- **RN 0.86: `columnWrapperStyle` con `numColumns=1` lanza invariant** y deja la
+  pantalla en blanco (Home a 360px). Pasar el estilo solo si `numColumns > 1`.
+- **Overlays dentro de GameHeader quedan bajo el contenido posterior** del juego
+  (siblings posteriores pintan encima): los modales de core necesitan `zIndex: 50`.
+- **Bump de rutas tipadas**: `expo export` NO regenera `.expo/types/router.d.ts`;
+  hay que arrancar `pnpm start` una vez (por PID en `tmp/`, ver AGENTS.md).
+- **RNW Switch no expone `aria-checked` como atributo**: en Playwright usar
+  `expect(switch).toBeChecked()` en vez de `getAttribute('aria-checked')`.
+- **`page.reload()` resetea el historial del router**: tras recargar, `router.back()`
+  ya no vuelve al Home — en specs, navegar con `page.goto('/')`.
+
+#### Riesgos específicos de la fase
+
+| Riesgo | Mitigación |
+|---|---|
+| Migración de headers rompe labels E2E | Migrar juego por juego y correr su spec inmediatamente después (labels congelados) |
+| `rules` duplica RULES.md | Condensado corto con nota "ver RULES.md"; RULES.md sigue siendo la fuente para QA |
+| Resize responsivo desincroniza hit-tests | Los 3 layouts ya derivan de `computeLayout(width, height)` consumido con `useWindowDimensions` — testear con tamaños extremos en unit tests |
+| CI en GitHub Actions con pnpm | Solo typecheck+test (jest) — sin navegador ni exports; workflow simple en ubuntu-latest |
 
 ---
 
@@ -354,16 +590,21 @@ El doc de la propuesta afirma "cada juego tomará una fracción del anterior". *
 
 ---
 
-## Fase E — E2E Android (post-fases, al cierre del proyecto)
+## Fase E — E2E Android + releases (post-fases, al cierre del proyecto)
 
 ⚠️ Requiere entorno con Java 17 + Android SDK/ADB (no disponibles al inicio del
-proyecto). Toda la validación E2E Android se concentra acá, una vez completadas
-las fases 2–4.
+proyecto). Toda la validación E2E Android y el release Android se concentran
+acá, una vez completadas las fases 2–4.
 
+**E2E Android (Maestro vs dev build)**
 - [ ] Instalar Temurin 17 + Android SDK; `pnpm exec expo run:android` (dev build)
 - [ ] Dark mode persiste tras recargar (dev build Android) — pendiente desde Fase 0
 - [ ] Récords: insertar/leer en Android (expo-sqlite) — verificar DDL + `PRAGMA user_version`
 - [ ] `memorice.android.yaml` (Maestro): partida completa → modal + récord
 - [ ] `solitario.android.yaml`: movimiento legal, ilegal con snap-back, victoria forzada
 - [ ] `damas.android.yaml`: partida corta hasta captura y fin
-- [ ] Maestro Cloud o emulador en CI (opcional)
+
+**Release Android (pospuesto desde Fase 4 — decisión P1)**
+- [ ] `eas build -p android` (preview APK / producción AAB); probar release build
+- [ ] CI Android: Maestro Cloud o emulador en CI (opcional)
+- [ ] Ampliar CI web con el job de Playwright (`pnpm e2e:web`) — la CI mínima de Fase 4 (P5) no incluye navegador

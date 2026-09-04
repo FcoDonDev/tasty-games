@@ -42,6 +42,13 @@ export const recordsRepository = {
     return best ?? null;
   },
 
+  async clearAll(): Promise<void> {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+    localStorage.removeItem(STORAGE_KEY);
+  },
+
   async historyFor(gameId: string): Promise<GameResult[]> {
     return readAll()
       .filter((r) => r.gameId === gameId)

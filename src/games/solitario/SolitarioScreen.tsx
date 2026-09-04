@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, Vi
 import { runOnJS, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import type { GameResult, GameScreenProps } from '@/core/types';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
+import { GameHeader } from '@/core/ui/GameHeader';
 import { ScoreBoard } from '@/core/ui/ScoreBoard';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { Pile } from './components/Pile';
@@ -216,6 +217,13 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     reset(currentSettings);
   }, [reset, currentSettings]);
 
+  const handleRestart = useCallback(() => {
+    hasReportedRef.current = false;
+    setShowWin(false);
+    setShowLose(false);
+    reset(currentSettings);
+  }, [reset, currentSettings]);
+
   const handleChangeDrawMode = useCallback((mode: DrawMode) => {
     setDrawPref(mode);
     void preferencesRepository.set(PREF_DRAW, String(mode));
@@ -246,39 +254,34 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="salir-solitario"
-          onPress={onExit}
-          style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
-        >
-          <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>← Salir</Text>
-        </Pressable>
-
-        <Text style={[styles.moves, { color: theme.text }]}>Movimientos: {moves}</Text>
-
-        <View style={styles.headerActions}>
-          {undoEnabled && historyDepth > 0 && finishedAt === null ? (
+      <GameHeader
+        gameId="solitario"
+        onExit={onExit}
+        onRestart={handleRestart}
+        center={<Text style={[styles.moves, { color: theme.text }]}>Movimientos: {moves}</Text>}
+        left={
+          <>
+            {undoEnabled && historyDepth > 0 && finishedAt === null ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="solitario-undo"
+                onPress={() => useSolitarioStore.getState().undo()}
+                style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
+              >
+                <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>↩</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="solitario-undo"
-              onPress={() => useSolitarioStore.getState().undo()}
+              accessibilityLabel="solitario-abrir-ajustes"
+              onPress={() => setShowSettings(true)}
               style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
             >
-              <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>↩</Text>
+              <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>⚙</Text>
             </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="solitario-abrir-ajustes"
-            onPress={() => setShowSettings(true)}
-            style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
-          >
-            <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>⚙</Text>
-          </Pressable>
-        </View>
-      </View>
+          </>
+        }
+      />
 
       <ScoreBoard gameId="solitario" />
 
@@ -418,14 +421,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 52,
-    gap: 8,
-  },
   headerButton: {
     borderWidth: 1,
     borderRadius: 10,
@@ -435,10 +430,6 @@ const styles = StyleSheet.create({
   headerButtonText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
   },
   moves: {
     fontSize: 15,

@@ -4,10 +4,11 @@ App de juegos 2D simples (Web + Android) con Expo SDK 57 / Expo Router / React N
 
 ## Estado del proyecto
 
-- Completadas: **Fase 0** (bootstrap), **Fase 1** (Memorice), **Fase 2 + 2b** (Solitario con drag & drop) y **Fase 3** (Damas chilenas, 2 jugadores locales, MVP sin récord). Detalle y checkboxes en `PLAN-IMPLEMENTACION.md`.
-- Siguiente: **Fase 4** — pulido/release (settings globales, ScoreBoard en Home, ayuda in-app, releases web/Android, CI). Al cierre: **Fase E** (E2E Android con Maestro, requiere Java 17 + SDK).
-- Verificación actual: `pnpm test` 144/144 · `pnpm e2e:web` 8/8 specs (memorice 2, solitario 3, damas 3).
+- Completadas: **Fase 0** (bootstrap), **Fase 1** (Memorice), **Fase 2 + 2b** (Solitario con drag & drop), **Fase 3** (Damas chilenas, 2 jugadores locales, MVP sin récord) y **Fase 4** (responsive mobile-first, GameHeader core con ayuda/reinicio, ajustes globales, récord en GameCard, CI mínima). Detalle y checkboxes en `PLAN-IMPLEMENTACION.md`.
+- Siguiente: **Fase E** — E2E Android (Maestro) + release Android (`eas build`) + CI completa (Playwright/Maestro). Requiere Java 17 + Android SDK (no instalados en este entorno).
+- Verificación actual: `pnpm test` 154/154 · `pnpm e2e:web` 15/15 specs (memorice 2, solitario 3, damas 3, core: ayuda 2 + ajustes 1 + responsive 4).
 - Drag & drop: patrón reutilizable en `src/core/ui/drag/useDraggable.ts` (Pan + shared values + `runOnJS`); lo consumen solitario y damas (lift, targets válidos resaltados, settle animado, snap-back).
+- **Mobile-first y responsive (D4)**: toda UI debe verse a 360×640 sin scroll innecesario; layouts derivan de `computeLayout(width, height)`; spec E2E `responsive.web.spec.ts` lo candea.
 
 ## Comandos
 
@@ -72,4 +73,4 @@ Nunca editar el DDL existente en `src/core/db/schema.ts`. Sumar `SCHEMA_VERSION`
 
 - Reanimated 4 requiere New Architecture (default en SDK 57, no desactivar) y `react-native-worklets` — versiones deben venir de `expo install`, no manual.
 - `pnpm exec expo install` agrega paquetes a `dependencies` (incluidos jest/jest-expo/@types/jest): así quedó, no "reordenar".
-- Rutas tipadas de Expo Router activadas (`experiments.typedRoutes`): los tipos se generan en `.expo/types/` al correr expo; si tsc falla por rutas, arrancar `pnpm start` una vez.
+- Rutas tipadas de Expo Router activadas (`experiments.typedRoutes`): los tipos se generan en `.expo/types/` SOLO al correr `pnpm start` (el export no los regenera); si tsc falla por rutas, arrancar `pnpm start` una vez y detenerlo por PID.

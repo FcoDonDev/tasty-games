@@ -18,6 +18,9 @@ interface CardProps {
   matched: boolean;
   disabled: boolean;
   onPress: () => void;
+  /** Tamaño calculado por layout (responsive, sin scroll) */
+  width: number;
+  height: number;
 }
 
 interface CardStyle {
@@ -35,6 +38,8 @@ export function Card({
   matched,
   disabled,
   onPress,
+  width,
+  height,
   style,
 }: CardProps & { style: CardStyle }) {
   // Flip en dos fases: 0° -> 90° (se intercambia el contenido) -> 0°.
@@ -71,7 +76,7 @@ export function Card({
       accessibilityState={{ disabled: disabled || matched }}
       onPress={onPress}
       disabled={disabled || matched}
-      style={styles.pressable}
+      style={[styles.pressable, { width, height }]}
     >
       <Animated.View
         style={[
@@ -82,11 +87,14 @@ export function Card({
             : { backgroundColor: style.backgroundColor, borderColor: style.surfaceBorder },
         ]}
       >
-        <Text style={[styles.symbol, { opacity: showFace ? 1 : 0 }]} accessible={false}>
+        <Text style={[styles.symbol, { opacity: showFace ? 1 : 0, fontSize: Math.round(height * 0.42) }]} accessible={false}>
           {showFace ? card.symbol : ''}
         </Text>
         {!showFace ? (
-          <Text style={[styles.question, { color: style.question }]} accessible={false}>
+          <Text
+            style={[styles.question, { color: style.question, fontSize: Math.round(height * 0.3) }]}
+            accessible={false}
+          >
             ?
           </Text>
         ) : null}
@@ -97,22 +105,21 @@ export function Card({
 
 const styles = StyleSheet.create({
   pressable: {
-    flex: 1,
-    aspectRatio: 3 / 4,
-    margin: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   card: {
     flex: 1,
+    alignSelf: 'stretch',
     borderRadius: 12,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   symbol: {
-    fontSize: 32,
+    fontWeight: '600',
   },
   question: {
-    fontSize: 24,
     fontWeight: '700',
   },
 });

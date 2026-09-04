@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScoreBoard } from './ScoreBoard';
 import { useTheme } from './ThemeProvider';
 import type { GameDefinition } from '@/core/types';
 
@@ -33,6 +34,9 @@ export function GameCard({ game, onPress }: GameCardProps) {
       {game.minDurationHint ? (
         <Text style={[styles.duration, { color: theme.textMuted }]}>{game.minDurationHint}</Text>
       ) : null}
+      <View style={styles.footer}>
+        <ScoreBoard gameId={game.id} compact />
+      </View>
     </Pressable>
   );
 }
@@ -67,5 +71,8 @@ const styles = StyleSheet.create({
   },
   duration: {
     fontSize: 12,
+  },
+  footer: {
+    marginTop: 4,
   },
 });
