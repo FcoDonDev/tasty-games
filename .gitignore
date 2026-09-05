@@ -30,6 +30,7 @@ yarn-error.*
 test-results/
 playwright-report/
 .blob-report/
+.playwright-mcp/
 
 # macOS
 .DS_Store
