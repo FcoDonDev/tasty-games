@@ -1,0 +1,14 @@
+node_modules
+.expo
+dist
+web-build
+.git
+.github
+.vscode
+tmp
+test-results
+playwright-report
+__mocks__
+*.md
+Dockerfile
+.dockerignore
