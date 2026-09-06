@@ -4,10 +4,10 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { useDragGesture } from '@/core/ui/drag/useDraggable';
+import { useDragGesture, type DragCallbacks } from '@/core/ui/drag/useDraggable';
 import type { Piece } from '../engine/board';
 
 const COLORS = {
@@ -26,8 +26,7 @@ interface PieceViewProps {
   dragActive: boolean;
   tx: SharedValue<number>;
   ty: SharedValue<number>;
-  onDragStart: (id: string) => void;
-  onDragEnd: (id: string, translationX: number, translationY: number) => void;
+  callbacks: DragCallbacks;
 }
 
 export function PieceView({
@@ -39,22 +38,25 @@ export function PieceView({
   dragActive,
   tx,
   ty,
-  onDragStart,
-  onDragEnd,
+  callbacks,
 }: PieceViewProps) {
-  const gesture = useDragGesture(piece.id, { onDragStart, onDragEnd }, draggable);
+  const gesture = useDragGesture(piece.id, callbacks, draggable, { tx, ty });
   const scale = useSharedValue(1);
+  const rotate = useSharedValue(0);
 
   useEffect(() => {
-    scale.value = dragActive ? withSpring(1.08, { damping: 20 }) : withSpring(1);
-  }, [dragActive, scale]);
+    // Lift: feedback en press-in, ~150ms, UI thread (ReduceMotion: salto directo)
+    scale.set(withTiming(dragActive ? 1.08 : 1, { duration: 150 }));
+    rotate.set(withTiming(dragActive ? 1.5 : 0, { duration: 150 }));
+  }, [dragActive, scale, rotate]);
 
   const animatedStyle = useAnimatedStyle(
     () => ({
       transform: [
-        { translateX: dragActive ? tx.value : 0 },
-        { translateY: dragActive ? ty.value : 0 },
-        { scale: scale.value },
+        { translateX: dragActive ? tx.get() : 0 },
+        { translateY: dragActive ? ty.get() : 0 },
+        { rotate: `${rotate.get()}deg` },
+        { scale: scale.get() },
       ],
     }),
     [dragActive],

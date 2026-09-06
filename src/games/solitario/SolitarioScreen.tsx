@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { runOnJS, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import type { GameResult, GameScreenProps } from '@/core/types';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
 import { GameHeader } from '@/core/ui/GameHeader';
+import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
 import { ScoreBoard } from '@/core/ui/ScoreBoard';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { Pile } from './components/Pile';
 import { SettingsModal } from './components/SettingsModal';
 import { SUITS, SUIT_SYMBOLS, parseSeed, type Card } from './engine/deck';
@@ -121,6 +124,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       finishedAt: new Date(finishedAt).toISOString(),
     };
     void onGameEnd(result);
+    hapticGameWin();
     setShowWin(true);
   }, [finishedAt, startedAt, moves, undos, onGameEnd]);
 
@@ -159,14 +163,20 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   }, []);
 
   const handleDragEnd = useCallback(
-    (id: string, translationX: number, translationY: number) => {
+    (
+      id: string,
+      translationX: number,
+      translationY: number,
+      velocityX: number,
+      velocityY: number,
+    ) => {
       const ref = dragRef.current;
       dragRef.current = null;
       setValidTargets(new Set());
       if (!ref) {
         setDragKey(null);
-        tx.value = 0;
-        ty.value = 0;
+        tx.set(0);
+        ty.set(0);
         return;
       }
 
@@ -179,7 +189,19 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       const target = hitTestPile(layout, dropX, dropY, state.tableau);
       const moved = target ? state.moveCards(ref, target) : false;
 
+      // Spring con handoff de velocidad del gesto (settle y snap-back)
+      const springConfig = (velocity: number) => ({
+        duration: 400,
+        dampingRatio: 0.8,
+        velocity,
+        reduceMotion: ReduceMotion.System,
+      });
+      const spring = (axis: 'x' | 'y') =>
+        withSpring(0, springConfig(axis === 'x' ? velocityX : velocityY));
+
       if (moved && target) {
+        // Haptic en el frame causal del commit, junto al settle visual
+        hapticDropCommit();
         // Settle: la carta queda donde el dedo la soltó y glisa a su asiento final
         const destCards =
           target.kind === 'foundation' ? state.foundations[target.index] : state.tableau[target.index];
@@ -188,21 +210,22 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
             ? { kind: 'foundation', index: target.index }
             : { kind: 'tableau', index: target.index, cardIndex: 0 };
         const final = cardPosition(layout, finalRef, destCards, destCards.length);
-        tx.value = origin.x + translationX - final.x;
-        ty.value = origin.y + translationY - final.y;
-        tx.value = withTiming(0, { duration: 120 });
-        ty.value = withTiming(0, { duration: 120 }, () => {
-          runOnJS(finishDrag)();
-        });
+        tx.set(origin.x + translationX - final.x);
+        ty.set(origin.y + translationY - final.y);
+        tx.set(spring('x'));
+        ty.set(withSpring(0, springConfig(velocityY), () => scheduleOnRN(finishDrag)));
       } else {
         // Snap-back con spring; dragKey se mantiene hasta terminar el gesto de retorno
-        tx.value = withSpring(0, { damping: 16, stiffness: 220 });
-        ty.value = withSpring(0, { damping: 16, stiffness: 220 }, () => {
-          runOnJS(finishDrag)();
-        });
+        tx.set(spring('x'));
+        ty.set(withSpring(0, springConfig(velocityY), () => scheduleOnRN(finishDrag)));
       }
     },
     [layout, tx, ty, finishDrag],
+  );
+
+  const dragCallbacks = useMemo<DragCallbacks>(
+    () => ({ onDragStart: handleDragStart, onDragEnd: handleDragEnd, onDragCancel: finishDrag }),
+    [handleDragStart, handleDragEnd, finishDrag],
   );
 
   const currentSettings = useMemo(
@@ -294,8 +317,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
           dragKey={dragKey}
           tx={tx}
           ty={ty}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
+          callbacks={dragCallbacks}
           onPressStock={drawStock}
         />
         <Pile
@@ -306,8 +328,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
           dragKey={dragKey}
           tx={tx}
           ty={ty}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
+          callbacks={dragCallbacks}
         />
         {layout.foundations.map((rect, i) => (
           <Pile
@@ -322,8 +343,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
             dragKey={dragKey}
             tx={tx}
             ty={ty}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
+            callbacks={dragCallbacks}
           />
         ))}
         {layout.tableau.map((rect, i) => (
@@ -338,8 +358,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
             dragKey={dragKey}
             tx={tx}
             ty={ty}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
+            callbacks={dragCallbacks}
           />
         ))}
       </View>
