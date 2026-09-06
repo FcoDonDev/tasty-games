@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import Animated, { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameResult, GameScreenProps } from '@/core/types';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
 import { GameHeader } from '@/core/ui/GameHeader';
+import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { Pile } from './components/Pile';
 import { SettingsModal } from './components/SettingsModal';
 import { SUITS, SUIT_SYMBOLS, parseSeed, type Card } from './engine/deck';
-import { cardPosition, columnExtent, computeLayout, hitTestPile } from './engine/layout';
+import { cardPosition, computeLayout, hitTestPile } from './engine/layout';
 import { canDropOnFoundation, canDropOnTableau, canPickUp, scoreFor, type PileRef, type TargetRef } from './engine/rules';
 import { useSolitarioStore, type DrawMode } from './engine/state';
 
@@ -262,16 +264,10 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     [setUndoEnabled],
   );
 
-  // Alto del contenido (fila superior + fan máximo) para centrar verticalmente
-  const contentHeight = useMemo(() => {
-    if (layout === null) return 0;
-    if (tableau.length === 0) return layout.tableau[0].y + layout.topRowHeight;
-    const maxExtent = Math.max(...tableau.map((col) => columnExtent(layout, col)));
-    return layout.tableau[0].y + maxExtent;
-  }, [layout, tableau]);
-
-  const offsetY =
-    layout !== null && size !== null ? Math.max(0, (size.height - contentHeight) / 2) : 0;
+  // El tablero parte desde arriba (como el clásico): todo el espacio sobrante
+  // queda debajo para que las columnas crezcan, y una columna que crece no
+  // desplaza al resto (antes el recentrado vertical las movía a todas).
+  const boardTop = 8;
 
   if (!ready) {
     return (
@@ -287,27 +283,29 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
         gameId="solitario"
         onExit={onExit}
         onRestart={handleRestart}
-        center={<Text style={[styles.moves, { color: theme.text }]}>Movimientos: {moves}</Text>}
+        center={
+          <Text style={[styles.moves, { color: theme.text, fontVariant: ['tabular-nums'] }]}>
+            Movimientos: {moves}
+          </Text>
+        }
         left={
           <>
             {undoEnabled && historyDepth > 0 && finishedAt === null ? (
-              <Pressable
-                accessibilityRole="button"
+              <PressableScale
                 accessibilityLabel="solitario-undo"
                 onPress={() => useSolitarioStore.getState().undo()}
-                style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
+                style={[styles.headerButton, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
               >
                 <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>↩</Text>
-              </Pressable>
+              </PressableScale>
             ) : null}
-            <Pressable
-              accessibilityRole="button"
+            <PressableScale
               accessibilityLabel="solitario-abrir-ajustes"
               onPress={() => setShowSettings(true)}
-              style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
+              style={[styles.headerButton, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
             >
               <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>⚙</Text>
-            </Pressable>
+            </PressableScale>
           </>
         }
       />
@@ -315,7 +313,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       <View style={styles.board} onLayout={onLayout}>
         {layout !== null ? (
           <View
-            style={[styles.boardInner, { top: offsetY, height: contentHeight }]}
+            style={[styles.boardInner, { top: boardTop }]}
             accessibilityLabel="solitario-tablero"
           >
             <Pile
@@ -384,7 +382,9 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       />
 
       {showWin ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-victoria-solitario"
@@ -394,50 +394,48 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
             {scoreFor(moves, (finishedAt ?? 0) - (startedAt ?? 0), undos)} pts · {moves} movimientos
             {undos > 0 ? ` · ${undos} undos` : ''}
           </Text>
-          <Pressable
-            accessibilityRole="button"
+          <PressableScale
             accessibilityLabel="jugar-de-nuevo-solitario"
             onPress={handleReplay}
-            style={[styles.overlayButton, { backgroundColor: theme.primary }]}
+            style={[styles.overlayButton, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.overlayButtonText, { color: theme.primaryText }]}>Jugar de nuevo</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          </PressableScale>
+          <PressableScale
             accessibilityLabel="salir-al-home-solitario"
             onPress={onExit}
-            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8 }]}
+            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>Salir</Text>
-          </Pressable>
-        </View>
+          </PressableScale>
+        </Animated.View>
       ) : null}
 
       {showLose && !showWin ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-derrota-solitario"
         >
           <Text style={[styles.overlayTitle, { color: theme.text }]}>Sin movimientos</Text>
           <Text style={[styles.overlayScore, { color: theme.textMuted }]}>No quedan jugadas posibles</Text>
-          <Pressable
-            accessibilityRole="button"
+          <PressableScale
             accessibilityLabel="jugar-de-nuevo-solitario"
             onPress={handleReplay}
-            style={[styles.overlayButton, { backgroundColor: theme.primary }]}
+            style={[styles.overlayButton, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.overlayButtonText, { color: theme.primaryText }]}>Jugar de nuevo</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          </PressableScale>
+          <PressableScale
             accessibilityLabel="salir-al-home-solitario"
             onPress={onExit}
-            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8 }]}
+            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>Salir</Text>
-          </Pressable>
-        </View>
+          </PressableScale>
+        </Animated.View>
       ) : null}
     </View>
   );

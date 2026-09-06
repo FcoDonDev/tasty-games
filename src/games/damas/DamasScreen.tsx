@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import Animated, { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameScreenProps } from '@/core/types';
 import { GameHeader } from '@/core/ui/GameHeader';
+import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { isDark, parseSetupSeed } from './engine/board';
 import { computeLayout, hitTestSquare, squarePosition } from './engine/layout';
@@ -212,7 +214,9 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
       </View>
 
       {winner !== null ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-fin-damas"
@@ -223,25 +227,23 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
           <Text style={[styles.overlaySubtitle, { color: theme.textMuted }]}>
             {moves} movimientos
           </Text>
-          <Pressable
-            accessibilityRole="button"
+          <PressableScale
             accessibilityLabel="jugar-de-nuevo-damas"
             onPress={handleReplay}
-            style={[styles.overlayButton, { backgroundColor: theme.primary }]}
+            style={[styles.overlayButton, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.overlayButtonText, { color: theme.primaryText }]}>
               Jugar de nuevo
             </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          </PressableScale>
+          <PressableScale
             accessibilityLabel="salir-al-home-damas"
             onPress={onExit}
-            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8 }]}
+            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>Salir</Text>
-          </Pressable>
-        </View>
+          </PressableScale>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -268,6 +270,7 @@ const styles = StyleSheet.create({
   turn: {
     fontSize: 15,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   centerStack: {
     alignItems: 'center',
@@ -275,6 +278,7 @@ const styles = StyleSheet.create({
   moves: {
     fontSize: 13,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   board: {
     flex: 1,

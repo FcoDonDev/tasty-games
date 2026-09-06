@@ -1,17 +1,23 @@
 import {
   FlatList,
-  Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { Easing } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GAME_REGISTRY } from '@/core/game-registry';
 import { GameCard } from '@/core/ui/GameCard';
+import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
+
+// Entrada de la lista: se anima el CONTENEDOR una vez en mount (la lista es
+// virtualizada: nunca `entering` por fila). Ocasional / delight, ≤250ms.
+const LIST_ENTER = FadeIn.duration(250).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -26,15 +32,14 @@ export default function HomeScreen() {
       <StatusBar style="auto" />
       <View style={styles.titleRow}>
         <Text style={[styles.title, { color: theme.text }]}>Tasty Games</Text>
-        <Pressable
-          accessibilityRole="button"
+        <PressableScale
           accessibilityLabel="abrir-ajustes"
           accessibilityHint="Abre la pantalla de ajustes"
           onPress={() => router.push('/ajustes')}
-          style={[styles.gearButton, { borderColor: theme.surfaceBorder }]}
+          style={[styles.gearButton, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
         >
           <Text style={[styles.gearText, { color: theme.textMuted }]}>⚙</Text>
-        </Pressable>
+        </PressableScale>
       </View>
       <Text style={[styles.subtitle, { color: theme.textMuted }]}>
         Colección de juegos clásicos
@@ -50,20 +55,22 @@ export default function HomeScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          key={numColumns}
-          data={GAME_REGISTRY}
-          keyExtractor={(game) => game.id}
-          numColumns={numColumns}
-          columnWrapperStyle={numColumns > 1 ? styles.column : undefined}
-          contentContainerStyle={[styles.list, { paddingBottom: 24 + insets.bottom }]}
-          renderItem={({ item }) => (
-            <GameCard
-              game={item}
-              onPress={() => router.push({ pathname: '/juego/[id]', params: { id: item.id } })}
-            />
-          )}
-        />
+        <Animated.View entering={LIST_ENTER} style={styles.listWrapper}>
+          <FlatList
+            key={numColumns}
+            data={GAME_REGISTRY}
+            keyExtractor={(game) => game.id}
+            numColumns={numColumns}
+            columnWrapperStyle={numColumns > 1 ? styles.column : undefined}
+            contentContainerStyle={[styles.list, { paddingBottom: 24 + insets.bottom }]}
+            renderItem={({ item }) => (
+              <GameCard
+                game={item}
+                onPress={() => router.push({ pathname: '/juego/[id]', params: { id: item.id } })}
+              />
+            )}
+          />
+        </Animated.View>
       )}
     </View>
   );
@@ -98,6 +105,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 4,
     marginBottom: 16,
+  },
+  listWrapper: {
+    flex: 1,
   },
   list: {
     // paddingBottom dinámico (safe area) se aplica en el componente

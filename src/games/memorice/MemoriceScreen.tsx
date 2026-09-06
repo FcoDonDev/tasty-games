@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import type { GameScreenProps, GameResult } from '@/core/types';
 import { GameHeader } from '@/core/ui/GameHeader';
+import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticGameWin } from '@/core/ui/haptics';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import { Card } from './components/Card';
 import { columnsForWidth, computeCardSize, GAP } from './engine/layout';
 import { MISMATCH_CLEAR_MS, PAIR_COUNT, scoreFor, useMemoriceStore } from './engine/state';
@@ -124,7 +127,9 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
       </View>
 
       {showWin ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-victoria-memorice"
@@ -133,23 +138,21 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
           <Text style={[styles.winScore, { color: theme.primary }]}>
             {scoreFor(moves)} pts · {moves} intentos
           </Text>
-          <Pressable
-            accessibilityRole="button"
+          <PressableScale
             accessibilityLabel="jugar-de-nuevo-memorice"
             onPress={handleReset}
-            style={[styles.winButton, { backgroundColor: theme.primary }]}
+            style={[styles.winButton, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.winButtonText, { color: theme.primaryText }]}>Jugar de nuevo</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          </PressableScale>
+          <PressableScale
             accessibilityLabel="salir-al-home-memorice"
             onPress={onExit}
-            style={[styles.exitButton, { borderColor: theme.surfaceBorder, marginTop: 8 }]}
+            style={[styles.exitButton, { borderColor: theme.surfaceBorder, marginTop: 8, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.exitText, { color: theme.textMuted }]}>Salir</Text>
-          </Pressable>
-        </View>
+          </PressableScale>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -162,6 +165,7 @@ const styles = StyleSheet.create({
   moves: {
     fontSize: 16,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   exitButton: {
     borderWidth: 1,

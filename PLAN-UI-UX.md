@@ -106,26 +106,32 @@ No anima (gate rechaza): cambios de tab/ruta (default nativo del Stack), hover (
 
 ---
 
-### Fase U3 — Botones de navegación, feedback y animaciones
+### Fase U3 — Botones de navegación, feedback y animaciones ✅ COMPLETADA
 
-**Targets táctiles**
-- [ ] `minHeight: 44` + `hitSlop` en `HeaderButton`, botones de overlays, gear de home y botones de ajustes
-- [ ] `borderCurve: 'continuous'` en botones, tarjetas y cartas (no en cápsulas)
+**Ajuste de Solitario: tablero parte desde arriba (decisión de usuario)**
+- [x] `SolitarioScreen`: eliminados el memo `contentHeight` y el centrado vertical (`offsetY`); `boardInner` con `top: 8` fijo (simétrico al `PADDING: 8` horizontal del engine). Todo el espacio sobrante queda DEBAJO para que las columnas crezcan, y una columna que crece ya no desplaza a las demás (antes el re-centrado las movía a todas)
+- [x] Sin cambios en `engine/layout.ts` (el sizing por alto disponible ya lo hace `MAX_COLUMN_FACTOR`); E2E intacto (los drags miden `boundingBox()` en vivo)
 
-**Feedback de press (barato que funciona: CSS transition, no worklet)**
-- [ ] `Pressable` + Reanimated CSS transition (`transitionProperty: 'transform, opacity'`): feedback en **press-in** (no al completar el tap), `scale: 0.97` en 100–150ms; aplicar en `HeaderButton`, `GameCard` y botones de overlays
-- [ ] `pressRetentionOffset` para que un drift de pocos px no cancele el press intencional
-- [ ] Contadores ("Movimientos: N", "Intentos: N") con `fontVariant: 'tabular-nums'`
+**Targets táctiles y feedback de press (gate: tens-daily → techo 120ms / scale 0.97)**
+- [x] Nuevo `src/core/ui/PressableScale.tsx`: `Pressable` + `Animated.View` con CSS transition de `transform` 120ms `cubic-bezier(0.23, 1, 0.32, 1)`; feedback en **press-in**; `hitSlop` (default 8) + `pressRetentionOffset` (default 12) configurables; acepta `accessibilityState` (toggles seleccionados)
+- [x] Aplicado en: `HeaderButton` (salir/reiniciar/ayuda), confirmación de reinicio, HelpModal ("Entendido"), `GameCard` (reemplaza su `opacity: 0.7` — decisión de usuario), gear del home, botones de ajustes globales (Volver/Borrar/confirmación), ⚙/↩ de solitario, botones de overlays de los 3 juegos y `SettingsModal` de solitario (opciones + Listo)
+- [x] Sin haptics extra en botones (decisión de usuario: tens-daily, más ruido que señal)
+- [x] Contadores con `fontVariant: ['tabular-nums']`: movimientos (solitario), intentos (memorice), turno/movimientos (damas), récord (ScoreBoard)
+- [x] `borderCurve: 'continuous'` en botones, tarjetas (GameCard + thumbnail), paneles y carta de memorice; NO en cápsulas ni en la ficha de damas (elementos de juego, no botones)
+- [x] Nota de alcance: memorice `Card` y damas `PieceView` NO llevan PressableScale — son elementos de juego con su propio feedback (flip / drag), no botones de navegación
 
 **Overlays y transiciones**
-- [ ] Layout animations de entrada/salida en overlays de victoria/derrota/reinicio/ayuda: `FadeIn.duration(220)` / `FadeOut.duration(150)` (ease-out; **nunca `scale(0)`** — si se quiere zoom, entering custom con escala inicial 0.95 + opacity 0)
-- [ ] Home: animar el **contenedor** de la lista (FlatList virtualizado — nunca `entering` por fila), `FadeIn` ease-out ≤250ms; limpiar imports duplicados en `app/index.tsx`
-- [ ] Revisar transición del Stack (`app/_layout.tsx`): mantener default nativo (gate: los cambios de ruta no se re-animan a mano)
-- [ ] Reduced motion: los fades se mantienen (explican el cambio de estado); sin traslación/escala/overshoot en ninguna animación nueva
+- [x] Nuevo `src/core/ui/overlayAnimation.ts`: builders memoizados y **perezosos** — `FadeIn`/`FadeOut` no existen al importar módulos en jest (falló `game-registry.test` con `Cannot read properties of undefined (reading 'duration')`); crear en la primera llamada de render
+- [x] `overlayEnter()` 220ms / `overlayExit()` 150ms (salida ~30% más rápida), ease-out fuerte, opacity-only → cumplen reduced motion por diseño
+- [x] Aplicado en: confirmación de reinicio (GameHeader), HelpModal, victoria/derrota de solitario, victoria de memorice, fin de damas, SettingsModal de solitario, confirmación de borrar récords (ajustes)
+- [x] Home: el contenedor de la lista entra con `FadeIn` 250ms en mount (FlatList virtualizado: nunca `entering` por fila); wrapper `Animated.View` con `flex: 1`
+- [x] Stack nativo sin cambios (gate: las rutas no se re-animan a mano)
 
 **Criterios de aceptación**
-- [ ] Todo botón interactivo tiene feedback visual al presionar y área ≥44px
-- [ ] Overlays entran/salen con animación y sus labels de accesibilidad no cambian (E2E verde)
+- [x] Todo botón interactivo tiene feedback visual en press-in (verificado mid-press en web: `matrix(0.97, 0, 0, 0.97, 0, 0)` en GameCard) y hitSlop que acerca los botones del header al objetivo de 44px
+- [x] Overlays entran/salen con fade y sus labels de accesibilidad no cambian — `pnpm e2e:web` 15/15 (incluye ayuda, reinicio con confirmación, victoria de los 3 juegos, ajustes)
+- [x] Solitario a 360×640 parte desde arriba con todo el espacio libre debajo (verificado en screenshot)
+- [x] `pnpm typecheck` + `pnpm test` (155/155) + export web + `pnpm e2e:web` 15/15
 
 ---
 
@@ -168,6 +174,17 @@ Un layout con puro flexbox (filas/columnas con gap) sí serviría para memorice 
 ---
 
 ## 4. Bitácora de hallazgos de implementación
+
+### Fase U3 (rama `feature/fase-u3-polish`)
+
+**Desviaciones y aprendizajes**
+- **`FadeIn`/`FadeOut` no existen al importar módulos en jest**: `game-registry.test` (que importa el registro → pantallas → GameHeader) falló con `Cannot read properties of undefined (reading 'duration')` cuando los builders eran constantes de module scope. Solución: `overlayAnimation.ts` los crea perezosamente en la primera llamada de render y memoiza. Aplica también al `LIST_ENTER` del home (se usa igual).
+- **`fontVariant` es array** (`fontVariant: ['tabular-nums']`), no string — tsc lo rechaza en `Text` y en `StyleSheet.create`.
+- **`hitSlop`/`pressRetentionOffset` no aceptan número** en RN 0.86 (solo `Insets`): `PressableScale` normaliza `number` → insets simétricos internamente.
+- **Ajustes screen tenía `paddingTop: 44` hardcodeado** (leftover de U2, quedó fuera de esa pasada): migrado a `useSafeAreaInsets`.
+- **`Pressable` con style-func + opacity** (GameCard) no se puede reemplazar por CSS transition en el mismo nodo: el patrón PressableScale separa el hit-area (Pressable, sin visual) del visual escalado (`Animated.View` con la transition). El orden `[styles.scale, style, pressed && styles.pressed]` permite que el caller sobreescriba todo menos la transition.
+- **El press de GameCard verificado mid-press**: `matrix(0.97, 0, 0, 0.97, 0, 0)` con mouse down sostenido; al soltar, el press commits (navegó a memorice) — mismo frame, sin delay.
+- **Los E2E pasaron sin tocar waits**: los modales ya se esperaban con `toBeVisible`/`click` auto-retry; el fade-out de 150ms no exigió micro-waits extra.
 
 ### Fase U2 (rama `feature/fase-u2-fullscreen`)
 

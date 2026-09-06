@@ -1,5 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import type { DrawMode } from '../engine/state';
 
 interface SettingsModalProps {
@@ -24,19 +27,18 @@ function OptionButton({
 }) {
   const theme = useTheme();
   return (
-    <Pressable
-      accessibilityRole="button"
+    <PressableScale
       accessibilityLabel={testLabel}
       accessibilityState={{ selected }}
       onPress={onPress}
       style={[
         styles.option,
-        { borderColor: theme.surfaceBorder },
+        { borderColor: theme.surfaceBorder, borderCurve: 'continuous' },
         selected ? { backgroundColor: theme.primary, borderColor: theme.primary } : null,
       ]}
     >
       <Text style={[styles.optionText, { color: selected ? theme.primaryText : theme.text }]}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -52,7 +54,9 @@ export function SettingsModal({
   if (!visible) return null;
 
   return (
-    <View
+    <Animated.View
+      entering={overlayEnter()}
+      exiting={overlayExit()}
       style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
       accessibilityLabel="solitario-ajustes"
     >
@@ -71,16 +75,15 @@ export function SettingsModal({
           <OptionButton label="On" selected={undoEnabled} onPress={() => onChangeUndo(true)} testLabel="solitario-set-undo-on" />
         </View>
 
-        <Pressable
-          accessibilityRole="button"
+        <PressableScale
           accessibilityLabel="solitario-cerrar-ajustes"
           onPress={onClose}
-          style={[styles.close, { backgroundColor: theme.primary }]}
+          style={[styles.close, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
         >
           <Text style={[styles.closeText, { color: theme.primaryText }]}>Listo</Text>
-        </Pressable>
+        </PressableScale>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -99,6 +102,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 360,
     borderRadius: 16,
+    borderCurve: 'continuous',
     borderWidth: 1,
     padding: 20,
     gap: 10,

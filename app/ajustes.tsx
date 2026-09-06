@@ -1,12 +1,17 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Switch, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '@/core/stores/useAppStore';
 import { recordsRepository } from '@/core/db/repositories/recordsRepository';
+import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 
 export default function AjustesScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const darkMode = useAppStore((state) => state.darkMode);
   const toggleDarkMode = useAppStore((state) => state.toggleDarkMode);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -19,16 +24,15 @@ export default function AjustesScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top + 12 }]}>
       <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
+        <PressableScale
           accessibilityLabel="cerrar-ajustes"
           onPress={() => router.back()}
-          style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
+          style={[styles.headerButton, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
         >
           <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>← Volver</Text>
-        </Pressable>
+        </PressableScale>
         <Text style={[styles.title, { color: theme.text }]}>Ajustes</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -57,17 +61,16 @@ export default function AjustesScreen() {
               Elimina todos los puntajes guardados
             </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
+          <PressableScale
             accessibilityLabel="abrir-borrar-records"
             onPress={() => {
               setCleared(false);
               setShowClearConfirm(true);
             }}
-            style={[styles.clearButton, { borderColor: theme.surfaceBorder }]}
+            style={[styles.clearButton, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.clearButtonText, { color: theme.textMuted }]}>Borrar</Text>
-          </Pressable>
+          </PressableScale>
         </View>
         {cleared ? (
           <Text style={[styles.clearedNote, { color: theme.textMuted }]}>
@@ -77,7 +80,9 @@ export default function AjustesScreen() {
       </View>
 
       {showClearConfirm ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-borrar-records"
@@ -86,23 +91,21 @@ export default function AjustesScreen() {
           <Text style={[styles.overlaySubtitle, { color: theme.textMuted }]}>
             Esta acción no se puede deshacer.
           </Text>
-          <Pressable
-            accessibilityRole="button"
+          <PressableScale
             accessibilityLabel="confirmar-borrar-records"
             onPress={() => void handleClear()}
-            style={[styles.overlayButton, { backgroundColor: theme.primary }]}
+            style={[styles.overlayButton, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.overlayButtonText, { color: theme.primaryText }]}>Borrar</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          </PressableScale>
+          <PressableScale
             accessibilityLabel="cancelar-borrar-records"
             onPress={() => setShowClearConfirm(false)}
-            style={[styles.overlayButtonGhost, { borderColor: theme.surfaceBorder }]}
+            style={[styles.overlayButtonGhost, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.overlayButtonTextGhost, { color: theme.textMuted }]}>Cancelar</Text>
-          </Pressable>
-        </View>
+          </PressableScale>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -117,7 +120,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 44,
     gap: 8,
   },
   headerButton: {
