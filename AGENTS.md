@@ -4,11 +4,12 @@ App de juegos 2D simples (Web + Android) con Expo SDK 57 / Expo Router / React N
 
 ## Estado del proyecto
 
-- Completadas: **Fase 0** (bootstrap), **Fase 1** (Memorice), **Fase 2 + 2b** (Solitario con drag & drop), **Fase 3** (Damas chilenas, 2 jugadores locales, MVP sin récord) y **Fase 4** (responsive mobile-first, GameHeader core con ayuda/reinicio, ajustes globales, récord en GameCard, CI mínima). Detalle y checkboxes en `PLAN-IMPLEMENTACION.md`.
-- Siguiente: **Fase E** — E2E Android (Maestro) + release Android (`eas build`) + CI completa (Playwright/Maestro). Requiere Java 17 + Android SDK (no instalados en este entorno).
-- Verificación actual: `pnpm test` 154/154 · `pnpm e2e:web` 15/15 specs (memorice 2, solitario 3, damas 3, core: ayuda 2 + ajustes 1 + responsive 4).
-- Drag & drop: patrón reutilizable en `src/core/ui/drag/useDraggable.ts` (Pan + shared values + `runOnJS`); lo consumen solitario y damas (lift, targets válidos resaltados, settle animado, snap-back).
-- **Mobile-first y responsive (D4)**: toda UI debe verse a 360×640 sin scroll innecesario; layouts derivan de `computeLayout(width, height)`; spec E2E `responsive.web.spec.ts` lo candea.
+- Completadas: **Fase 0** (bootstrap), **Fase 1** (Memorice), **Fase 2 + 2b** (Solitario con drag & drop), **Fase 3** (Damas chilenas, 2 jugadores locales, MVP sin récord), **Fase 4** (responsive mobile-first, GameHeader core con ayuda/reinicio, ajustes globales, récord en GameCard, CI mínima) y **Fases U1–U3 de UI/UX** (drag que sigue el dedo en UI thread + haptics; tableros al 100% del área medida con onLayout + récord en chromeBar + safe areas; botones con feedback de press `PressableScale` + overlays con fade + solitario que parte desde arriba). Detalle y checkboxes en `PLAN-IMPLEMENTACION.md` y `PLAN-UI-UX.md`.
+- Siguiente: **Fase U4** — feel-check en device (release build, flick/interrupción/haptics) y luego **Fase E** — E2E Android (Maestro) + release Android (`eas build`) + CI completa (Playwright/Maestro). U4/E requieren Java 17 + Android SDK (no instalados en este entorno).
+- Verificación actual: `pnpm test` 155/155 · `pnpm e2e:web` 15/15 specs (memorice 2, solitario 3, damas 3, core: ayuda 2 + ajustes 1 + responsive 4).
+- Drag & drop: patrón reutilizable en `src/core/ui/drag/useDraggable.ts` (Pan + shared values escritas en `onUpdate`, velocity handoff al settle/snap-back, `scheduleOnRN` — no `runOnJS` deprecado); lo consumen solitario y damas (lift, targets válidos resaltados, settle animado, snap-back).
+- UI compartida en `src/core/ui/`: `PressableScale` (feedback de press, CSS transition 120ms/scale 0.97), `overlayAnimation` (builders FadeIn/FadeOut perezosos-memoizados), `useContainerSize` (medición real del contenedor), `haptics` (wrapper expo-haptics). Los juegos no importan expo-haptics/reanimated builders directamente.
+- **Mobile-first y responsive (D4)**: toda UI debe verse a 360×640 sin scroll innecesario; layouts derivan del tamaño REAL medido con `useContainerSize` (onLayout), no de `useWindowDimensions` con constantes adivinadas; spec E2E `responsive.web.spec.ts` lo candea.
 
 ## Comandos
 
@@ -58,16 +59,57 @@ Nunca editar el DDL existente en `src/core/db/schema.ts`. Sumar `SCHEMA_VERSION`
 - Si la correción es sencilla entonces aplicala y notificala. Si es compleja y/o requiere definiciones que pueden afectar otros componentes, entonces valida con usuario antes de corregirla.
 - Si existen errores en modulos que no se modificaron en la sesion entonces no los corrijas automaticamente, reporta al usuario los hallazgos y enfocate en los errores que si se deben a los cambios aplicados. 
 
-## Procesos en background
+## Verificación (flujo estándar)
 
-- **No usar `pkill`** (ni `pkill -f`, ni `pkill -9`): cuelga la sesión del agente y no se continúa el proceso. Aplica a cualquier proceso: servidores de dev (`expo start`), `serve dist`, etc.
-- Opción preferida: al lanzar un proceso en background, guardar su PID en `tmp/` (carpeta en la raíz del repo, gitignored; crear si no existe) y detenerlo por PID:
-  - Ejemplo: `npx serve dist -l 4173 --single & echo $! > tmp/serve.pid`
-  - Detener: `kill $(cat tmp/serve.pid)` (o crear un `tmp/dev-stop.sh` que haga `kill $(cat tmp/*.pid)` y borre los .pid).
-  - Si el proceso tiene hijos propios (como el `serve` de `scripts/e2e.mjs`), matar el grupo: `kill -- -$(cat tmp/serve.pid)` lanzándolo antes con `setsid`.
-- Alternativa: pedir al usuario que ejecute el comando de detención manualmente.
-- `scripts/e2e.mjs` ya gestiona su propio ciclo de vida (export → serve → cleanup al salir); no dejar serves huérfanos manuales: si un e2e falla a mitad de corrida, reintentar `node scripts/e2e.mjs` (reutiliza/mata el servidor en :4173) en vez de matar procesos a mano.
-- Síntoma de servidor huérfano en :4173: `e2e.mjs` imprime "Reutilizando servidor activo" y corre contra un `dist/` viejo (cambios recientes "no aparecen"). Detenerlo por PID (o pedir al usuario) y relanzar.
+Orden obligatorio para cualquier cambio, siempre con timeout explícito en los comandos largos:
+
+1. `pnpm typecheck` (rápido, <5s).
+2. `pnpm test` (jest, ~3s). Un solo paquete: `pnpm test -- <patron>`.
+3. E2E web completo: `node scripts/e2e.mjs` (orquestador: export → serve :4173 → Playwright → cleanup). Un solo intento; si se aborta a mitad, ver sección siguiente ANTES de reintentar.
+4. Verificación visual puntual (solo si hay que mirar algo que los specs no cubren): exportar (`CI=1 pnpm exec expo export --platform web`), servir dist manualmente y abrir con el navegador (viewport 360×640). Borrar los screenshots al terminar (`rm -f u*.png`); nunca commitearlos.
+
+Condiciones para considerar "verde" un cambio: typecheck + test + e2e 15/15. Los screenshots mid-gesto (ej. `getComputedStyle(el).transform` con mouse down sostenido) son el método para verificar animaciones que los specs solo validan por resultado final.
+
+## Procesos en background (estrategia predefinida — no reinventar)
+
+**Regla dura: NUNCA usar `pkill`** (ni `pkill -f`, ni `pkill -9`): cuelga la sesión del agente. Detener SIEMPRE por PID o grupo de procesos.
+
+**Lanzar un servidor en background** (guardar PID en `tmp/`, gitignored; crear si no existe):
+
+```bash
+setsid npx serve dist -l 4173 --single > tmp/serve.log 2>&1 &
+echo $! > tmp/serve.pid
+```
+
+- Usar `setsid` SIEMPRE que el proceso tenga hijos propios (el `serve` de e2e.mjs los tiene): permite matar el grupo entero con un solo `kill`.
+- Lanzar con `& echo $! > tmp/...pid` en UNA línea puede hacer colgar la llamada de la herramienta bash (espera el stdout del job): redirigir el output a un log (`> tmp/serve.log 2>&1`) y correr el lanzamiento como su propio comando corto. Si la llamada igualmente expira por timeout, el proceso SÍ quedó vivo (setsid sobrevive) — verificar con `curl` antes de relanzar para no duplicar servidores.
+
+**Detener por PID** (grupo si fue lanzado con setsid):
+
+```bash
+kill -- -$(cat tmp/serve.pid)   # grupo de procesos (setsid)
+kill $(cat tmp/serve.pid)       # proceso simple
+rm -f tmp/serve.pid tmp/serve.log
+```
+
+**Detectar un huérfano** (PID file perdido, corrida de e2e abortada, servidor de una sesión anterior):
+
+```bash
+lsof -t -i :4173 | head -5     # PID del proceso en el puerto
+kill -- -$(lsof -t -i :4173)   # o kill <pid> si no es grupo
+curl -s -o /dev/null -w "%{http_code}" --max-time 3 http://127.0.0.1:4173/   # 000/err = puerto libre
+```
+
+**Tabla de decisión cuando algo "se cuelga" o el E2E corre contra dist viejo:**
+
+| Síntoma | Causa | Acción |
+|---|---|---|
+| `e2e.mjs` imprime "Reutilizando servidor activo" y los cambios "no aparecen" | huérfano en :4173 sirviendo `dist/` viejo | detener por PID (`lsof -t -i :4173`) y relanzar `node scripts/e2e.mjs` |
+| El E2E se aborta a mitad de corrida | el usuario/cancelación mató al orquestador pero no a su `serve` | detener huérfano por PID y reintentar `node scripts/e2e.mjs` (no matar nada a mano sin PID) |
+| La llamada de bash con `... & echo $!` expira por timeout | la shell espera el stdout del job | el proceso sigue vivo (setsid): verificar puerto con `curl` y guardar el PID con `lsof` si hace falta |
+| "Te colgaste" repetido con e2e/serve | llamadas re-lanzando servers sobre un puerto ocupado | siempre: `curl` al puerto primero → `lsof` por PID → `kill` → relanzar |
+
+Nunca relanzar `serve`/`e2e.mjs` sin haber confirmado con `curl` que el puerto está libre o que el servidor existente sirve el `dist/` recién exportado.
 
 ## Gotchas del toolchain
 
