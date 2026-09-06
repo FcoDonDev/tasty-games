@@ -99,10 +99,9 @@ test('memorice: partida completa web → modal de victoria + récord persistido'
   expect(memoriceRecord).toBeDefined();
   expect(memoriceRecord!.score).toBeGreaterThan(0);
 
-  // 5. Tras recargar (seguimos en la ruta del juego), el récord aparece en el ScoreBoard
+  // 5. Tras recargar (seguimos en la ruta del juego), el récord aparece en el ScoreBoard compacto del header
   await page.reload();
-  await expect(page.getByText('Mejor puntaje')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('Sin partidas ganadas')).toHaveCount(0);
+  await expect(page.getByLabel('record-memorice')).toHaveText(/\d+ pts/, { timeout: 15_000 });
 });
 
 test('memorice: salir vuelve al Home', async ({ page }) => {

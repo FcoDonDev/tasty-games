@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameResult, GameScreenProps } from '@/core/types';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
-import { ScoreBoard } from '@/core/ui/ScoreBoard';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import { useContainerSize } from '@/core/ui/useContainerSize';
 import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { Pile } from './components/Pile';
 import { SettingsModal } from './components/SettingsModal';
@@ -51,8 +51,9 @@ function pileCards(ref: PileRef, tableau: Card[][], waste: Card[], foundations: 
 
 export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: GameScreenProps) {
   const theme = useTheme();
-  const { width, height } = useWindowDimensions();
-  const layout = useMemo(() => computeLayout(width, height), [width, height]);
+  // Tamaño real del área de tablero (onLayout): el layout llena el 100% disponible
+  const { size, onLayout } = useContainerSize();
+  const layout = useMemo(() => (size ? computeLayout(size.width, size.height) : null), [size]);
 
   const tableau = useSolitarioStore((s) => s.tableau);
   const waste = useSolitarioStore((s) => s.waste);
@@ -173,7 +174,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       const ref = dragRef.current;
       dragRef.current = null;
       setValidTargets(new Set());
-      if (!ref) {
+      if (!ref || layout === null) {
         setDragKey(null);
         tx.set(0);
         ty.set(0);
@@ -261,11 +262,16 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     [setUndoEnabled],
   );
 
-  const boardHeight = useMemo(() => {
-    if (tableau.length === 0) return layout.topRowHeight + 200;
+  // Alto del contenido (fila superior + fan máximo) para centrar verticalmente
+  const contentHeight = useMemo(() => {
+    if (layout === null) return 0;
+    if (tableau.length === 0) return layout.tableau[0].y + layout.topRowHeight;
     const maxExtent = Math.max(...tableau.map((col) => columnExtent(layout, col)));
-    return layout.tableau[0].y + maxExtent + 16;
+    return layout.tableau[0].y + maxExtent;
   }, [layout, tableau]);
+
+  const offsetY =
+    layout !== null && size !== null ? Math.max(0, (size.height - contentHeight) / 2) : 0;
 
   if (!ready) {
     return (
@@ -306,61 +312,66 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
         }
       />
 
-      <ScoreBoard gameId="solitario" />
-
-      <View style={[styles.board, { height: boardHeight }]}>
-        <Pile
-          layout={layout}
-          rect={layout.stock}
-          kind="stock"
-          cards={stock}
-          dragKey={dragKey}
-          tx={tx}
-          ty={ty}
-          callbacks={dragCallbacks}
-          onPressStock={drawStock}
-        />
-        <Pile
-          layout={layout}
-          rect={layout.waste}
-          kind="waste"
-          cards={waste}
-          dragKey={dragKey}
-          tx={tx}
-          ty={ty}
-          callbacks={dragCallbacks}
-        />
-        {layout.foundations.map((rect, i) => (
-          <Pile
-            key={`foundation-${i}`}
-            layout={layout}
-            rect={rect}
-            kind="foundation"
-            pileIndex={i}
-            cards={foundations[i]}
-            emptySymbol={SUIT_SYMBOLS[SUITS[i]]}
-            highlighted={validTargets.has(`foundation-${i}`)}
-            dragKey={dragKey}
-            tx={tx}
-            ty={ty}
-            callbacks={dragCallbacks}
-          />
-        ))}
-        {layout.tableau.map((rect, i) => (
-          <Pile
-            key={`tableau-${i}`}
-            layout={layout}
-            rect={rect}
-            kind="tableau"
-            pileIndex={i}
-            cards={tableau[i]}
-            highlighted={validTargets.has(`tableau-${i}`)}
-            dragKey={dragKey}
-            tx={tx}
-            ty={ty}
-            callbacks={dragCallbacks}
-          />
-        ))}
+      <View style={styles.board} onLayout={onLayout}>
+        {layout !== null ? (
+          <View
+            style={[styles.boardInner, { top: offsetY, height: contentHeight }]}
+            accessibilityLabel="solitario-tablero"
+          >
+            <Pile
+              layout={layout}
+              rect={layout.stock}
+              kind="stock"
+              cards={stock}
+              dragKey={dragKey}
+              tx={tx}
+              ty={ty}
+              callbacks={dragCallbacks}
+              onPressStock={drawStock}
+            />
+            <Pile
+              layout={layout}
+              rect={layout.waste}
+              kind="waste"
+              cards={waste}
+              dragKey={dragKey}
+              tx={tx}
+              ty={ty}
+              callbacks={dragCallbacks}
+            />
+            {layout.foundations.map((rect, i) => (
+              <Pile
+                key={`foundation-${i}`}
+                layout={layout}
+                rect={rect}
+                kind="foundation"
+                pileIndex={i}
+                cards={foundations[i]}
+                emptySymbol={SUIT_SYMBOLS[SUITS[i]]}
+                highlighted={validTargets.has(`foundation-${i}`)}
+                dragKey={dragKey}
+                tx={tx}
+                ty={ty}
+                callbacks={dragCallbacks}
+              />
+            ))}
+            {layout.tableau.map((rect, i) => (
+              <Pile
+                key={`tableau-${i}`}
+                layout={layout}
+                rect={rect}
+                kind="tableau"
+                pileIndex={i}
+                cards={tableau[i]}
+                highlighted={validTargets.has(`tableau-${i}`)}
+                dragKey={dragKey}
+                tx={tx}
+                ty={ty}
+                callbacks={dragCallbacks}
+              />
+            ))}
+          </View>
+        ) : null}
       </View>
 
       <SettingsModal
@@ -455,8 +466,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   board: {
-    position: 'relative',
-    marginTop: 12,
+    flex: 1,
+  },
+  boardInner: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   overlay: {
     position: 'absolute',

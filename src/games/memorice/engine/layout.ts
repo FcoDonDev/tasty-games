@@ -1,5 +1,3 @@
-/** Reserva vertical para chromeBar del contenedor + header + scoreboard. */
-export const CHROME_HEIGHT = 190;
 export const PADDING = 12;
 export const GAP = 8;
 export const NARROW_BREAKPOINT = 420;
@@ -21,6 +19,8 @@ export interface CardSize {
 /**
  * Tamaño de carta que llena el contenedor en AMBAS dimensiones (sin scroll):
  * deriva de `min(ancho, alto disponible)` — patrón damas/solitario.
+ * `containerWidth/Height` son el tamaño REAL del área de juego medida con
+ * onLayout (ver useContainerSize), no el de la ventana.
  */
 export function computeCardSize(
   containerWidth: number,
@@ -30,7 +30,7 @@ export function computeCardSize(
 ): CardSize {
   const rows = Math.ceil(totalCards / columns);
   const availableWidth = containerWidth - PADDING * 2;
-  const availableHeight = Math.max(containerHeight - CHROME_HEIGHT, 300);
+  const availableHeight = Math.max(containerHeight, 300);
 
   const cardWidthByWidth = Math.floor((availableWidth - GAP * (columns - 1)) / columns);
   const cardHeightByWidth = Math.round((cardWidthByWidth * 4) / 3);

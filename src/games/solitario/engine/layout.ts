@@ -31,18 +31,18 @@ const GAP = 4;
 const COLUMNS = 7;
 /** Mobile-first: en pantallas grandes la carta crece hasta este tope. */
 const MAX_CARD_WIDTH = 128;
-/** Reserva vertical para chromeBar del contenedor + header + scoreboard. */
-const CHROME_HEIGHT = 200;
 /** Factor de columna para caber en el alto disponible (carta + fan típico). */
 const MAX_COLUMN_FACTOR = 4.6;
 
 /**
  * Geometría del tablero: fuente única para render e hit-testing.
- * Todo se deriva del tamaño del contenedor (onLayout), sin measure() async.
+ * `containerWidth/Height` son el tamaño REAL del área de juego medida con
+ * onLayout (ver useContainerSize), no el de la ventana: el layout llena el
+ * área exacta disponible.
  */
 export function computeLayout(containerWidth: number, containerHeight: number): SolitaireLayout {
   const byWidth = (containerWidth - PADDING * 2 - GAP * (COLUMNS - 1)) / COLUMNS;
-  const availableHeight = Math.max(containerHeight - CHROME_HEIGHT, 300);
+  const availableHeight = Math.max(containerHeight, 300);
   const byHeight = availableHeight / MAX_COLUMN_FACTOR;
   const cardWidth = Math.floor(Math.min(byWidth, byHeight, MAX_CARD_WIDTH));
   const cardHeight = Math.round(cardWidth * 1.45);

@@ -81,25 +81,28 @@ No anima (gate rechaza): cambios de tab/ruta (default nativo del Stack), hover (
 
 ---
 
-### Fase U2 — Pantalla al 100%, sin scroll
+### Fase U2 — Pantalla al 100%, sin scroll ✅ COMPLETADA (E2E final pendiente de validación del usuario)
 
 **Medición real del contenedor**
-- [ ] Nuevo hook compartido `src/core/ui/useContainerSize.ts`: `onLayout` → `{width, height}` con estado (reemplaza la adivinanza window + CHROME_HEIGHT)
-- [ ] Los 3 juegos miden el View del tablero y pasan el tamaño real a `computeLayout` / `computeCardSize`
-- [ ] Eliminar `CHROME_HEIGHT` de los 3 engines de layout (las firmas pasan a significar "tamaño real del área de juego") y actualizar sus tests unitarios
+- [x] Nuevo hook compartido `src/core/ui/useContainerSize.ts`: `onLayout` → `{width, height}` con estado (guard anti re-render con el mismo tamaño)
+- [x] Los 3 juegos miden el View del tablero y pasan el tamaño real a `computeLayout` / `computeCardSize` (layout null hasta el primer layout; el tablero renderiza recién medido)
+- [x] Eliminar `CHROME_HEIGHT` de los 3 engines de layout (las firmas significan "tamaño real del área de juego") y actualizar sus tests unitarios (155/155)
 
 **Distribución del espacio**
-- [ ] Solitario y damas: tablero centrado verticalmente dentro del área medida (patrón memorice, `flex: 1`); en solitario `boardHeight` sigue derivando de `columnExtent` para el hit-test
-- [ ] Memorice: mantener centrado, revisar gaps/margins para llenar sin sobrantes
+- [x] Solitario: contenedor `flex: 1` medido + contenido centrado verticalmente (wrapper absoluto con `top: offsetY`, offsetY = (área − contentHeight)/2, contentHeight derivado de `columnExtent` para el hit-test)
+- [x] Damas: tablero cuadrado centrado en AMBOS ejes (originY = (área − boardSize)/2 en el engine); casilla 42→45px a 360px
+- [x] Memorice: mantiene centrado, grid con `gap` del engine (sin marginBottom mágico); cartas crecen 56×75→66×88 a 360×640 y llenan hasta el fondo (grid 71–639)
+- [x] Límite honesto: a 360px el solitario está limitado por ancho (7 columnas → carta 45px); el centrado vertical es lo alcanzable — el espacio sobrante queda repartido arriba/abajo
 
-**ScoreBoard al header (decisión de usuario)**
-- [ ] `GameHeader` gana zona compacta con el récord (`record-<gameId>` label existente se conserva para E2E)
-- [ ] Solitario y memorice dejan de renderizar `<ScoreBoard>` como bloque; `GameCard` sigue usando el compact
-- [ ] `app/juego/[id].tsx` y `app/index.tsx`: usar `useSafeAreaInsets` en vez de `paddingTop: 44/60`
+**ScoreBoard (desviación justificada del plan)**
+- [x] El récord compacto va en la **chromeBar del contenedor** (`app/juego/[id].tsx`, junto al título y "?"), NO en GameHeader: a 360px el header desbordaba ("Movimientos: 0" se partía y pisaba "Salir"). La chromeBar tenía espacio muerto y es genérica para todos los juegos. Label `record-<gameId>` conservado (E2E estable)
+- [x] Solitario y memorice dejan de renderizar `<ScoreBoard>` como bloque; `GameCard` sigue usando el compact
+- [x] `app/juego/[id].tsx` y `app/index.tsx`: `useSafeAreaInsets` en vez de `paddingTop: 44/60` + `SafeAreaProvider` en el root; limpiados imports duplicados del home
 
 **Criterios de aceptación**
-- [ ] A 360×640 y en desktop: los 3 juegos llenan el área disponible sin scroll y sin espacio muerto notable
-- [ ] Spec E2E `responsive.web.spec.ts` verde (actualizar candeos si cambian medidas)
+- [x] A 360×640 verificado en navegador: memorice llena el 100% vertical (71–639), damas tablero centrado sin desborde, solitario centrado sin scroll, home 640/640 sin scroll; header de juego sin overlaps (Salir 16–90 · gear 217–256 · ↻ 264–301 · ? 309–344)
+- [x] Waits E2E de settle/snap-back subidos a 1000ms (spring 400ms perceptual); asserts de récord migrados de texto "Mejor puntaje" a `record-<gameId>`
+- [ ] `pnpm e2e:web` completo sobre este build — pendiente de validación del usuario (último run 15/15 fue previo al fix de chromeBar; el huérfano en :4173 colgaba dos corridas, ya eliminado)
 
 ---
 
@@ -161,3 +164,35 @@ No anima (gate rechaza): cambios de tab/ruta (default nativo del Stack), hover (
 Un layout con puro flexbox (filas/columnas con gap) sí serviría para memorice (grid estático), y de hecho memorice ya lo usa; pero para solitario y damas, donde las pilas crecen dinámicamente (fan del tableau), hay superposición de cartas y el drop se valida contra coordenadas, la única fuente robusta es una función de geometría pura testable.
 
 **Conclusión adoptada en este plan (Fase U2): combinar ambos.** El contenedor del tablero pasa a `flex: 1` + centrado (para aprovechar el 100% de la pantalla), y `computeLayout` se conserva pero alimentado con el tamaño **real medido** por `onLayout` de ese contenedor (en vez de `window - CHROME_HEIGHT` adivinado). Así flex distribuye el espacio y computeLayout lo reparte con precisión dentro.
+
+---
+
+## 4. Bitácora de hallazgos de implementación
+
+### Fase U2 (rama `feature/fase-u2-fullscreen`)
+
+**Desviaciones y aprendizajes**
+- **Récord en chromeBar, no en GameHeader**: con el ScoreBoard compacto dentro del GameHeader, a 360px la fila desborda (Salir + centro + gear + "Mejor —" + ↻ + ? ≈ 365px) y el texto central se parte/pisa el botón Salir. El récord se movió a la chromeBar del contenedor (tenía espacio muerto; es genérica). El label `record-<gameId>` se conserva.
+- **Medición mid-gesto engañosa**: en damas, `celda-56` es la última fila (no el origen del tablero) — sumarle `square*8` como alto total dio un desborde falso (851px). Verificar siempre contra el origen real (`originX/originY` del layout) o usar celdas de la primera fila.
+- **Verificación del llenado 360×640**: memorice llena el 100% vertical (grid 71–639); damas crece (casilla 42→45) y queda centrada; solitario queda limitado por ancho (7 columnas → 45px de carta) — el espacio vertical sobrante es inherente al Klondike en pantallas angostas; el centrado lo reparte simétricamente.
+- **Los E2E que miden posición final** tras settle/snap-back necesitan ≥900–1000ms ahora (spring 400ms perceptual ≈ 600ms real, más render). Antes bastaban 300–700ms con `withTiming(120ms)`.
+- **Server huérfano en :4173**: una corrida E2E abortada deja el `serve` vivo; la siguiente corrida lo "reutiliza" y se cuelga. Detectado con `lsof -t -i :4173` y detenido por PID (sin `pkill`). Los screenshots tomados durante la transición de página pueden mostrar scrollbar fantasma: medir `scrollHeight` después de que el render asiente (~500ms).
+
+### Fase U1 (completada — rama `feature/fase-u1-drag-finger`, merge `6c780b0`)
+
+**Verificación (método replicable)**
+- El seguimiento del puntero se verificó **mid-gesto** con Playwright: muestreando `getComputedStyle(el).transform` durante un drag por pasos. Resultado solitario: `translate(112.5, 60)` con mouse en ~(114, 58) — el −6px restante es el umbral de activación del Pan, exacto. Settle muestreado: glisando en `-16.5` → asiento con distancia 0. Damas ídem.
+- Los E2E existentes solo validan el **resultado** del drop (posición final), no el trayecto — el muestreo mid-gesto es el chequeo que agrega valor para el "sigue el dedo".
+
+**Aprendizajes técnicos**
+- `withSpring` en Reanimated 4 toma `velocity?: number` **por eje** (no vector): con springs separados para tx/ty, se pasa `velocityX`/`velocityY` respectivamente.
+- El callback de finalización va como 3er argumento de `withSpring(config, callback)`, **no** en `.set()` (que solo acepta valor o updater).
+- `SharedValue.set(withSpring(...))` en effects es la vía correcta para lifts de dos estados que comparten transform con valores de gesto (el plan original decía "CSS transition" — no se pueden mezclar transición CSS y worklet en el mismo nodo/transform; desviación documentada en el checklist U1).
+- `cancelAnimation(sv)` en `onStart` es lo que permite que un drag nuevo interrumpa un settle/snap-back en vuelo sin pelear con el spring (que seguiría escribiendo en la shared value).
+- `.onFinalize((_e, success) => ...)` con `success=false` cubre gestos cancelados (segundo dedo, llamada) que nunca disparan `onEnd` — sin esto, la carta queda congelada levantada.
+
+**Gotchas del entorno**
+- Error React #418 (hydration mismatch) en el export web minificado: cosmético y **pre-existente**, no relacionado con animaciones; los E2E pasan con él.
+- Las rutas tipadas de Expo Router solo se regeneran con `pnpm start` (gotcha ya documentado en AGENTS.md) — `tsc` falló en `app/index.tsx` sin cambios propios; se resolvió arrancando Metro una vez.
+- `tmp/` figuraba como "gitignored" en AGENTS.md pero no estaba en `.gitignore` — corregido en el commit de docs de U1.
+- El settle/snap-back con spring 400ms (perceptual ≈ 600ms real) es más lento que el `withTiming(120ms)` anterior: los `waitForTimeout` de los E2E que miden posición final deben subir a ≥900–1000ms (ajustado en Fase U2).
