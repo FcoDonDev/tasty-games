@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, {
-  runOnJS,
+  ReduceMotion,
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import type { CardModel } from '../engine/deck';
 
 interface CardProps {
@@ -48,21 +49,21 @@ export function Card({
   const [showFace, setShowFace] = useState(faceUp);
 
   useEffect(() => {
-    progress.value = withTiming(faceUp ? 1 : 0, { duration: 300 });
+    progress.set(withTiming(faceUp ? 1 : 0, { duration: 300, reduceMotion: ReduceMotion.System }));
   }, [faceUp, progress]);
 
   useAnimatedReaction(
-    () => progress.value >= 0.5,
+    () => progress.get() >= 0.5,
     (next, previous) => {
       if (next !== previous) {
-        runOnJS(setShowFace)(next);
+        scheduleOnRN(setShowFace, next);
       }
     },
     [],
   );
 
   const angle = useDerivedValue(
-    () => (progress.value <= 0.5 ? progress.value * 180 : (1 - progress.value) * 180),
+    () => (progress.get() <= 0.5 ? progress.get() * 180 : (1 - progress.get()) * 180),
   );
 
   const animatedStyle = useAnimatedStyle(() => ({

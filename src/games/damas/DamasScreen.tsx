@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { runOnJS, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import type { GameScreenProps } from '@/core/types';
 import { GameHeader } from '@/core/ui/GameHeader';
+import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { isDark, parseSetupSeed } from './engine/board';
 import { computeLayout, hitTestSquare, squarePosition } from './engine/layout';
 import { legalMovesForPiece, movablePieceIds, type Move } from './engine/rules';
@@ -38,6 +41,11 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
     setReady(true);
   }, [reset, initialSeed]);
 
+  // Victoria: haptic de éxito (visual: overlay de fin)
+  useEffect(() => {
+    if (winner !== null) hapticGameWin();
+  }, [winner]);
+
   // Fichas arrastrables del jugador en turno (con captura obligatoria aplicada)
   const movable = useMemo(
     () => (finishedAt === null ? movablePieceIds(board, turn) : new Set<string>()),
@@ -62,14 +70,20 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
   }, []);
 
   const handleDragEnd = useCallback(
-    (id: string, translationX: number, translationY: number) => {
+    (
+      id: string,
+      translationX: number,
+      translationY: number,
+      velocityX: number,
+      velocityY: number,
+    ) => {
       const from = dragFromRef.current;
       dragFromRef.current = null;
       setValidTargets(new Set());
       if (from === null) {
         setDragKey(null);
-        tx.value = 0;
-        ty.value = 0;
+        tx.set(0);
+        ty.set(0);
         return;
       }
 
@@ -82,24 +96,37 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
       movesByTargetRef.current = new Map();
       const moved = move ? useDamasStore.getState().applyMove(move) : false;
 
+      // Spring con handoff de velocidad del gesto (settle y snap-back)
+      const springConfig = (velocity: number) => ({
+        duration: 400,
+        dampingRatio: 0.8,
+        velocity,
+        reduceMotion: ReduceMotion.System,
+      });
+      const spring = (axis: 'x' | 'y') =>
+        withSpring(0, springConfig(axis === 'x' ? velocityX : velocityY));
+
       if (moved && target !== null) {
+        // Haptic en el frame causal del commit, junto al settle visual
+        hapticDropCommit();
         // Settle: la ficha queda donde el dedo la soltó y glisa a su asiento
         const dest = squarePosition(layout, target);
-        tx.value = origin.x + translationX - dest.x;
-        ty.value = origin.y + translationY - dest.y;
-        tx.value = withTiming(0, { duration: 120 });
-        ty.value = withTiming(0, { duration: 120 }, () => {
-          runOnJS(finishDrag)();
-        });
+        tx.set(origin.x + translationX - dest.x);
+        ty.set(origin.y + translationY - dest.y);
+        tx.set(spring('x'));
+        ty.set(withSpring(0, springConfig(velocityY), () => scheduleOnRN(finishDrag)));
       } else {
         // Snap-back con spring
-        tx.value = withSpring(0, { damping: 16, stiffness: 220 });
-        ty.value = withSpring(0, { damping: 16, stiffness: 220 }, () => {
-          runOnJS(finishDrag)();
-        });
+        tx.set(spring('x'));
+        ty.set(withSpring(0, springConfig(velocityY), () => scheduleOnRN(finishDrag)));
       }
     },
     [layout, tx, ty, finishDrag],
+  );
+
+  const dragCallbacks = useMemo<DragCallbacks>(
+    () => ({ onDragStart: handleDragStart, onDragEnd: handleDragEnd, onDragCancel: finishDrag }),
+    [handleDragStart, handleDragEnd, finishDrag],
   );
 
   const handleReplay = useCallback(() => {
@@ -172,8 +199,7 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
               dragActive={dragKey === pieceItem.id}
               tx={tx}
               ty={ty}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
+              callbacks={dragCallbacks}
             />
           ) : null,
         )}

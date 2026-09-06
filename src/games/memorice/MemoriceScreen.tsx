@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { GameScreenProps, GameResult } from '@/core/types';
 import { GameHeader } from '@/core/ui/GameHeader';
+import { hapticGameWin } from '@/core/ui/haptics';
 import { ScoreBoard } from '@/core/ui/ScoreBoard';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { Card } from './components/Card';
@@ -62,6 +63,7 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
       finishedAt: new Date(finishedAt).toISOString(),
     };
     void onGameEnd(result);
+    hapticGameWin();
     setShowWin(true);
   }, [finishedAt, cards.length, startedAt, moves, onGameEnd]);
 

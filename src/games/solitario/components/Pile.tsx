@@ -1,8 +1,13 @@
 import { Fragment, useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
-import { useDragGesture } from '@/core/ui/drag/useDraggable';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
+import { useDragGesture, type DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import type { Card } from '../engine/deck';
 import { cardPosition, type Rect, type SolitaireLayout } from '../engine/layout';
@@ -23,8 +28,7 @@ interface PileProps {
   dragKey: string | null;
   tx: SharedValue<number>;
   ty: SharedValue<number>;
-  onDragStart: (id: string) => void;
-  onDragEnd: (id: string, translationX: number, translationY: number) => void;
+  callbacks: DragCallbacks;
   onPressStock?: () => void;
 }
 
@@ -38,8 +42,7 @@ interface PileCardProps {
   dragActive: boolean;
   tx: SharedValue<number>;
   ty: SharedValue<number>;
-  onDragStart: (id: string) => void;
-  onDragEnd: (id: string, translationX: number, translationY: number) => void;
+  callbacks: DragCallbacks;
 }
 
 function PileCard({
@@ -52,23 +55,26 @@ function PileCard({
   dragActive,
   tx,
   ty,
-  onDragStart,
-  onDragEnd,
+  callbacks,
 }: PileCardProps) {
-  const gesture = useDragGesture(card.id, { onDragStart, onDragEnd }, draggable);
+  const gesture = useDragGesture(card.id, callbacks, draggable, { tx, ty });
   const position = cardPosition(layout, pileRef, cards, index);
   const scale = useSharedValue(1);
+  const rotate = useSharedValue(0);
 
   useEffect(() => {
-    scale.value = dragActive ? withSpring(1.05, { damping: 20 }) : withSpring(1);
-  }, [dragActive, scale]);
+    // Lift: feedback en press-in, ~150ms, UI thread (ReduceMotion: salto directo)
+    scale.set(withTiming(dragActive ? 1.05 : 1, { duration: 150 }));
+    rotate.set(withTiming(dragActive ? 1.5 : 0, { duration: 150 }));
+  }, [dragActive, scale, rotate]);
 
   const animatedStyle = useAnimatedStyle(
     () => ({
       transform: [
-        { translateX: dragActive ? tx.value : 0 },
-        { translateY: dragActive ? ty.value : 0 },
-        { scale: scale.value },
+        { translateX: dragActive ? tx.get() : 0 },
+        { translateY: dragActive ? ty.get() : 0 },
+        { rotate: `${rotate.get()}deg` },
+        { scale: scale.get() },
       ],
     }),
     [dragActive],
@@ -102,8 +108,7 @@ export function Pile({
   dragKey,
   tx,
   ty,
-  onDragStart,
-  onDragEnd,
+  callbacks,
   onPressStock,
 }: PileProps) {
   const theme = useTheme();
@@ -194,8 +199,7 @@ export function Pile({
             dragActive={isDragActive(index)}
             tx={tx}
             ty={ty}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
+            callbacks={callbacks}
           />
         );
       })}
