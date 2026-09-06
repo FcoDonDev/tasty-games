@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '@/core/stores/useAppStore';
 import { recordsRepository } from '@/core/db/repositories/recordsRepository';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 
 export default function AjustesScreen() {
   const theme = useTheme();
@@ -78,7 +80,9 @@ export default function AjustesScreen() {
       </View>
 
       {showClearConfirm ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-borrar-records"
@@ -101,7 +105,7 @@ export default function AjustesScreen() {
           >
             <Text style={[styles.overlayButtonTextGhost, { color: theme.textMuted }]}>Cancelar</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );

@@ -1,6 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import type { DrawMode } from '../engine/state';
 
 interface SettingsModalProps {
@@ -52,7 +54,9 @@ export function SettingsModal({
   if (!visible) return null;
 
   return (
-    <View
+    <Animated.View
+      entering={overlayEnter()}
+      exiting={overlayExit()}
       style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
       accessibilityLabel="solitario-ajustes"
     >
@@ -79,7 +83,7 @@ export function SettingsModal({
           <Text style={[styles.closeText, { color: theme.primaryText }]}>Listo</Text>
         </PressableScale>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

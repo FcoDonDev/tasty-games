@@ -1,9 +1,11 @@
 import { useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { getGameById } from '@/core/game-registry';
 import { useTheme } from './ThemeProvider';
 import { HelpModal } from './HelpModal';
 import { PressableScale } from './PressableScale';
+import { overlayEnter, overlayExit } from './overlayAnimation';
 
 interface GameHeaderProps {
   gameId: string;
@@ -92,7 +94,9 @@ export function GameHeader({ gameId, onExit, onRestart, center, left }: GameHead
       </View>
 
       {showRestartConfirm && onRestart ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel={`modal-reinicio-${gameId}`}
@@ -118,7 +122,7 @@ export function GameHeader({ gameId, onExit, onRestart, center, left }: GameHead
           >
             <Text style={[styles.overlayButtonTextGhost, { color: theme.textMuted }]}>Cancelar</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
       ) : null}
 
       {rules ? (

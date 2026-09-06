@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import type { GameScreenProps, GameResult } from '@/core/types';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticGameWin } from '@/core/ui/haptics';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import { Card } from './components/Card';
 import { columnsForWidth, computeCardSize, GAP } from './engine/layout';
 import { MISMATCH_CLEAR_MS, PAIR_COUNT, scoreFor, useMemoriceStore } from './engine/state';
@@ -125,7 +127,9 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
       </View>
 
       {showWin ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-victoria-memorice"
@@ -148,7 +152,7 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
           >
             <Text style={[styles.exitText, { color: theme.textMuted }]}>Salir</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );

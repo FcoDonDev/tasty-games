@@ -1,6 +1,8 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useTheme } from './ThemeProvider';
 import { PressableScale } from './PressableScale';
+import { overlayEnter, overlayExit } from './overlayAnimation';
 
 interface HelpModalProps {
   gameId: string;
@@ -18,7 +20,9 @@ export function HelpModal({ gameId, rules, visible, onClose }: HelpModalProps) {
   if (!visible) return null;
 
   return (
-    <View
+    <Animated.View
+      entering={overlayEnter()}
+      exiting={overlayExit()}
       style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
       accessibilityRole="alert"
       accessibilityLabel={`modal-ayuda-${gameId}`}
@@ -37,7 +41,7 @@ export function HelpModal({ gameId, rules, visible, onClose }: HelpModalProps) {
       >
         <Text style={[styles.closeButtonText, { color: theme.primaryText }]}>Entendido</Text>
       </PressableScale>
-    </View>
+    </Animated.View>
   );
 }
 

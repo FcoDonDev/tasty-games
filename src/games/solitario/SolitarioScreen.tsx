@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameResult, GameScreenProps } from '@/core/types';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
@@ -9,6 +9,7 @@ import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { Pile } from './components/Pile';
 import { SettingsModal } from './components/SettingsModal';
@@ -381,7 +382,9 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       />
 
       {showWin ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-victoria-solitario"
@@ -405,11 +408,13 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
           >
             <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>Salir</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
       ) : null}
 
       {showLose && !showWin ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-derrota-solitario"
@@ -430,7 +435,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
           >
             <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>Salir</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );

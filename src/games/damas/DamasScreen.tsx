@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameScreenProps } from '@/core/types';
 import { GameHeader } from '@/core/ui/GameHeader';
@@ -8,6 +8,7 @@ import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
+import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { isDark, parseSetupSeed } from './engine/board';
 import { computeLayout, hitTestSquare, squarePosition } from './engine/layout';
@@ -213,7 +214,9 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
       </View>
 
       {winner !== null ? (
-        <View
+        <Animated.View
+          entering={overlayEnter()}
+          exiting={overlayExit()}
           style={[styles.overlay, { backgroundColor: `${theme.background}F2` }]}
           accessibilityRole="alert"
           accessibilityLabel="modal-fin-damas"
@@ -240,7 +243,7 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
           >
             <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>Salir</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );
