@@ -5,30 +5,25 @@ export interface DamasLayout {
   square: number;
   /** lado total del tablero = square * 8 */
   boardSize: number;
-  /** offsets del tablero dentro del contenedor (centrado horizontal) */
+  /** offsets del tablero dentro del contenedor (centrado horizontal y vertical) */
   originX: number;
   originY: number;
 }
 
-/** Reserva lateral. */
-const PADDING = 12;
-/** Reserva vertical para chromeBar del contenedor + header. */
-const CHROME_HEIGHT = 200;
-
 /**
  * Geometría del tablero: fuente única para render e hit-testing.
- * Derivada del tamaño del contenedor (onLayout), sin measure() async.
+ * `containerWidth/Height` son el tamaño REAL del área de juego medida con
+ * onLayout (ver useContainerSize), no el de la ventana. El tablero cuadrado
+ * se centra en ambas dimensiones (originX/originY).
  */
 export function computeLayout(containerWidth: number, containerHeight: number): DamasLayout {
-  const availableWidth = containerWidth - PADDING * 2;
-  const availableHeight = Math.max(containerHeight - CHROME_HEIGHT, 300);
-  const square = Math.floor(Math.min(availableWidth, availableHeight) / COLUMNS);
+  const square = Math.floor(Math.min(containerWidth, containerHeight) / COLUMNS);
   const boardSize = square * COLUMNS;
   return {
     square,
     boardSize,
     originX: Math.floor(Math.max(0, (containerWidth - boardSize) / 2)),
-    originY: 0,
+    originY: Math.floor(Math.max(0, (containerHeight - boardSize) / 2)),
   };
 }
 

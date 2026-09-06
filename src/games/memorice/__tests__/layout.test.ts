@@ -13,12 +13,21 @@ describe('memorice: layout responsive', () => {
     expect(columnsForWidth(1280)).toBe(GRID_COLUMNS_WIDE);
   });
 
-  it('360×640: el grid completo (16 cartas, 3×6) cabe sin scroll', () => {
+  it('360×640 (área medida): el grid completo (16 cartas, 3×6) llena el alto sin scroll', () => {
     const columns = columnsForWidth(360);
     const { cardHeight } = computeCardSize(360, 640, columns);
     const rows = Math.ceil(16 / columns);
     const gridHeight = rows * cardHeight + (rows - 1) * 8;
-    expect(gridHeight).toBeLessThanOrEqual(640 - 190);
+    expect(gridHeight).toBeLessThanOrEqual(640);
+    expect(gridHeight).toBeGreaterThanOrEqual(640 - rows); // aprovecha casi todo el alto
+  });
+
+  it('área medida angosta (360×490): el grid cabe exacto', () => {
+    const columns = columnsForWidth(360);
+    const { cardHeight } = computeCardSize(360, 490, columns);
+    const rows = Math.ceil(16 / columns);
+    const gridHeight = rows * cardHeight + (rows - 1) * 8;
+    expect(gridHeight).toBeLessThanOrEqual(490);
   });
 
   it('1280×900: las cartas crecen para aprovechar la altura', () => {

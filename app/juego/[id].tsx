@@ -1,15 +1,18 @@
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getGameById } from '@/core/game-registry';
 import { recordsRepository } from '@/core/db/repositories/recordsRepository';
 import { HelpModal } from '@/core/ui/HelpModal';
+import { ScoreBoard } from '@/core/ui/ScoreBoard';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import type { GameResult } from '@/core/types';
 
 export default function GameScreen() {
   const { id, seed } = useLocalSearchParams<{ id: string; seed?: string }>();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const game = getGameById(id);
   // El seed solo llega al juego en builds E2E (EXPO_PUBLIC_E2E=1): en producción
   // nunca existe un canal para alterar el reparto.
@@ -43,19 +46,22 @@ export default function GameScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.chromeBar}>
+      <View style={[styles.chromeBar, { paddingTop: insets.top + 4 }]}>
         <Text style={[styles.chromeTitle, { color: theme.textMuted }]}>{game.name}</Text>
-        {game.rules ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`ayuda-contenedor-${game.id}`}
-            accessibilityHint="Muestra las reglas del juego"
-            onPress={() => setShowHelp(true)}
-            style={[styles.chromeHelp, { borderColor: theme.surfaceBorder }]}
-          >
-            <Text style={[styles.chromeHelpText, { color: theme.textMuted }]}>?</Text>
-          </Pressable>
-        ) : null}
+        <View style={styles.chromeRight}>
+          <ScoreBoard gameId={game.id} compact />
+          {game.rules ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`ayuda-contenedor-${game.id}`}
+              accessibilityHint="Muestra las reglas del juego"
+              onPress={() => setShowHelp(true)}
+              style={[styles.chromeHelp, { borderColor: theme.surfaceBorder }]}
+            >
+              <Text style={[styles.chromeHelpText, { color: theme.textMuted }]}>?</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
       <View style={styles.gameArea}>
         <GameComponent onExit={() => router.back()} onGameEnd={handleGameEnd} initialSeed={initialSeed} />
@@ -80,7 +86,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 44,
     paddingHorizontal: 16,
     paddingBottom: 4,
   },
@@ -89,6 +94,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  chromeRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   chromeHelp: {
     borderWidth: 1,

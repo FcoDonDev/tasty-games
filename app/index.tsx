@@ -1,21 +1,28 @@
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Pressable } from 'react-native';
+import {
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GAME_REGISTRY } from '@/core/game-registry';
 import { GameCard } from '@/core/ui/GameCard';
 import { useTheme } from '@/core/ui/ThemeProvider';
-import { FlatList } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 
 export default function HomeScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   // Mobile-first: 1 columna en pantallas angostas, 2 en el resto
   const numColumns = width < 380 ? 1 : 2;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top + 12 }]}>
       <StatusBar style="auto" />
       <View style={styles.titleRow}>
         <Text style={[styles.title, { color: theme.text }]}>Tasty Games</Text>
@@ -49,7 +56,7 @@ export default function HomeScreen() {
           keyExtractor={(game) => game.id}
           numColumns={numColumns}
           columnWrapperStyle={numColumns > 1 ? styles.column : undefined}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: 24 + insets.bottom }]}
           renderItem={({ item }) => (
             <GameCard
               game={item}
@@ -65,7 +72,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60,
     paddingHorizontal: 16,
   },
   titleRow: {
@@ -94,7 +100,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   list: {
-    paddingBottom: 24,
+    // paddingBottom dinámico (safe area) se aplica en el componente
   },
   column: {
     gap: 0,

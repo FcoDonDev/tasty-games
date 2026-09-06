@@ -45,9 +45,9 @@ test('solitario: movimiento legal a foundation e intento ilegal con snap-back', 
   const ace = page.getByLabel('solitario-card-S-1', { exact: true });
   await expect(ace).toBeVisible();
 
-  // Ilegal: A♠ sobre columna vacía (solo acepta K) → snap-back (spring)
+  // Ilegal: A♠ sobre columna vacía (solo acepta K) → snap-back (spring con velocity)
   await dragCard(page, 'solitario-card-S-1', 'solitario-tableau-1');
-  await page.waitForTimeout(700); // snap-back animado con spring + render
+  await page.waitForTimeout(1000); // snap-back animado con spring (400ms perceptual) + render
   const aceCenter = await centerOf(ace);
   const wasteCenter = await centerOf(page.getByLabel('solitario-waste', { exact: true }));
   expect(Math.hypot(aceCenter.x - wasteCenter.x, aceCenter.y - wasteCenter.y)).toBeLessThan(10);
@@ -56,7 +56,7 @@ test('solitario: movimiento legal a foundation e intento ilegal con snap-back', 
   // Legal: A♠ → foundation de ♠ (index 0)
   await dragCard(page, 'solitario-card-S-1', 'solitario-foundation-0');
   await expect(page.getByText('Movimientos: 2')).toBeVisible();
-  await page.waitForTimeout(300); // settle animado (120 ms) antes de medir posición
+  await page.waitForTimeout(1000); // settle animado con spring (400ms perceptual) antes de medir posición
   const aceAfter = await centerOf(ace);
   const foundationCenter = await centerOf(
     page.getByLabel('solitario-foundation-0', { exact: true }),
@@ -88,10 +88,9 @@ test('solitario: victoria forzada → modal + récord persistido + ScoreBoard', 
   expect(record).toBeDefined();
   expect(record!.score).toBeGreaterThan(0);
 
-  // Tras recargar, el récord aparece en el ScoreBoard
+  // Tras recargar, el récord aparece en el ScoreBoard compacto del header
   await page.reload();
-  await expect(page.getByText('Mejor puntaje')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('Sin partidas ganadas')).toHaveCount(0);
+  await expect(page.getByLabel('record-solitario')).toHaveText(/\d+ pts/, { timeout: 15_000 });
 });
 
 test('solitario: salir vuelve al Home', async ({ page }) => {

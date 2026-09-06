@@ -43,7 +43,7 @@ test('damas: captura obligatoria — ilegal con snap-back y captura legal con ca
   // Ilegal: movimiento silencioso de 1-b (44) estando obligada a capturar → snap-back
   const pieceB = page.getByLabel('damas-ficha-1-b', { exact: true });
   await dragPiece(page, 'damas-ficha-1-b', 'damas-celda-37');
-  await page.waitForTimeout(700); // snap-back animado con spring
+  await page.waitForTimeout(1000); // snap-back animado con spring (400ms perceptual)
   const pieceBCenter = await centerOf(pieceB);
   const originCenter = await centerOf(page.getByLabel('damas-celda-44', { exact: true }));
   expect(Math.hypot(pieceBCenter.x - originCenter.x, pieceBCenter.y - originCenter.y)).toBeLessThan(10);
@@ -52,7 +52,7 @@ test('damas: captura obligatoria — ilegal con snap-back y captura legal con ca
 
   // Legal: 1-a captura a 2-a (42 → 35 → 28); el turno pasa al jugador 2
   await dragPiece(page, 'damas-ficha-1-a', 'damas-celda-28');
-  await page.waitForTimeout(300); // settle animado (120 ms)
+  await page.waitForTimeout(1000); // settle animado con spring (400ms perceptual)
   await expect(page.getByLabel('damas-ficha-2-a', { exact: true })).toHaveCount(0);
   const pieceACenter = await centerOf(page.getByLabel('damas-ficha-1-a', { exact: true }));
   const landingCenter = await centerOf(page.getByLabel('damas-celda-28', { exact: true }));
@@ -62,7 +62,7 @@ test('damas: captura obligatoria — ilegal con snap-back y captura legal con ca
 
   // El jugador 2 responde con movimiento silencioso (24 → 33) y vuelve el turno 1
   await dragPiece(page, 'damas-ficha-2-b', 'damas-celda-33');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(1000);
   await expect(page.getByLabel('damas-turno-1', { exact: true })).toBeVisible();
   await expect(page.getByText('Movimientos: 2')).toBeVisible();
 });

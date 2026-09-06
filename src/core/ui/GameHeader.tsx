@@ -150,6 +150,7 @@ const styles = StyleSheet.create({
   },
   center: {
     flex: 1,
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -158,6 +159,7 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
   },
   overlay: {
     position: 'absolute',

@@ -25,16 +25,18 @@ describe('computeLayout', () => {
     expect(huge.cardWidth).toBeLessThanOrEqual(128); // cap
   });
 
-  it('mobile-first: el tablero completo cabe en un viewport 360×640', () => {
+  it('mobile-first: el tablero completo cabe y llena el área medida 360×640', () => {
     const mobile = computeLayout(360, 640);
     const maxExtent = Math.max(
       ...Array.from({ length: 7 }, (_, col) =>
         columnExtent(mobile, Array.from({ length: col + 1 }, (_, i) => ({ id: `c${i}`, suit: 'S' as const, rank: 5, faceUp: i === col }))),
       ),
     );
-    const boardHeight = mobile.tableau[0].y + maxExtent + 16;
-    // el tablero inicial (peor columna con 7 cartas) cabe bajo el chrome
-    expect(boardHeight).toBeLessThanOrEqual(640 - 200);
+    const contentHeight = mobile.tableau[0].y + maxExtent;
+    // el tablero inicial (peor columna con 7 cartas) cabe en el área medida
+    expect(contentHeight).toBeLessThanOrEqual(640);
+    // sin reserva de chrome adivinada: el ancho es quien limita el tamaño de carta
+    expect(mobile.cardWidth).toBe(Math.floor((360 - 8 * 2 - 4 * 6) / 7));
   });
 
   it('el fan de faceUp es mayor que el de faceDown', () => {

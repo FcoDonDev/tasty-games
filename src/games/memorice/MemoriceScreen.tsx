@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { GameScreenProps, GameResult } from '@/core/types';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { hapticGameWin } from '@/core/ui/haptics';
-import { ScoreBoard } from '@/core/ui/ScoreBoard';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import { useContainerSize } from '@/core/ui/useContainerSize';
 import { Card } from './components/Card';
-import { columnsForWidth, computeCardSize } from './engine/layout';
+import { columnsForWidth, computeCardSize, GAP } from './engine/layout';
 import { MISMATCH_CLEAR_MS, PAIR_COUNT, scoreFor, useMemoriceStore } from './engine/state';
 
 export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
   const theme = useTheme();
-  const { width, height } = useWindowDimensions();
-  const columns = columnsForWidth(width);
+  // Tamaño real del área de tablero (onLayout): el grid llena el 100% disponible
+  const { size, onLayout } = useContainerSize();
+  const columns = useMemo(() => (size ? columnsForWidth(size.width) : 4), [size]);
 
   const cards = useMemoriceStore((state) => state.cards);
   const flipped = useMemoriceStore((state) => state.flipped);
@@ -27,10 +28,13 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
   const [showWin, setShowWin] = useState(false);
   const hasReportedRef = useRef(false);
 
-  // Tamaño de carta derivado de ancho Y alto: el grid completo cabe sin scroll
+  // Tamaño de carta derivado del área medida en AMBAS dimensiones (sin scroll)
   const { cardWidth, cardHeight } = useMemo(
-    () => computeCardSize(width, height, columns, PAIR_COUNT * 2),
-    [width, height, columns],
+    () =>
+      size
+        ? computeCardSize(size.width, size.height, columns, PAIR_COUNT * 2)
+        : { cardWidth: 0, cardHeight: 0 },
+    [size, columns],
   );
   const rows = useMemo(
     () => Array.from({ length: Math.ceil(cards.length / columns) }, (_, r) => cards.slice(r * columns, (r + 1) * columns)),
@@ -87,36 +91,36 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
         center={<Text style={[styles.moves, { color: theme.text }]}>Intentos: {moves}</Text>}
       />
 
-      <ScoreBoard gameId="memorice" />
-
-      <View style={styles.board}>
-        {rows.map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.row}>
-            {row.map((card, indexInRow) => {
-              const index = rowIndex * columns + indexInRow;
-              return (
-                <Card
-                  key={card.id}
-                  card={card}
-                  index={index}
-                  faceUp={isFaceUp(card.id)}
-                  matched={matched.includes(card.id)}
-                  disabled={flipped.length >= 2}
-                  onPress={() => flipCard(card.id)}
-                  width={cardWidth}
-                  height={cardHeight}
-                  style={{
-                    backgroundColor: theme.surface,
-                    surfaceBorder: theme.surfaceBorder,
-                    question: theme.textMuted,
-                    matchedBg: theme.primary,
-                    matchedBorder: theme.primary,
-                  }}
-                />
-              );
-            })}
-          </View>
-        ))}
+      <View style={styles.board} onLayout={onLayout}>
+        {size !== null
+          ? rows.map((row, rowIndex) => (
+              <View key={rowIndex} style={styles.row}>
+                {row.map((card, indexInRow) => {
+                  const index = rowIndex * columns + indexInRow;
+                  return (
+                    <Card
+                      key={card.id}
+                      card={card}
+                      index={index}
+                      faceUp={isFaceUp(card.id)}
+                      matched={matched.includes(card.id)}
+                      disabled={flipped.length >= 2}
+                      onPress={() => flipCard(card.id)}
+                      width={cardWidth}
+                      height={cardHeight}
+                      style={{
+                        backgroundColor: theme.surface,
+                        surfaceBorder: theme.surfaceBorder,
+                        question: theme.textMuted,
+                        matchedBg: theme.primary,
+                        matchedBorder: theme.primary,
+                      }}
+                    />
+                  );
+                })}
+              </View>
+            ))
+          : null}
       </View>
 
       {showWin ? (
@@ -172,13 +176,13 @@ const styles = StyleSheet.create({
   board: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    alignContent: 'center',
+    gap: GAP,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-    marginBottom: 8,
+    gap: GAP,
   },
   overlay: {
     position: 'absolute',

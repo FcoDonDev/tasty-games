@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameScreenProps } from '@/core/types';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import { useContainerSize } from '@/core/ui/useContainerSize';
 import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { isDark, parseSetupSeed } from './engine/board';
 import { computeLayout, hitTestSquare, squarePosition } from './engine/layout';
@@ -15,8 +16,9 @@ import { PieceView } from './components/Piece';
 
 export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
   const theme = useTheme();
-  const { width, height } = useWindowDimensions();
-  const layout = useMemo(() => computeLayout(width, height), [width, height]);
+  // Tamaño real del área de tablero (onLayout): tablero cuadrado centrado
+  const { size, onLayout } = useContainerSize();
+  const layout = useMemo(() => (size ? computeLayout(size.width, size.height) : null), [size]);
 
   const board = useDamasStore((s) => s.board);
   const turn = useDamasStore((s) => s.turn);
@@ -80,7 +82,7 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
       const from = dragFromRef.current;
       dragFromRef.current = null;
       setValidTargets(new Set());
-      if (from === null) {
+      if (from === null || layout === null) {
         setDragKey(null);
         tx.set(0);
         ty.set(0);
@@ -164,45 +166,49 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
         }
       />
 
-      <View style={[styles.board, { height: layout.boardSize }]}>
-        {Array.from({ length: 64 }, (_, i) => {
-          const pos = squarePosition(layout, i);
-          const dark = isDark(i);
-          return (
-            <View
-              key={i}
-              accessibilityLabel={dark ? `damas-celda-${i}` : undefined}
-              style={[
-                styles.square,
-                {
-                  left: pos.x,
-                  top: pos.y,
-                  width: layout.square,
-                  height: layout.square,
-                  backgroundColor: dark ? '#B58863' : '#F0D9B5',
-                },
-                dark && validTargets.has(i) ? styles.targetSquare : null,
-              ]}
-            />
-          );
-        })}
+      <View style={styles.board} onLayout={onLayout}>
+        {layout !== null ? (
+          <>
+            {Array.from({ length: 64 }, (_, i) => {
+              const pos = squarePosition(layout, i);
+              const dark = isDark(i);
+              return (
+                <View
+                  key={i}
+                  accessibilityLabel={dark ? `damas-celda-${i}` : undefined}
+                  style={[
+                    styles.square,
+                    {
+                      left: pos.x,
+                      top: pos.y,
+                      width: layout.square,
+                      height: layout.square,
+                      backgroundColor: dark ? '#B58863' : '#F0D9B5',
+                    },
+                    dark && validTargets.has(i) ? styles.targetSquare : null,
+                  ]}
+                />
+              );
+            })}
 
-        {board.map((pieceItem, index) =>
-          pieceItem ? (
-            <PieceView
-              key={pieceItem.id}
-              piece={pieceItem}
-              square={layout.square}
-              x={squarePosition(layout, index).x}
-              y={squarePosition(layout, index).y}
-              draggable={movable.has(pieceItem.id)}
-              dragActive={dragKey === pieceItem.id}
-              tx={tx}
-              ty={ty}
-              callbacks={dragCallbacks}
-            />
-          ) : null,
-        )}
+            {board.map((pieceItem, index) =>
+              pieceItem ? (
+                <PieceView
+                  key={pieceItem.id}
+                  piece={pieceItem}
+                  square={layout.square}
+                  x={squarePosition(layout, index).x}
+                  y={squarePosition(layout, index).y}
+                  draggable={movable.has(pieceItem.id)}
+                  dragActive={dragKey === pieceItem.id}
+                  tx={tx}
+                  ty={ty}
+                  callbacks={dragCallbacks}
+                />
+              ) : null,
+            )}
+          </>
+        ) : null}
       </View>
 
       {winner !== null ? (
@@ -271,8 +277,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   board: {
-    position: 'relative',
-    marginTop: 12,
+    flex: 1,
   },
   square: {
     position: 'absolute',
