@@ -135,15 +135,15 @@ No anima (gate rechaza): cambios de tab/ruta (default nativo del Stack), hover (
 
 ---
 
-### Fase U4 — Verificación y regresión
+### Fase U4 — Verificación y regresión ✅ COMPLETADA (feel-check en device diferido por el usuario)
 
-- [ ] `pnpm typecheck`
-- [ ] `pnpm test` — actualizar tests de los 3 `layout.ts` (firmas nuevas) y de GameHeader/ScoreBoard
-- [ ] `CI=1 pnpm exec expo export --platform web` (build OK)
-- [ ] `pnpm e2e:web` — specs afectadas: `responsive.web.spec.ts`, specs de ayuda/ajustes (GameHeader cambió), specs de drag de solitario/damas
-- [ ] Mantener estables los `accessibilityLabel` existentes (`record-<gameId>`, `ayuda-<gameId>`, `solitario-card-*`, `damas-ficha-*`, etc.): son selectores E2E
-- [ ] Verificar en `app.json` `ios.infoPlist.CADisableMinimumFrameDurationOnPhone: true` (si no, agregarlo — ProMotion cap a 60fps)
-- [ ] **Feel-check en device** (release build, Android más lento soportado; Expo Go/simulador no cuentan): arrastrar y soltar con flick (¿la velocidad se hereda?), interrumpir el snap-back a mitad de vuelo, drag largo de secuencia completa de tableau, timing del haptic contra el settle visual
+- [x] `pnpm typecheck` — verde sobre main post-merge U3
+- [x] `pnpm test` — 155/155 (los tests de los 3 `layout.ts` con las firmas de área real quedaron actualizados en U2; GameHeader/ScoreBoard/PressableScale verdes con U3)
+- [x] `CI=1 pnpm exec expo export --platform web` — build OK (lo ejecuta el orquestador `e2e.mjs`)
+- [x] `pnpm e2e:web` 15/15 sobre main post-merge U3 — cubre responsive 360×640 (4), ayuda + reinicio con confirmación (2), ajustes (1), drag de solitario (3) y damas (3), memorice (2)
+- [x] `accessibilityLabel` estables: `record-<gameId>`, `salir/reiniciar/ayuda-<gameId>`, `modal-*`, `solitario-card-*`, `damas-ficha-*` — sin cambios en U3 (PressableScale solo los hace obligatorios en su API); el e2e verde es la prueba
+- [x] `app.json`: agregado `ios.infoPlist.CADisableMinimumFrameDurationOnPhone: true` (faltaba — sin él, ProMotion caps a 60fps)
+- [ ] **Feel-check en device** — **diferido: lo ejecuta el usuario** junto con las validaciones Android (release build, Android más lento soportado; Expo Go/simulador no cuentan): arrastrar y soltar con flick (¿la velocidad se hereda?), interrumpir el snap-back a mitad de vuelo, drag largo de secuencia completa de tableau, timing del haptic contra el settle visual, y feedback de press/haptics de U1–U3
 
 ---
 
