@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { getGameById } from '@/core/game-registry';
 import { useTheme } from './ThemeProvider';
 import { HelpModal } from './HelpModal';
+import { PressableScale } from './PressableScale';
 
 interface GameHeaderProps {
   gameId: string;
@@ -31,14 +32,13 @@ function HeaderButton({
   textColor: string;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
+    <PressableScale
       accessibilityLabel={label}
       onPress={onPress}
-      style={[styles.headerButton, { borderColor, paddingVertical: HEADER_ACTIONS.paddingV }]}
+      style={[styles.headerButton, { borderColor, paddingVertical: HEADER_ACTIONS.paddingV, borderCurve: 'continuous' }]}
     >
       <Text style={[styles.headerButtonText, { color: textColor }]}>{text}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -101,25 +101,23 @@ export function GameHeader({ gameId, onExit, onRestart, center, left }: GameHead
           <Text style={[styles.overlaySubtitle, { color: theme.textMuted }]}>
             Se perderá el progreso actual.
           </Text>
-          <Pressable
-            accessibilityRole="button"
+          <PressableScale
             accessibilityLabel={`confirmar-reinicio-${gameId}`}
             onPress={() => {
               setShowRestartConfirm(false);
               onRestart();
             }}
-            style={[styles.overlayButton, { backgroundColor: theme.primary }]}
+            style={[styles.overlayButton, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.overlayButtonText, { color: theme.primaryText }]}>Reiniciar</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          </PressableScale>
+          <PressableScale
             accessibilityLabel={`cancelar-reinicio-${gameId}`}
             onPress={() => setShowRestartConfirm(false)}
-            style={[styles.overlayButtonGhost, { borderColor: theme.surfaceBorder }]}
+            style={[styles.overlayButtonGhost, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.overlayButtonTextGhost, { color: theme.textMuted }]}>Cancelar</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       ) : null}
 

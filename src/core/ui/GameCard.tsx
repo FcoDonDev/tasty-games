@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ScoreBoard } from './ScoreBoard';
+import { PressableScale } from './PressableScale';
 import { useTheme } from './ThemeProvider';
 import type { GameDefinition } from '@/core/types';
 
@@ -12,17 +13,16 @@ export function GameCard({ game, onPress }: GameCardProps) {
   const theme = useTheme();
 
   return (
-    <Pressable
-      accessibilityRole="button"
+    <PressableScale
       accessibilityLabel={`Jugar ${game.name}`}
       onPress={onPress}
-      style={({ pressed }) => [
+      hitSlop={0}
+      style={[
         styles.card,
-        { backgroundColor: theme.surface, borderColor: theme.surfaceBorder },
-        pressed && { opacity: 0.7 },
+        { backgroundColor: theme.surface, borderColor: theme.surfaceBorder, borderCurve: 'continuous' },
       ]}
     >
-      <View style={[styles.thumbnail, { backgroundColor: theme.primary }]}>
+      <View style={[styles.thumbnail, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}>
         <Text style={[styles.thumbnailText, { color: theme.primaryText }]}>
           {game.name.charAt(0).toUpperCase()}
         </Text>
@@ -37,7 +37,7 @@ export function GameCard({ game, onPress }: GameCardProps) {
       <View style={styles.footer}>
         <ScoreBoard gameId={game.id} compact />
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 

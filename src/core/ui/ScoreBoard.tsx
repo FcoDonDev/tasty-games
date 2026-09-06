@@ -67,6 +67,7 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 16,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   compactRow: {
     flexDirection: 'row',
@@ -78,5 +79,6 @@ const styles = StyleSheet.create({
   },
   valueCompact: {
     fontSize: 13,
+    fontVariant: ['tabular-nums'],
   },
 });

@@ -1,6 +1,5 @@
 import {
   FlatList,
-  Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -11,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GAME_REGISTRY } from '@/core/game-registry';
 import { GameCard } from '@/core/ui/GameCard';
+import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
 
 export default function HomeScreen() {
@@ -26,15 +26,14 @@ export default function HomeScreen() {
       <StatusBar style="auto" />
       <View style={styles.titleRow}>
         <Text style={[styles.title, { color: theme.text }]}>Tasty Games</Text>
-        <Pressable
-          accessibilityRole="button"
+        <PressableScale
           accessibilityLabel="abrir-ajustes"
           accessibilityHint="Abre la pantalla de ajustes"
           onPress={() => router.push('/ajustes')}
-          style={[styles.gearButton, { borderColor: theme.surfaceBorder }]}
+          style={[styles.gearButton, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
         >
           <Text style={[styles.gearText, { color: theme.textMuted }]}>⚙</Text>
-        </Pressable>
+        </PressableScale>
       </View>
       <Text style={[styles.subtitle, { color: theme.textMuted }]}>
         Colección de juegos clásicos

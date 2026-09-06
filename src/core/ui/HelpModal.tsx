@@ -1,5 +1,6 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from './ThemeProvider';
+import { PressableScale } from './PressableScale';
 
 interface HelpModalProps {
   gameId: string;
@@ -29,14 +30,13 @@ export function HelpModal({ gameId, rules, visible, onClose }: HelpModalProps) {
       >
         <Text style={[styles.rules, { color: theme.text }]}>{rules}</Text>
       </ScrollView>
-      <Pressable
-        accessibilityRole="button"
+      <PressableScale
         accessibilityLabel={`cerrar-ayuda-${gameId}`}
         onPress={onClose}
-        style={[styles.closeButton, { backgroundColor: theme.primary }]}
+        style={[styles.closeButton, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
       >
         <Text style={[styles.closeButtonText, { color: theme.primaryText }]}>Entendido</Text>
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }

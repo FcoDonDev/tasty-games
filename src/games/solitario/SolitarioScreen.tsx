@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameResult, GameScreenProps } from '@/core/types';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
 import { GameHeader } from '@/core/ui/GameHeader';
+import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
@@ -281,27 +282,29 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
         gameId="solitario"
         onExit={onExit}
         onRestart={handleRestart}
-        center={<Text style={[styles.moves, { color: theme.text }]}>Movimientos: {moves}</Text>}
+        center={
+          <Text style={[styles.moves, { color: theme.text, fontVariant: ['tabular-nums'] }]}>
+            Movimientos: {moves}
+          </Text>
+        }
         left={
           <>
             {undoEnabled && historyDepth > 0 && finishedAt === null ? (
-              <Pressable
-                accessibilityRole="button"
+              <PressableScale
                 accessibilityLabel="solitario-undo"
                 onPress={() => useSolitarioStore.getState().undo()}
-                style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
+                style={[styles.headerButton, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
               >
                 <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>↩</Text>
-              </Pressable>
+              </PressableScale>
             ) : null}
-            <Pressable
-              accessibilityRole="button"
+            <PressableScale
               accessibilityLabel="solitario-abrir-ajustes"
               onPress={() => setShowSettings(true)}
-              style={[styles.headerButton, { borderColor: theme.surfaceBorder }]}
+              style={[styles.headerButton, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
             >
               <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>⚙</Text>
-            </Pressable>
+            </PressableScale>
           </>
         }
       />
@@ -388,22 +391,20 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
             {scoreFor(moves, (finishedAt ?? 0) - (startedAt ?? 0), undos)} pts · {moves} movimientos
             {undos > 0 ? ` · ${undos} undos` : ''}
           </Text>
-          <Pressable
-            accessibilityRole="button"
+          <PressableScale
             accessibilityLabel="jugar-de-nuevo-solitario"
             onPress={handleReplay}
-            style={[styles.overlayButton, { backgroundColor: theme.primary }]}
+            style={[styles.overlayButton, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.overlayButtonText, { color: theme.primaryText }]}>Jugar de nuevo</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          </PressableScale>
+          <PressableScale
             accessibilityLabel="salir-al-home-solitario"
             onPress={onExit}
-            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8 }]}
+            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>Salir</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       ) : null}
 
@@ -415,22 +416,20 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
         >
           <Text style={[styles.overlayTitle, { color: theme.text }]}>Sin movimientos</Text>
           <Text style={[styles.overlayScore, { color: theme.textMuted }]}>No quedan jugadas posibles</Text>
-          <Pressable
-            accessibilityRole="button"
+          <PressableScale
             accessibilityLabel="jugar-de-nuevo-solitario"
             onPress={handleReplay}
-            style={[styles.overlayButton, { backgroundColor: theme.primary }]}
+            style={[styles.overlayButton, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.overlayButtonText, { color: theme.primaryText }]}>Jugar de nuevo</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+          </PressableScale>
+          <PressableScale
             accessibilityLabel="salir-al-home-solitario"
             onPress={onExit}
-            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8 }]}
+            style={[styles.headerButton, { borderColor: theme.surfaceBorder, marginTop: 8, borderCurve: 'continuous' }]}
           >
             <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>Salir</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       ) : null}
     </View>
