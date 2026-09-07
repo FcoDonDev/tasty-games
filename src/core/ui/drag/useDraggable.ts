@@ -85,6 +85,9 @@ export function useDragGesture(
     const doubleTap = Gesture.Tap()
       .enabled(enabled)
       .numberOfTaps(2)
+      // El default nativo es 200ms: un doble tap humano lento (250-350ms entre
+      // taps) fallaría. 500ms cubre el doble tap típico sin afectar al Pan.
+      .maxDelay(500)
       .onStart(() => {
         'worklet';
         if (callbacks.onDoubleTap) {

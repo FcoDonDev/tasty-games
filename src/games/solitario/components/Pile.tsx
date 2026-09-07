@@ -103,6 +103,10 @@ function PileCard({
             ({
               onContextMenu: (e: { preventDefault?: () => void }) => {
                 e.preventDefault?.();
+                if (__DEV__) {
+                  // eslint-disable-next-line no-console
+                  console.debug('[solitario:contextmenu] card=', card.id);
+                }
                 onAutoMove();
               },
             } as unknown as Record<string, never>)

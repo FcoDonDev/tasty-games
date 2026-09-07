@@ -100,12 +100,24 @@ Fuera de alcance: animación de vuelo para el auto-move (commit instantáneo + s
 
 ---
 
+## 2b. Ronda de depuración post-commit (reporte del usuario: "doble click no funciona" + "carta flotando")
+
+Validado contra un dev server real (`expo start --web`, bundle dev con `EXPO_PUBLIC_E2E=1` en `.env`) y Playwright con mouse real. Hallazgos y correcciones:
+
+- [x] **H1 — "Carta flotando" tras clic derecho durante un drag (bug real, corregido)**: el clic derecho durante un drag activo caía sobre la carta arrastrada (sigue al cursor) y disparaba el auto-move a mitad del gesto: el commit movía la carta mientras `tx/ty/dragKey/dragActive` seguían vivos → carta desplazada/colgada. Fix: guard `dragRef.current !== null` en `handleAutoMove` (`SolitarioScreen.tsx`) — el clic derecho durante un drag se ignora (con `preventDefault`, sin menú contextual) y el Pan termina con snap-back limpio. E2E: `clic derecho durante un drag no mueve ni deja la carta flotando`.
+- [x] **H2 — WAV inválidos en dev (bug real, corregido)**: el generador escribía el header WAV con offsets corridos 2 bytes (`audioFormat` en 18 en vez de 20) → `chunkSize` y `channels` corruptos → Chrome rechazaba los archivos con "Failed to load because no supported source" (el export/E2E nunca reprodujo audio, por eso pasó). Regenerados los 4 WAV con header verificado (RIFF/fmt 16/PCM/mono/22050/16bit).
+- [x] **H3 — Doble tap "no funciona" (no era el gesto)**: la detección del doble tap funciona (validado con dblclick de Playwright, 2 clicks con gap 200–250ms y con jitter de 8px que activa el Pan). Los falsos negativos venían de: (a) reparto aleatorio tras `reset` (el reinicio no repite el seed) y (b) taps sobre cartas tapadas del tableau, que el motor rechaza correctamente (un as enterrado no puede moverse). Robustez agregada: `maxDelay(500)` explícito en el TapGesture (el default **nativo** es 200ms y un doble tap humano lento fallaba; web ya era 500). E2E: `doble click con pausa entre clicks (doble tap humano) hace auto-move`.
+- [x] **Logs de depuración** (`__DEV__`-gated): `[solitario:auto-move]` con el motivo de cada rechazo (drag en curso / sin ref / rechazado por el motor / COMMIT) y `[solitario:drag]` start/end. Son los que permiten diagnosticar este tipo de reportes sin reproducir a ciegas.
+- [x] E2E final: **19/19** (17 + 2 specs nuevos de la ronda de depuración). `pnpm test` 163/163, typecheck verde.
+
+---
+
 ## 3. Riesgos / decisiones en vuelo
 
 | # | Riesgo | Mitigación |
 |---|---|---|
-| R1 | `Gesture.Simultaneous(pan, tap)` interfiere con el inicio del Pan en web | Cambiar a `Gesture.Race` o `requireExternalGestureToFail`; los 3 specs de drag existentes son la regresión canaria |
-| R2 | `onContextMenu` de rn-web no suprime el menú nativo del navegador | `preventDefault` vía wrapper si hace falta (web-only, check `process.env.EXPO_OS === 'web'`) |
-| R3 | expo-audio API cambió entre versiones del SDK | Consultar el d.ts instalado tras `expo install` antes de escribir el wrapper |
+| R1 | `Gesture.Simultaneous(pan, tap)` interfiere con el inicio del Pan en web | Validado en E2E (19/19): el Pan con activeOffset ±6px y el Tap coexisten; los specs de drag existentes pasan sin cambios |
+| R2 | `onContextMenu` de rn-web no suprime el menú nativo del navegador | Resuelto: `preventDefault` en el handler web-only |
+| R3 | expo-audio API cambió entre versiones del SDK | Consultado el d.ts instalado (`createAudioPlayer` + `seekTo`/`play`) |
 | R4 | Web autoplay policies | El primer play ocurre tras gesto del usuario (tap/click/drag) → no aplica |
 | R5 | El tap del doble-tap dispara el press-in visual de `PileCard` (lift) | Lift solo ocurre con drag activo (`dragActive`), el tap no lo activa → sin conflicto |
