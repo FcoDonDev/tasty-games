@@ -45,6 +45,7 @@ Los engines (`rules.ts`, `deck.ts`, `board.ts`, `layout.ts`) son **funciones pur
 
 - Repositorios en `src/core/db/repositories/` en pares `*.ts` (expo-sqlite) / `*.web.ts` (localStorage) con la misma interfaz async — **siempre editar las dos** (ADR 0002).
 - El único lugar que escribe récords es `app/juego/[id].tsx` vía `recordsRepository`; los juegos llaman `onGameEnd(result)` y nunca importan expo-sqlite.
+- **Estado en curso de una partida**: `gameStateRepository` (blob JSON por `gameId`, tabla `game_state` — migración v2). Cada juego define su blob en su `engine/persistence.ts` puro (serialize/parse defensivo); el auto-resume de solitario funciona así (ADR 0008).
 - **Migraciones SQLite**: nunca editar el DDL existente en `src/core/db/schema.ts`. Sumar `SCHEMA_VERSION` +1 y agregar un array de statements a `MIGRATIONS[]`; `client.ts` aplica pendientes vía `PRAGMA user_version`.
 
 ## UI compartida (`src/core/ui/`)
@@ -88,13 +89,16 @@ Patrón reutilizable consumido por solitario y damas:
 ```
 app/
   _layout.tsx     # GestureHandlerRootView + SafeAreaProvider + ThemeProvider + hydrate
-  index.tsx       # Home: lista GAME_REGISTRY como cards (+ engranaje a ajustes)
+  index.tsx       # Home: lista GAME_REGISTRY como cards (columnas según ancho REAL medido, ADR 0004; + engranaje a ajustes)
   ajustes.tsx     # Dark mode + borrar récords
   juego/[id].tsx  # Contenedor: monta Component del juego; ÚNICO escritor de récords
 ```
 
 El contenedor `[id].tsx` resuelve el juego por id, reenvía `seed` solo con
 `EXPO_PUBLIC_E2E=1`, y muestra chromeBar con título, récord compacto y ayuda.
+Los botones de salida usan `exitToHome` (`src/core/navigation.ts`): vuelve
+atrás si hay stack; si la pantalla se abrió directo (deep link/recarga), hace
+`router.replace('/')` — "Salir" siempre funciona.
 
 ## Build y deploy web
 

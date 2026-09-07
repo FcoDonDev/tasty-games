@@ -15,7 +15,8 @@ src/games/solitario/
   engine/
     deck.ts                 # Card/Suit, mazo 52, mulberry32, deal(seed), sentinels de test
     rules.ts                # PURO: validez de movimientos, hasAnyMove, isWon, scoreFor
-    state.ts                # store Zustand: draw/recycle, moveCards, undo (snapshots)
+    state.ts                # store Zustand: draw/recycle, moveCards, undo (snapshots), restore
+    persistence.ts          # PURO: serialize/parse del estado en curso (blob JSON, validación defensiva)
     layout.ts               # PURO: geometría del tablero + hit-testing
   __tests__/                # unit (engine 100% puro, sin RN)
   __e2e__/                  # Playwright (web)
@@ -47,13 +48,15 @@ src/games/solitario/
   core (`src/core/ui/sound.ts`, mismo patrón que haptics), toggle global en Ajustes
   (`useAppStore.soundOn`, persistido con clave `sound_enabled`, default on).
 - **Persistencia de settings:** `preferencesRepository` (KV dual sqlite/localStorage), claves `solitario.drawMode` y `solitario.undo`. El cambio de drawMode aplica al próximo reparto; undo, inmediato.
+- **Auto-resume (partida en curso persistida, [ADR 0008](../../../docs/adr/0008-persistencia-estado-en-curso.md)):** al entrar se restaura el estado guardado en `gameStateRepository` (blob JSON de `engine/persistence.ts`). Guardado debounceado (300 ms) con `store.subscribe` — solo partidas en curso (omite el estado virgen y los terminales). Se descarta al ganar, perder (sin movimientos) o reiniciar manualmente. No se persiste el historial de undo (tras restaurar, disponible desde el próximo movimiento); `finishedAt`/`stuck` se recalculan con `endFlags`. JSON corrupto o forma inválida degrada a reparto nuevo, nunca a crash. Los seeds E2E fuerzan reparto fresco y limpian el guardado.
 - **E2E gate:** `app/juego/[id].tsx` solo reenvía el query param `seed` cuando el build se exporta con `EXPO_PUBLIC_E2E=1` (lo hace `scripts/e2e.mjs`). Seeds soportados en `engine/deck.ts`: `test-win` (un drag gana) y `test-move` (reparto determinista para drag legal/ilegal). En producción no existe canal para alterar el reparto.
 
 ## Tests
 
 - Unit: `pnpm test -- solitario` (engine puro: reglas —el más exhaustivo del
-  proyecto—, store, layout, hit-testing).
-- E2E web: `pnpm e2e:web` — drag legal, snap-back ilegal, victoria forzada → récord + ScoreBoard, salir; auto-move (doble tap, doble tap humano con pausa, clic derecho, clic derecho durante drag no mueve).
+  proyecto—, store, layout, hit-testing, persistencia: round-trip
+  serialize/parse, blob inválido → null, restore recalcula `stuck`).
+- E2E web: `pnpm e2e:web` — drag legal, snap-back ilegal, victoria forzada → récord + ScoreBoard, salir; auto-move (doble tap, doble tap humano con pausa, clic derecho, clic derecho durante drag no mueve); auto-resume (la partida en curso se restaura tras recargar).
 
 **Labels a11y estables** (selectores de Playwright/Maestro): `solitario-card-<id>`,
 `solitario-tableau-<i>`, `solitario-foundation-<i>`, `solitario-stock`,
