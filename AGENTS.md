@@ -115,6 +115,22 @@ Orden obligatorio para cualquier cambio, siempre con timeout explícito en los c
 
 Condiciones para considerar "verde" un cambio: typecheck + test + e2e completo (19/19). Los screenshots mid-gesto (ej. `getComputedStyle(el).transform` con mouse down sostenido) son el método para verificar animaciones que los specs solo validan por resultado final.
 
+## Dev server web (validación manual en dev)
+
+Para depurar lo que el export no cubre (gestos, sonidos): dev server, no `dist/`.
+
+```bash
+PORT=8082   # si está ocupado (ver abajo), elegir otro: 8083, 8084...
+EXPO_NO_TELEMETRY=1 setsid pnpm exec expo start --web --offline --port $PORT > tmp/expo.log 2>&1 &
+curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:$PORT/   # 200 = listo
+lsof -t -i :$PORT > tmp/expo.pid
+```
+
+- La web se sirve **desde el puerto de Metro** (8081 default; no existe 19006). Rutas con query: `/juego/solitario?seed=test-win`.
+- Sin `CI=1` (solo vale para export): silencia el dev server web sin avisar. Puerto ocupado en modo no interactivo → el log dice `Skipping dev server` y **no falla**: liberar el puerto por PID, verificar `000` con `curl`, relanzar.
+- El 8081 puede ser el Metro de **otro worktree o del usuario** — identificar con `ps -o cmd -p $(lsof -t -i :8081)` y no matarlo: usar otro puerto.
+- `.env` (`EXPO_PUBLIC_E2E=1` activa seeds en dev) se inlinea al compilar: cambiarlo exige **reiniciar Metro**. El reinicio del juego re-reparta aleatorio (sin seed): recargar la página con `?seed=` para repetir un escenario.
+
 ## Procesos en background (estrategia predefinida — no reinventar)
 
 **Regla dura: NUNCA usar `pkill`** (ni `pkill -f`, ni `pkill -9`): cuelga la sesión del agente. Detener SIEMPRE por PID o grupo de procesos.
