@@ -82,6 +82,21 @@ background están en `AGENTS.md`, no acá.
 - **Nunca `spawn('pnpm')` sin `shell`** (Windows: `pnpm.cmd`) — preferir
   resolver el binario y lanzarlo con `process.execPath`.
 
+## Gestos (gesture-handler)
+
+- **Doble tap: `maxDelay(500)` explícito** en `Gesture.Tap().numberOfTaps(2)` — el
+  default **nativo** es 200 ms y un doble tap humano lento falla (web ya era 500).
+  Validado con dblclick de Playwright, pausas de 200–250 ms y jitter de 8 px que
+  activa el Pan sin romper el tap.
+
+## Audio (expo-audio)
+
+- **Header WAV: offsets corridos rompen el archivo** — un generador que escribió
+  `audioFormat` en el offset 18 en vez de 20 corrompió `chunkSize`/`channels`;
+  Chrome rechazaba con "Failed to load because no supported source". El export/E2E
+  nunca reproduce audio, por eso el bug pasa inadvertido: validar el header
+  (RIFF/fmt 16/PCM/mono/22050/16bit) al generar WAVs sintéticos.
+
 ## Deuda conocida (no es gotcha, no bloquea)
 
 - **React #418 (hydration mismatch)** en el export web minificado: el HTML

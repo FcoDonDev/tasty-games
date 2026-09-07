@@ -36,7 +36,7 @@ Todo juego nuevo implementa un `GameDefinition` (`src/core/types.ts`) para regis
 
 ## Estado: dos niveles separados
 
-- **Estado de app** (`src/core/stores/useAppStore.ts`): preferencias globales (dark mode) con hidratación desde `preferencesRepository`.
+- **Estado de app** (`src/core/stores/useAppStore.ts`): preferencias globales (dark mode, sonido) con hidratación desde `preferencesRepository`.
 - **Estado de juego** (`src/games/<id>/engine/state.ts`): store Zustand propio de cada juego, **no exportado fuera de su carpeta**. El engine de un juego no puede acoplarse al de otro.
 
 Los engines (`rules.ts`, `deck.ts`, `board.ts`, `layout.ts`) son **funciones puras sin UI**: ahí vive el riesgo y ahí van los tests. La lógica de timing que depende del reloj (ej: timeout del mismatch en memorice) vive en la pantalla, no en el store, para que los tests sean deterministas.
@@ -61,6 +61,7 @@ Los juegos no importan librerías de animación/gestos directamente: consumen lo
 | `useContainerSize.ts` | Medición real del contenedor con `onLayout` (guard anti re-render); alimenta los `computeLayout` (ADR 0004) |
 | `drag/useDraggable.ts` | Patrón de drag & drop reutilizable (ver abajo) |
 | `haptics.ts` | Wrapper de expo-haptics; ningún juego importa expo-haptics directamente |
+| `sound.ts` | Wrapper de expo-audio (mismo patrón que haptics): preload perezoso de efectos, API `soundCardMove/Drop/Invalid/GameWin()`, gated por toggle global (`useAppStore.soundOn`) y por plataforma. Ningún juego importa expo-audio directamente |
 
 ## Drag & drop (`src/core/ui/drag/useDraggable.ts`)
 
@@ -70,6 +71,7 @@ Patrón reutilizable consumido por solitario y damas:
 - Shared values (`tx/ty`) escritas en **`onUpdate`** con `.set()` (worklet puro, compiler-safe): el arrastre sigue el dedo en UI thread; React no re-renderiza por frame. Los callbacks JS solo disparan en start/end — nunca `setState` ni `scheduleOnRN` dentro de `onUpdate`.
 - **Velocity handoff**: `onEnd` reporta `velocityX/velocityY`; settle (drop válido) y snap-back (drop inválido) usan `withSpring` con esa velocity. 
 - `cancelAnimation` en `onStart` permite interrumpir un spring en vuelo; `.onFinalize(!success)` resetea el gesto cancelado (segundo dedo/llamada).
+- **Doble tap opcional** (`onDoubleTap` en `DragCallbacks`): `Gesture.Tap().numberOfTaps(2)` compuesto con el Pan (`maxDelay(500)` explícito — el default nativo de 200 ms hace fallar el doble tap humano). Con `activeOffsetX/Y ±6`, el tap no activa el drag y viceversa; consumidor actual: auto-move de solitario (damas no lo pasa → comportamiento intacto).
 - JS↔worklet con `scheduleOnRN` (de `react-native-worklets`) — no `runOnJS` (deprecado en Reanimated 4).
 - Haptics: un haptic al commit del drop (no al terminar la animación); `scheduleOnRN(hapticFn)` desde worklets; solo nativo (`EXPO_OS !== 'web'`).
 - **Layout como fuente única**: cada engine tiene un `layout.ts` puro que calcula geometría (rects/posiciones) e hit-testing (`hitTestPile` / `hitTestSquare`) desde el tamaño medido del contenedor. Render (posición absoluta) y validación del drop consumen las mismas funciones — nada de `measure()` async.

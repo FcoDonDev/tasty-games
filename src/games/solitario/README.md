@@ -33,6 +33,19 @@ src/games/solitario/
 - **Foundations indexadas por palo:** `foundations[i]` recibe `SUITS[i]` (♠ ♥ ♦ ♣).
 - **Layout como fuente única:** `engine/layout.ts` calcula los rects de las 13 pilas a partir del tamaño del contenedor (`onLayout`, síncrono). El render (posición absoluta) y el hit-testing del drag consumen las mismas funciones — nada de `measure()` async.
 - **Drag:** patrón reutilizable en `src/core/ui/drag/useDraggable.ts` (`Gesture.Pan` + shared values escritas en `onUpdate` + velocity handoff al settle/snap-back + `scheduleOnRN`). El punto de drop se computa como origen de la carta + traslación del gesto (coords del tablero, sin conversión a pantalla). Drop válido → `moveCards` con settle animado; inválido → snap-back con spring.
+- **Auto-move a foundation:** doble tap (todas las plataformas, `maxDelay(500)`) o
+  clic derecho (solo web) sobre una carta elegible (as, o la siguiente de una
+  foundation) la envía directo a su foundation. Engine puro: `autoMoveToFoundation(from)`
+  exige una sola carta (`canPickUp` + `length === 1`) y valida con
+  `canDropOnFoundation`. Sin animación de vuelo: commit instantáneo + sonido/haptic.
+- **Guard de auto-move durante drag:** el clic derecho sobre la carta arrastrada
+  (que sigue al cursor) no dispara el auto-move — `handleAutoMove` ignora el gesto
+  si `dragRef.current !== null`; el Pan termina con snap-back limpio (evita la
+  "carta flotando").
+- **Sonidos:** draw → `soundCardMove()`, drop válido/auto-move → `soundCardDrop()`,
+  snap-back → `soundCardInvalid()`, victoria → `soundGameWin()`. Infraestructura en
+  core (`src/core/ui/sound.ts`, mismo patrón que haptics), toggle global en Ajustes
+  (`useAppStore.soundOn`, persistido con clave `sound_enabled`, default on).
 - **Persistencia de settings:** `preferencesRepository` (KV dual sqlite/localStorage), claves `solitario.drawMode` y `solitario.undo`. El cambio de drawMode aplica al próximo reparto; undo, inmediato.
 - **E2E gate:** `app/juego/[id].tsx` solo reenvía el query param `seed` cuando el build se exporta con `EXPO_PUBLIC_E2E=1` (lo hace `scripts/e2e.mjs`). Seeds soportados en `engine/deck.ts`: `test-win` (un drag gana) y `test-move` (reparto determinista para drag legal/ilegal). En producción no existe canal para alterar el reparto.
 
@@ -40,7 +53,7 @@ src/games/solitario/
 
 - Unit: `pnpm test -- solitario` (engine puro: reglas —el más exhaustivo del
   proyecto—, store, layout, hit-testing).
-- E2E web: `pnpm e2e:web` — drag legal, snap-back ilegal, victoria forzada → récord + ScoreBoard, salir.
+- E2E web: `pnpm e2e:web` — drag legal, snap-back ilegal, victoria forzada → récord + ScoreBoard, salir; auto-move (doble tap, doble tap humano con pausa, clic derecho, clic derecho durante drag no mueve).
 
 **Labels a11y estables** (selectores de Playwright/Maestro): `solitario-card-<id>`,
 `solitario-tableau-<i>`, `solitario-foundation-<i>`, `solitario-stock`,
