@@ -52,9 +52,9 @@ Orden de ejecución. Verificación estándar (typecheck → test → e2e) cierra
 
 ### Fase 1 — Back navigation (rutas)
 
-- [ ] Helper `exitToHome(router)` en `src/core/`: `router.canGoBack() ? router.back() : router.replace('/')`.
-- [ ] Aplicar en los 3 puntos: `onExit` de `juego/[id]`, pantalla "Juego no encontrado", botón volver de `ajustes`.
-- [ ] Spec E2E web: cargar `/juego/<id>` directo → tap `salir-<id>` → queda en `/`.
+- [x] Helper `exitToHome(router)` en `src/core/navigation.ts`: `router.canGoBack() ? router.back() : router.replace('/')`.
+- [x] Aplicar en los 3 puntos: `onExit` de `juego/[id]`, pantalla "Juego no encontrado", botón volver de `ajustes`.
+- [x] Spec E2E web (`src/core/__e2e__/navigation.web.spec.ts`): deep link a juego → salir → home; juego inexistente → volver → home; navegación normal sale → home.
 
 ### Fase 2 — Home responsive con reflow automático
 
@@ -73,10 +73,14 @@ Orden de ejecución. Verificación estándar (typecheck → test → e2e) cierra
 
 ### Verificación estándar (por fase)
 
-- [ ] `pnpm typecheck`
-- [ ] `pnpm test`
-- [ ] `node scripts/e2e.mjs`
+- [x] `pnpm typecheck`
+- [x] `pnpm test`
+- [x] `node scripts/e2e.mjs`
 
 ## Notas / hallazgos
 
-(agregar a medida que aparezcan)
+- Fase 1: el proyecto Playwright no tiene `hasTouch` → `locator.tap()` falla
+  con "page does not support tap"; los specs deben usar `.click()`
+  (candidato a `docs/GOTCHAS.md` en el cierre).
+- Fase 1: expo-router 57 no exporta el tipo `Router`; se deriva con
+  `ReturnType<typeof useRouter>` (`AppRouter` en `src/core/navigation.ts`).

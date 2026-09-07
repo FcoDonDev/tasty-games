@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { exitToHome } from '@/core/navigation';
 import { useAppStore } from '@/core/stores/useAppStore';
 import { recordsRepository } from '@/core/db/repositories/recordsRepository';
 import { PressableScale } from '@/core/ui/PressableScale';
@@ -10,6 +11,7 @@ import { useTheme } from '@/core/ui/ThemeProvider';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 
 export default function AjustesScreen() {
+  const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const darkMode = useAppStore((state) => state.darkMode);
@@ -30,7 +32,7 @@ export default function AjustesScreen() {
       <View style={styles.header}>
         <PressableScale
           accessibilityLabel="cerrar-ajustes"
-          onPress={() => router.back()}
+          onPress={() => exitToHome(router)}
           style={[styles.headerButton, { borderColor: theme.surfaceBorder, borderCurve: 'continuous' }]}
         >
           <Text style={[styles.headerButtonText, { color: theme.textMuted }]}>← Volver</Text>
