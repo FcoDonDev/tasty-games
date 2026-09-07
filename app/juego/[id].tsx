@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getGameById } from '@/core/game-registry';
+import { exitToHome } from '@/core/navigation';
 import { recordsRepository } from '@/core/db/repositories/recordsRepository';
 import { HelpModal } from '@/core/ui/HelpModal';
 import { ScoreBoard } from '@/core/ui/ScoreBoard';
@@ -10,6 +11,7 @@ import { useTheme } from '@/core/ui/ThemeProvider';
 import type { GameResult } from '@/core/types';
 
 export default function GameScreen() {
+  const router = useRouter();
   const { id, seed } = useLocalSearchParams<{ id: string; seed?: string }>();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -33,7 +35,7 @@ export default function GameScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Volver al inicio"
-          onPress={() => router.back()}
+          onPress={() => exitToHome(router)}
           style={[styles.button, { backgroundColor: theme.primary }]}
         >
           <Text style={[styles.buttonText, { color: theme.primaryText }]}>Volver</Text>
@@ -64,7 +66,7 @@ export default function GameScreen() {
         </View>
       </View>
       <View style={styles.gameArea}>
-        <GameComponent onExit={() => router.back()} onGameEnd={handleGameEnd} initialSeed={initialSeed} />
+        <GameComponent onExit={() => exitToHome(router)} onGameEnd={handleGameEnd} initialSeed={initialSeed} />
       </View>
       {game.rules ? (
         <HelpModal gameId={game.id} rules={game.rules} visible={showHelp} onClose={() => setShowHelp(false)} />
