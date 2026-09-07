@@ -1,7 +1,7 @@
 # Damas (variante chilena)
 
 Implementación del contrato `GameDefinition` para damas chilenas 8×8, 2 jugadores
-locales en el mismo dispositivo (MVP sin récord — decisión L5 de la fase).
+locales en el mismo dispositivo (MVP sin récord — [ADR 0007](../../../docs/adr/0007-damas-mvp-local.md)).
 
 ## Estructura
 
@@ -36,13 +36,15 @@ src/games/damas/
   coronación se corona y la cadena termina ahí.
 - **Fin de juego (L4):** pierde quien queda sin fichas o sin movimientos
   legales. No hay regla de tablas en el MVP.
-- **Sin récord (L5):** `onGameEnd` no se invoca; el modal de fin solo anuncia al
-  ganador. Score/persistencia se definirán en Fase 4 (IA).
+- **Sin récord (L5 / [ADR 0007](../../../docs/adr/0007-damas-mvp-local.md)):**
+  `onGameEnd` no se invoca; el modal de fin solo anuncia al ganador.
+  Score/persistencia se definirán si entra IA (ver `docs/ROADMAP.md`).
 - **Drag & drop:** mismo patrón de solitario (`src/core/ui/drag/useDraggable.ts`):
   lift con spring (1.08), targets válidos resaltados (casillas destino con borde
-  y glow), settle animado (120 ms) en drop válido y snap-back con spring en
-  drop inválido. El drop point es el centro de la casilla de origen + traslación
-  del gesto; `hitTestSquare` (coords del tablero) decide el destino.
+  y glow), settle animado con spring (handoff de velocidad del gesto) en drop
+  válido y snap-back con spring en drop inválido. El drop point es el centro de
+  la casilla de origen + traslación del gesto; `hitTestSquare` (coords del
+  tablero) decide el destino.
 - **Layout como fuente única:** `engine/layout.ts` calcula `square`/posiciones a
   partir del tamaño del contenedor; render e hit-test consumen las mismas funciones.
 - **E2E gate:** seeds solo con `EXPO_PUBLIC_E2E=1` (lo hace `scripts/e2e.mjs`).
@@ -55,7 +57,18 @@ src/games/damas/
 - E2E web: `pnpm e2e:web` — snap-back ilegal (captura obligatoria), captura legal
   con cambio de turno, victoria forzada → modal **sin récord**, jugar de nuevo, salir.
 
+**Labels a11y estables** (selectores de Playwright/Maestro): `damas-celda-<0..63>`,
+`damas-ficha-*`, `damas-turno-1|2`, `modal-fin-damas`, `salir-damas`,
+`jugar-de-nuevo-damas`, más los de core (`salir/reiniciar/ayuda-damas`,
+`modal-ayuda-damas`).
+
 ## Regla de dependencias
 
 Nada bajo `src/games/damas/` importa de otros juegos; solo `src/core/`
 (`useDraggable`, tema, tipos del contrato).
+
+## Documentación relacionada
+
+- `RULES.md` — reglas implementadas de la variante chilena (fuente para QA;
+  condensado in-app en `GameDefinition.rules`).
+- `docs/ROADMAP.md` — score/IA pendiente para damas.

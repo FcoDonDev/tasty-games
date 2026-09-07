@@ -31,9 +31,9 @@ memorice/
 
 ## Decisiones de render
 
-- **Views nativos + Reanimated**, sin Skia (decisión D1 del plan raíz).
+- **Views nativos + Reanimated**, sin Skia ([ADR 0001](../../../docs/adr/0001-render-sin-skia.md)).
 - Flip en dos fases en `Card.tsx`: rotación 0° → 90° (se intercambia el contenido)
-  → 0°, coordinada por `useAnimatedReaction` + `runOnJS` (`showFace`).
+  → 0°, coordinada por `useAnimatedReaction` + `scheduleOnRN` (`showFace`).
   Evita el espejo de un `rotateY` continuo, que se ve mal en RN Web.
 - Grid `FlatList numColumns` responsive: 4 columnas (3 si `width < 420`).
 
@@ -57,6 +57,13 @@ pnpm e2e:ui             # E2E con UI mode para debug
 
 ## Limitaciones conocidas
 
-- Score no escala con la cantidad de pares: `score = max(0, 100 - moves)`.
+- Score no escala con la cantidad de pares: `score = max(0, 100 - moves)`
+  (convención "más es mejor", [ADR 0005](../../../docs/adr/0005-convencion-score.md)).
 - El flip-back del mismatch (700 ms) es fijo; no parametrizado por dificultad.
 - Sin seed en producción: cada partida baraja con `Math.random()`.
+
+## Documentación relacionada
+
+- `RULES.md` — reglas implementadas (fuente para QA; condensado in-app en
+  `GameDefinition.rules`).
+- `docs/ARCHITECTURE.md` — arquitectura general y UI compartida de core.

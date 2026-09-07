@@ -1,11 +1,18 @@
 # tasty-games
 Aplicación con múltiples juegos 2d simples (Web + Android) — Expo SDK 57 / Expo Router / TypeScript.
 
-Documentación clave:
+## Documentación
 
-- `PLAN-IMPLEMENTACION.md` — plan por fases + checklist de avance
-- `propuesta-app-juegos.md` — propuesta original (contiene decisiones ya revocadas, ver plan)
-- `AGENTS.md` — convenciones del repo para agentes
+| Documento | Contenido |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Arquitectura: contrato de juego, registro, estado, persistencia dual, drag & drop, UI compartida, deploy |
+| [`docs/adr/`](docs/adr/README.md) | Decisiones de diseño transversales (ADRs) |
+| [`docs/UI-UX.md`](docs/UI-UX.md) | Reglas de animación, layout, haptics y verificación visual |
+| [`docs/GOTCHAS.md`](docs/GOTCHAS.md) | Lecciones técnicas del toolchain (RN, Reanimated, Jest, Playwright, Metro) |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Trabajo pendiente (Fase E Android, deudas) |
+| [`AGENTS.md`](AGENTS.md) | Convenciones del repo para agentes (procesos, comandos, verificación) |
+| `src/games/<id>/README.md` | Documentación técnica de cada juego |
+| `src/games/<id>/RULES.md` | Reglas implementadas de cada juego (QA) |
 
 ## Comandos
 

@@ -2,14 +2,6 @@
 
 App de juegos 2D simples (Web + Android) con Expo SDK 57 / Expo Router / React Native 0.86 / TypeScript. 
 
-## Estado del proyecto
-
-- Completadas: **Fase 0** (bootstrap), **Fase 1** (Memorice), **Fase 2 + 2b** (Solitario con drag & drop), **Fase 3** (Damas chilenas, 2 jugadores locales, MVP sin récord), **Fase 4** (responsive mobile-first, GameHeader core con ayuda/reinicio, ajustes globales, récord en GameCard, CI mínima) y **Fases U1–U3 de UI/UX** (drag que sigue el dedo en UI thread + haptics; tableros al 100% del área medida con onLayout + récord en chromeBar + safe areas; botones con feedback de press `PressableScale` + overlays con fade + solitario que parte desde arriba). Detalle y checkboxes en `PLAN-IMPLEMENTACION.md` y `PLAN-UI-UX.md`.
-- Siguiente: **Fase E** — E2E Android (Maestro) + release Android (`eas build`) + CI completa (Playwright/Maestro). Requiere Java 17 + Android SDK (no instalados en este entorno). Pendiente del usuario: feel-check en device de U4 (release build, flick/interrupción/haptics) junto con las validaciones Android.
-- Verificación actual: `pnpm test` 155/155 · `pnpm e2e:web` 15/15 specs (memorice 2, solitario 3, damas 3, core: ayuda 2 + ajustes 1 + responsive 4).
-- Drag & drop: patrón reutilizable en `src/core/ui/drag/useDraggable.ts` (Pan + shared values escritas en `onUpdate`, velocity handoff al settle/snap-back, `scheduleOnRN` — no `runOnJS` deprecado); lo consumen solitario y damas (lift, targets válidos resaltados, settle animado, snap-back).
-- UI compartida en `src/core/ui/`: `PressableScale` (feedback de press, CSS transition 120ms/scale 0.97), `overlayAnimation` (builders FadeIn/FadeOut perezosos-memoizados), `useContainerSize` (medición real del contenedor), `haptics` (wrapper expo-haptics). Los juegos no importan expo-haptics/reanimated builders directamente.
-- **Mobile-first y responsive (D4)**: toda UI debe verse a 360×640 sin scroll innecesario; layouts derivan del tamaño REAL medido con `useContainerSize` (onLayout), no de `useWindowDimensions` con constantes adivinadas; spec E2E `responsive.web.spec.ts` lo candea.
 
 ## Comandos
 
@@ -26,6 +18,9 @@ App de juegos 2D simples (Web + Android) con Expo SDK 57 / Expo Router / React N
 - Cada juego tiene su propio store Zustand en `engine/state.ts`, no exportado fuera de su carpeta. Engines (`rules.ts`, `deck.ts`, `board.ts`) deben ser funciones puras sin UI — ahí vive el riesgo y los tests.
 - El único lugar que escribe récords es `app/juego/[id].tsx` vía `recordsRepository`; los juegos llaman `onGameEnd(result)` y nunca importan expo-sqlite.
 - **Convención de score: más es mejor**: Cada juego debe definir su propia métria de score en sus reglas (Ej: memorice usa `100 - moves`).
+- **Mobile-first y responsive (D4)**: toda UI debe verse a 360×640 sin scroll innecesario; layouts derivan del tamaño REAL medido con `useContainerSize` (onLayout), no de `useWindowDimensions` con constantes adivinadas; spec E2E `responsive.web.spec.ts` lo candea.
+- Drag & drop: patrón reutilizable en `src/core/ui/drag/useDraggable.ts` (Pan + shared values escritas en `onUpdate`, velocity handoff al settle/snap-back, `scheduleOnRN` — no `runOnJS` deprecado); lo consumen solitario y damas (lift, targets válidos resaltados, settle animado, snap-back).
+- UI compartida en `src/core/ui/`: `PressableScale` (feedback de press, CSS transition 120ms/scale 0.97), `overlayAnimation` (builders FadeIn/FadeOut perezosos-memoizados), `useContainerSize` (medición real del contenedor), `haptics` (wrapper expo-haptics). Los juegos no importan expo-haptics/reanimated builders directamente.
 
 ## Persistencia dual 
 
@@ -42,6 +37,56 @@ Nunca editar el DDL existente en `src/core/db/schema.ts`. Sumar `SCHEMA_VERSION`
 - Alias `@/` → `src/` está configurado en DOS lugares: `tsconfig.json` paths y `jest moduleNameMapper` en `package.json`. Al tocar uno, tocar el otro.
 - Render: Views nativos + react-native-reanimated + gesture-handler. 
 - Componentes interactivos llevan `accessibilityLabel` estable: son los selectores que usarán Maestro (Android) y Playwright (web) en E2E.
+
+
+## Flujo de trabajo con PLAN (requerimientos extensos)
+
+Para requerimientos extensos o complejos se trabaja con un archivo PLAN temporal
+que vive en la raíz del repo y se elimina al cerrar el requerimiento.
+
+**Cuándo exige PLAN** (cualquiera de estas): feature nueva o cambio multi-archivo
+que toca core y/o más de un juego; requiere decisiones de diseño a aprobar con el
+usuario; se planifica en fases/tareas con orden de ejecución.
+
+**Cuándo NO** (cambio puntual — va directo: implementar → verificación estándar):
+texto/estilo, un color, fix simple con su test, ajuste en un solo módulo.
+
+### Ciclo
+
+1. **Crear `PLAN-<TEMA>.md`** en la raíz (ej. `PLAN-IA-DAMAS.md`).
+2. **Detallar el requerimiento**: contexto, objetivo, decisiones de diseño con
+   alternativas (aprobadas con el usuario antes de implementar) y criterios de
+   aceptación.
+3. **Checklist de tareas** en orden de ejecución (`- [ ]`), con la verificación
+   estándar (typecheck → test → e2e) como última tarea.
+4. **Implementar** tarea por tarea, **actualizando el checklist** al cerrar
+   cada una (`- [x]`).
+5. **Documentar hallazgos** en el PLAN (sección "Notas/hallazgos") a medida que
+   aparecen: desviaciones justificadas, aprendizajes técnicos, problemas.
+6. **Cierre** (solo con la verificación completa verde):
+   1. Migrar cada hallazgo a su destino definitivo (tabla abajo).
+   2. Actualizar los docs afectados (README del juego, ADR, ROADMAP,
+      ARCHITECTURE, UI-UX).
+   3. **Eliminar el PLAN** en el commit final de cierre.
+
+### Destino de los hallazgos (migración al cierre)
+
+| Tipo de hallazgo | Destino |
+|---|---|
+| Lección técnica reproducible (RN, Reanimated, Jest, Playwright, Metro) | `docs/GOTCHAS.md` |
+| Decisión de diseño transversal (qué y por qué) | ADR nuevo en `docs/adr/` |
+| Detalle técnico de un juego | `src/games/<id>/README.md` |
+| Trabajo pendiente / deuda | `docs/ROADMAP.md` |
+| Proceso de agentes (comandos, servidores, verificación) | `AGENTS.md` |
+
+### Reglas
+
+- Un PLAN activo por requerimiento; el PLAN no duplica docs existentes, enlaza.
+- El PLAN **se commitea junto al trabajo** (trazabilidad entre sesiones); solo
+  el commit de cierre lo elimina.
+- Si el trabajo queda a medio camino, el PLAN queda commiteado con estado
+  actualizado (qué falta, qué decisión quedó pendiente) — es la memoria entre
+  sesiones.
 
 
 ## Pruebas
@@ -112,6 +157,8 @@ curl -s -o /dev/null -w "%{http_code}" --max-time 3 http://127.0.0.1:4173/   # 0
 Nunca relanzar `serve`/`e2e.mjs` sin haber confirmado con `curl` que el puerto está libre o que el servidor existente sirve el `dist/` recién exportado.
 
 ## Gotchas del toolchain
+
+Más lecciones técnicas (RN/RNW, Reanimated, Jest, Playwright, Metro) en [`docs/GOTCHAS.md`](docs/GOTCHAS.md). Las más frecuentes:
 
 - Reanimated 4 requiere New Architecture (default en SDK 57, no desactivar) y `react-native-worklets` — versiones deben venir de `expo install`, no manual.
 - `pnpm exec expo install` agrega paquetes a `dependencies` (incluidos jest/jest-expo/@types/jest): así quedó, no "reordenar".

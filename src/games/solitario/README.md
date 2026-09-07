@@ -23,19 +23,38 @@ src/games/solitario/
 
 ## Decisiones clave
 
-- **Score (más es mejor):** `score = max(0, 1000 − 5·moves − floor(segundos/2) − 25·undos)` (`engine/rules.ts`).
+- **Score (más es mejor):** `score = max(0, 1000 − 5·moves − floor(segundos/2) − 25·undos)` (`engine/rules.ts`,
+  convención en [ADR 0005](../../../docs/adr/0005-convencion-score.md)).
+- **Draw 1 / Draw 3 configurable:** setting in-game (`SettingsModal`), aplica al
+  **próximo reparto** (cambiarlo a mitad de partida no rebaraja).
 - **Undo:** deshabilitado por defecto. Al habilitarlo, cada acción guarda un snapshot inmutable de las pilas; cada undo penaliza el score. `moves` no se revierten.
+- **Solo se reportan victorias** vía `onGameEnd` (paridad con memorice); el modal
+  de sin-movimientos no genera récord (`hasAnyMove()` igualmente testeada).
 - **Foundations indexadas por palo:** `foundations[i]` recibe `SUITS[i]` (♠ ♥ ♦ ♣).
 - **Layout como fuente única:** `engine/layout.ts` calcula los rects de las 13 pilas a partir del tamaño del contenedor (`onLayout`, síncrono). El render (posición absoluta) y el hit-testing del drag consumen las mismas funciones — nada de `measure()` async.
-- **Drag:** patrón reutilizable en `src/core/ui/drag/useDraggable.ts` (`Gesture.Pan` + shared values + `runOnJS`). El punto de drop se computa como origen de la carta + traslación del gesto (coords del tablero, sin conversión a pantalla). Drop válido → `moveCards`; inválido → snap-back animado (`withTiming`).
+- **Drag:** patrón reutilizable en `src/core/ui/drag/useDraggable.ts` (`Gesture.Pan` + shared values escritas en `onUpdate` + velocity handoff al settle/snap-back + `scheduleOnRN`). El punto de drop se computa como origen de la carta + traslación del gesto (coords del tablero, sin conversión a pantalla). Drop válido → `moveCards` con settle animado; inválido → snap-back con spring.
 - **Persistencia de settings:** `preferencesRepository` (KV dual sqlite/localStorage), claves `solitario.drawMode` y `solitario.undo`. El cambio de drawMode aplica al próximo reparto; undo, inmediato.
 - **E2E gate:** `app/juego/[id].tsx` solo reenvía el query param `seed` cuando el build se exporta con `EXPO_PUBLIC_E2E=1` (lo hace `scripts/e2e.mjs`). Seeds soportados en `engine/deck.ts`: `test-win` (un drag gana) y `test-move` (reparto determinista para drag legal/ilegal). En producción no existe canal para alterar el reparto.
 
 ## Tests
 
-- Unit: `pnpm test -- solitario` (engine puro: reglas, store, layout).
+- Unit: `pnpm test -- solitario` (engine puro: reglas —el más exhaustivo del
+  proyecto—, store, layout, hit-testing).
 - E2E web: `pnpm e2e:web` — drag legal, snap-back ilegal, victoria forzada → récord + ScoreBoard, salir.
+
+**Labels a11y estables** (selectores de Playwright/Maestro): `solitario-card-<id>`,
+`solitario-tableau-<i>`, `solitario-foundation-<i>`, `solitario-stock`,
+`solitario-waste`, `modal-victoria-solitario`, `modal-derrota-solitario`,
+`salir-solitario`, `solitario-undo`, `solitario-ajustes`, más los de core
+(`salir/reiniciar/ayuda-solitario`, `modal-ayuda-solitario`, `record-solitario`).
 
 ## Regla de dependencias
 
-Nada bajo `src/games/solitario/` importa de `src/games/memorice/` u otros juegos; solo `src/core/`. `mulberry32` está duplicado a propósito (extraerlo a core es refactor opcional).
+Nada bajo `src/games/solitario/` importa de `src/games/memorice/` u otros juegos; solo `src/core/`. `mulberry32` está duplicado a propósito (extraerlo a core es refactor opcional — ver `docs/ROADMAP.md`).
+
+## Documentación relacionada
+
+- `RULES.md` — reglas implementadas (fuente para QA; condensado in-app en
+  `GameDefinition.rules`).
+- [ADR 0006](../../../docs/adr/0006-seeds-e2e-sentinelas.md) — seeds E2E
+  sentinelas (`test-win`, `test-move`).

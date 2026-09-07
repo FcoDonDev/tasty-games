@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// Mobile-first: viewport de teléfono chico (criterio D4 del plan)
+// Mobile-first: viewport de teléfono chico (criterio del ADR 0004)
 test.use({ viewport: { width: 360, height: 640 } });
 
 const GAMES = ['memorice', 'solitario', 'damas'] as const;
