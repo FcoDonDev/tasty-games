@@ -17,6 +17,7 @@ const RULES = [
 const solitario: GameDefinition = {
   id: 'solitario',
   name: 'Solitario',
+  icon: '♠️',
   description: 'Klondike clásico: ordena las 52 cartas en las 4 pilas por palo, del As al K.',
   minDurationHint: '5-10 min',
   rules: RULES,

@@ -52,6 +52,11 @@ background están en `AGENTS.md`, no acá.
   render y se memoizan (como constantes de module scope, `game-registry.test`
   falla con `Cannot read properties of undefined (reading 'duration')` porque
   el registro importa pantallas → GameHeader → overlayAnimation).
+- **@testing-library/react-native v14: `render` es `async`** — hay que
+  `await render(<X />)`; si se llama síncrono, `render` devuelve un Promise
+  (keys `[]`) y `screen.*` falla con `render function has not been called`
+  (el screen queda como stub notImplemented). Bajo el preset de jest-expo no
+  hay doble copia del paquete: el síntoma es solo el `await` faltante.
 
 ## Playwright / E2E
 

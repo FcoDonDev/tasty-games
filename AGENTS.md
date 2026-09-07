@@ -113,7 +113,7 @@ Orden obligatorio para cualquier cambio, siempre con timeout explícito en los c
 3. E2E web completo: `node scripts/e2e.mjs` (orquestador: export → serve :4173 → Playwright → cleanup). Un solo intento; si se aborta a mitad, ver sección siguiente ANTES de reintentar.
 4. Verificación visual puntual (solo si hay que mirar algo que los specs no cubren): exportar (`CI=1 pnpm exec expo export --platform web`), servir dist manualmente y abrir con el navegador (viewport 360×640). Borrar los screenshots al terminar (`rm -f u*.png`); nunca commitearlos.
 
-Condiciones para considerar "verde" un cambio: typecheck + test + e2e completo (19/19). Los screenshots mid-gesto (ej. `getComputedStyle(el).transform` con mouse down sostenido) son el método para verificar animaciones que los specs solo validan por resultado final.
+Condiciones para considerar "verde" un cambio: typecheck + test + e2e completo (25/25). Los screenshots mid-gesto (ej. `getComputedStyle(el).transform` con mouse down sostenido) son el método para verificar animaciones que los specs solo validan por resultado final.
 
 ## Dev server web (validación manual en dev)
 

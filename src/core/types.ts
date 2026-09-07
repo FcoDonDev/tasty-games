@@ -31,6 +31,8 @@ export interface GameDefinition {
   id: string; // 'memorice' | 'solitario' | 'damas' | ...
   name: string;
   description: string;
+  /** Emoji descriptivo para la card del Home; si falta, GameCard usa la inicial del nombre */
+  icon?: string;
   thumbnail?: ImageSourcePropType; // require('./assets/thumb.png')
   minDurationHint?: string; // ej: "5-10 min", solo informativo
   /** Reglas condensadas para la ayuda in-app (RULES.md sigue siendo la fuente QA) */

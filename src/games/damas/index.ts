@@ -19,6 +19,7 @@ const RULES = [
 const damas: GameDefinition = {
   id: 'damas',
   name: 'Damas',
+  icon: '🔴',
   description: 'Damas chilenas para 2 jugadores: captura obligatoria, multi-salto y dama voladora.',
   minDurationHint: '5-10 min',
   rules: RULES,
