@@ -58,9 +58,9 @@ Orden de ejecución. Verificación estándar (typecheck → test → e2e) cierra
 
 ### Fase 2 — Home responsive con reflow automático
 
-- [ ] `app/index.tsx`: medir el área de lista con `useContainerSize` y derivar columnas del ancho real (1 col `<480`, 2 cols `≥480`, 3 cols `≥1024`); `key={numColumns}` remonta y reordena al rotar/redimensionar.
-- [ ] Corregir el scroll interno del `FlatList` en web móvil (`style={{ flex: 1 }}` directo).
-- [ ] Extender `responsive.web.spec.ts`: 3ª tarjeta alcanzable con scroll a 360×640 + caso de reflow con 2 columnas en viewport ancho.
+- [x] `app/index.tsx`: columnas derivadas del ancho REAL medido con `useContainerSize` (helper puro `columnsForWidth` en `src/core/ui/responsiveColumns.ts`: 1 col `<480`, 2 cols `≥480`, 3 cols `≥1024`); `key={numColumns}` remonta y reordena al rotar/redimensionar.
+- [x] Scroll interno corregido: `FlatList` con `style={{ flex: 1 }}` directo.
+- [x] `responsive.web.spec.ts`: 3ª tarjeta (damas) alcanzable con scroll interno a 360×640 (la página sigue sin scrollear) + reflow a 2 columnas en viewport 900×800 (misma fila, x distinto).
 
 ### Fase 3 — Persistencia de partida (solitario)
 
@@ -84,3 +84,6 @@ Orden de ejecución. Verificación estándar (typecheck → test → e2e) cierra
   (candidato a `docs/GOTCHAS.md` en el cierre).
 - Fase 1: expo-router 57 no exporta el tipo `Router`; se deriva con
   `ReturnType<typeof useRouter>` (`AppRouter` en `src/core/navigation.ts`).
+- Fase 2: la causa del scroll roto fue el `FlatList` sin constraint de alto
+  propio — el wrapper `flex: 1` no alcanza en RN-web; el ScrollView necesita
+  `style={{ flex: 1 }}` directo (candidato a `docs/GOTCHAS.md` en el cierre).

@@ -1,10 +1,4 @@
-import {
-  FlatList,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Easing } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -14,6 +8,8 @@ import { GAME_REGISTRY } from '@/core/game-registry';
 import { GameCard } from '@/core/ui/GameCard';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
+import { useContainerSize } from '@/core/ui/useContainerSize';
+import { columnsForWidth } from '@/core/ui/responsiveColumns';
 
 // Entrada de la lista: se anima el CONTENEDOR una vez en mount (la lista es
 // virtualizada: nunca `entering` por fila). Ocasional / delight, ≤250ms.
@@ -23,9 +19,11 @@ export default function HomeScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  // Mobile-first: 1 columna en pantallas angostas, 2 en el resto
-  const numColumns = width < 380 ? 1 : 2;
+  // Tamaño real del área de lista (onLayout): las columnas se derivan del
+  // ancho medido, no de useWindowDimensions → reflow automático al
+  // rotar/redimensionar (el `key={numColumns}` remonta la lista).
+  const { size, onLayout } = useContainerSize();
+  const numColumns = size ? columnsForWidth(size.width) : 1;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top + 12 }]}>
@@ -55,9 +53,10 @@ export default function HomeScreen() {
           </Text>
         </View>
       ) : (
-        <Animated.View entering={LIST_ENTER} style={styles.listWrapper}>
+        <Animated.View entering={LIST_ENTER} style={styles.listWrapper} onLayout={onLayout}>
           <FlatList
             key={numColumns}
+            style={styles.listScroll}
             data={GAME_REGISTRY}
             keyExtractor={(game) => game.id}
             numColumns={numColumns}
@@ -107,6 +106,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   listWrapper: {
+    flex: 1,
+  },
+  // El FlatList necesita su propia constraint de alto en web: sin `flex: 1`
+  // directo el ScrollView interno no scrollea y las filas quedan fuera de vista.
+  listScroll: {
     flex: 1,
   },
   list: {
