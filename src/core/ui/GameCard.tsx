@@ -24,7 +24,7 @@ export function GameCard({ game, onPress }: GameCardProps) {
     >
       <View style={[styles.thumbnail, { backgroundColor: theme.primary, borderCurve: 'continuous' }]}>
         <Text style={[styles.thumbnailText, { color: theme.primaryText }]}>
-          {game.name.charAt(0).toUpperCase()}
+          {game.icon ?? game.name.charAt(0).toUpperCase()}
         </Text>
       </View>
       <Text style={[styles.name, { color: theme.text }]}>{game.name}</Text>

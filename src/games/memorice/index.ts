@@ -16,6 +16,7 @@ const RULES = [
 const memorice: GameDefinition = {
   id: 'memorice',
   name: 'Memorice',
+  icon: '🧠',
   description: 'Encuentra todos los pares de cartas con la menor cantidad de intentos.',
   minDurationHint: '3-5 min',
   rules: RULES,
