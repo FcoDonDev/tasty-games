@@ -64,6 +64,93 @@ test('solitario: movimiento legal a foundation e intento ilegal con snap-back', 
   expect(Math.hypot(aceAfter.x - foundationCenter.x, aceAfter.y - foundationCenter.y)).toBeLessThan(10);
 });
 
+test('solitario: auto-move a foundation con doble click', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openGame(page, 'test-move');
+
+  // Robar: el A♠ (top del stock) pasa a la waste
+  await page.getByLabel('solitario-stock').click();
+  const ace = page.getByLabel('solitario-card-S-1', { exact: true });
+  await expect(ace).toBeVisible();
+
+  // Doble click sobre el as: va directo a la foundation de ♠ (index 0).
+  // El robo ya consumió 1 movimiento, el auto-move suma el 2º.
+  await ace.dblclick();
+  await expect(page.getByText('Movimientos: 2')).toBeVisible();
+  await page.waitForTimeout(1000); // commit inmediato, margen para el render
+  const aceAfter = await centerOf(ace);
+  const foundationCenter = await centerOf(
+    page.getByLabel('solitario-foundation-0', { exact: true }),
+  );
+  expect(Math.hypot(aceAfter.x - foundationCenter.x, aceAfter.y - foundationCenter.y)).toBeLessThan(10);
+});
+
+test('solitario: doble click con pausa entre clicks (doble tap humano) hace auto-move', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await openGame(page, 'test-move');
+
+  await page.getByLabel('solitario-stock').click();
+  const ace = page.getByLabel('solitario-card-S-1', { exact: true });
+  await expect(ace).toBeVisible();
+
+  // Dos clicks separados por ~250ms (maxDelay del TapGesture): el gesto nativo
+  // con default 200ms fallaría aquí; debe reconocer el doble tap igual.
+  const center = await centerOf(ace);
+  await page.mouse.click(center.x, center.y);
+  await page.waitForTimeout(250);
+  await page.mouse.click(center.x, center.y);
+  await expect(page.getByText('Movimientos: 2')).toBeVisible();
+});
+
+test('solitario: clic derecho durante un drag no mueve ni deja la carta flotando', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await openGame(page, 'test-move');
+
+  await page.getByLabel('solitario-stock').click();
+  const ace = page.getByLabel('solitario-card-S-1', { exact: true });
+  await expect(ace).toBeVisible();
+
+  // Drag activo (carta levantada, sigue al cursor) + clic derecho en el aire:
+  // el auto-move debe ignorarse y el drag debe terminar en snap-back limpio.
+  const from = await centerOf(ace);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 40, from.y + 30, { steps: 8 });
+  await page.mouse.click(from.x + 40, from.y + 30, { button: 'right' });
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  await page.waitForTimeout(1000); // snap-back con spring
+
+  await expect(page.getByText('Movimientos: 1')).toBeVisible();
+  const aceCenter = await centerOf(ace);
+  const wasteCenter = await centerOf(page.getByLabel('solitario-waste', { exact: true }));
+  expect(Math.hypot(aceCenter.x - wasteCenter.x, aceCenter.y - wasteCenter.y)).toBeLessThan(10);
+});
+
+test('solitario: auto-move a foundation con clic derecho (web)', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openGame(page, 'test-move');
+
+  await page.getByLabel('solitario-stock').click();
+  const ace = page.getByLabel('solitario-card-S-1', { exact: true });
+  await expect(ace).toBeVisible();
+
+  // Clic derecho sobre el as: mismo camino de auto-move (robo=1, auto-move=2)
+  const before = await centerOf(ace);
+  await page.mouse.click(before.x, before.y, { button: 'right' });
+  await expect(page.getByText('Movimientos: 2')).toBeVisible();
+  await page.waitForTimeout(1000);
+  const aceAfter = await centerOf(ace);
+  const foundationCenter = await centerOf(
+    page.getByLabel('solitario-foundation-0', { exact: true }),
+  );
+  expect(Math.hypot(aceAfter.x - foundationCenter.x, aceAfter.y - foundationCenter.y)).toBeLessThan(10);
+});
+
 test('solitario: victoria forzada → modal + récord persistido + ScoreBoard', async ({ page }) => {
   test.setTimeout(60_000);
   await openGame(page, 'test-win');

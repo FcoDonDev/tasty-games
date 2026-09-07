@@ -48,3 +48,8 @@ example
 # generated native folders
 /ios
 /android
+
+# artefactos locales
+.env
+.codegraph/
+.playwright-mcp/

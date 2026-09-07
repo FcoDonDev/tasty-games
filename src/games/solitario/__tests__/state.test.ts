@@ -201,6 +201,105 @@ describe('solitario state — moveCards', () => {
   });
 });
 
+describe('solitario state — autoMoveToFoundation', () => {
+  it('as de waste va directo a su foundation', () => {
+    fresh(42);
+    useSolitarioStore.setState({
+      waste: [{ id: 'H-1', suit: 'H', rank: 1, faceUp: true }],
+      stock: [],
+      tableau: deal(42).tableau,
+      stuck: false,
+    });
+    expect(act().autoMoveToFoundation({ kind: 'waste' })).toBe(true);
+    expect(act().foundations[1]).toEqual([{ id: 'H-1', suit: 'H', rank: 1, faceUp: true }]);
+    expect(act().waste).toEqual([]);
+    expect(act().moves).toBe(1);
+  });
+
+  it('carta top de tableau elegible va a la foundation de su palo', () => {
+    fresh(42);
+    useSolitarioStore.setState({
+      foundations: [[{ id: 'S-1', suit: 'S', rank: 1, faceUp: true }], [], [], []],
+      tableau: [[{ id: 'S-2', suit: 'S', rank: 2, faceUp: true }], ...deal(42).tableau.slice(1)],
+      stock: [],
+      waste: [],
+      stuck: false,
+    });
+    expect(act().autoMoveToFoundation(tableauRef(0, 0))).toBe(true);
+    expect(act().foundations[0]).toHaveLength(2);
+    expect(act().tableau[0]).toEqual([]);
+  });
+
+  it('carta no elegible devuelve false sin alterar el estado', () => {
+    fresh(42);
+    useSolitarioStore.setState({
+      foundations: [[{ id: 'S-3', suit: 'S', rank: 3, faceUp: true }], [], [], []],
+      tableau: [[{ id: 'S-2', suit: 'S', rank: 2, faceUp: true }], ...deal(42).tableau.slice(1)],
+      stock: [],
+      waste: [],
+      stuck: false,
+    });
+    const before = act().tableau;
+    expect(act().autoMoveToFoundation(tableauRef(0, 0))).toBe(false);
+    expect(act().tableau).toEqual(before);
+    expect(act().moves).toBe(0);
+  });
+
+  it('subsecuencia de más de 1 carta no aplica', () => {
+    fresh(42);
+    useSolitarioStore.setState({
+      tableau: [[{ id: 'S-2', suit: 'S', rank: 2, faceUp: true }, { id: 'H-1', suit: 'H', rank: 1, faceUp: true }], ...deal(42).tableau.slice(1)],
+      stock: [],
+      waste: [],
+      stuck: false,
+    });
+    expect(act().autoMoveToFoundation(tableauRef(0, 0))).toBe(false);
+    expect(act().tableau[0]).toHaveLength(2);
+  });
+
+  it('carta tapada o ref inválido devuelve false', () => {
+    fresh(42);
+    useSolitarioStore.setState({
+      tableau: [[{ id: 'S-9', suit: 'S', rank: 9, faceUp: false }], ...deal(42).tableau.slice(1)],
+      stock: [],
+      waste: [],
+      stuck: false,
+    });
+    expect(act().autoMoveToFoundation(tableauRef(0, 0))).toBe(false);
+  });
+
+  it('partida terminada o trabada bloquea el auto-move', () => {
+    fresh(TEST_WIN_SEED);
+    useSolitarioStore.setState({ stuck: true });
+    expect(act().autoMoveToFoundation(tableauRef(0, 0))).toBe(false);
+    expect(act().moves).toBe(0);
+  });
+
+  it('auto-move con undo habilitado restaura el estado previo', () => {
+    fresh(42, { undoEnabled: true });
+    useSolitarioStore.setState({
+      waste: [{ id: 'H-1', suit: 'H', rank: 1, faceUp: true }],
+      stock: [],
+      tableau: deal(42).tableau,
+      stuck: false,
+    });
+    expect(act().autoMoveToFoundation({ kind: 'waste' })).toBe(true);
+    act().undo();
+    expect(act().waste).toEqual([{ id: 'H-1', suit: 'H', rank: 1, faceUp: true }]);
+    expect(act().foundations[1]).toEqual([]);
+    expect(act().undos).toBe(1);
+  });
+
+  it('as que completa la victoria marca finishedAt', () => {
+    fresh(TEST_WIN_SEED, { undoEnabled: true });
+    const s = fresh(TEST_WIN_SEED, { undoEnabled: true });
+    // K♣ (tableau 0, única carta) es el último movimiento: auto-move también cierra
+    expect(act().autoMoveToFoundation(tableauRef(0, 0))).toBe(true);
+    expect(act().finishedAt).not.toBeNull();
+    expect(s.tableau[0]).toHaveLength(1); // el snapshot original no cambió
+  });
+});
+
 describe('solitario state — undo', () => {
   it('deshabilitado: no acumula historial y undo es no-op', () => {
     fresh(42);
