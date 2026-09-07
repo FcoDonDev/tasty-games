@@ -89,7 +89,7 @@ Patrón reutilizable consumido por solitario y damas:
 ```
 app/
   _layout.tsx     # GestureHandlerRootView + SafeAreaProvider + ThemeProvider + hydrate
-  index.tsx       # Home: lista GAME_REGISTRY como cards (columnas según ancho REAL medido, ADR 0004; + engranaje a ajustes)
+  index.tsx       # Home: lista GAME_REGISTRY como cards (nativo: columnas según ancho REAL medido, ADR 0004; web: 1 columna centrada con ancho tope; + engranaje a ajustes)
   ajustes.tsx     # Dark mode + borrar récords
   juego/[id].tsx  # Contenedor: monta Component del juego; ÚNICO escritor de récords
 ```

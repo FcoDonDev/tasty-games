@@ -61,21 +61,30 @@ test('responsive 360×640: Home — la 3ª tarjeta es alcanzable con scroll inte
   await assertNoPageScroll(page);
 });
 
-test.describe('responsive ancho 900×800: Home con 2 columnas', () => {
+test.describe('responsive ancho 900×800: Home con 1 columna (web = comportamiento móvil)', () => {
   test.use({ viewport: { width: 900, height: 800 } });
 
-  test('las tarjetas se reordenan: memorice y solitario comparten fila', async ({ page }) => {
+  test('las tarjetas apilan en una sola columna centrada', async ({ page }) => {
     test.setTimeout(30_000);
     await page.goto('/');
     await expect(page.getByText('Tasty Games')).toBeVisible({ timeout: 15_000 });
 
     const memoriceBox = await page.getByLabel('Jugar Memorice').boundingBox();
     const solitarioBox = await page.getByLabel('Jugar Solitario').boundingBox();
+    const damasBox = await page.getByLabel('Jugar Damas').boundingBox();
     expect(memoriceBox).not.toBeNull();
     expect(solitarioBox).not.toBeNull();
+    expect(damasBox).not.toBeNull();
 
-    // Misma fila (y casi igual), columnas distintas (x diferente)
-    expect(Math.abs((memoriceBox?.y ?? 0) - (solitarioBox?.y ?? 0))).toBeLessThan(8);
-    expect(memoriceBox?.x).not.toBe(solitarioBox?.x);
+    // Una sola columna: filas distintas (apiladas verticalmente)
+    expect(solitarioBox!.y).toBeGreaterThan(memoriceBox!.y + memoriceBox!.height - 8);
+    expect(damasBox!.y).toBeGreaterThan(solitarioBox!.y + solitarioBox!.height - 8);
+
+    // Misma columna: x idéntico entre tarjetas
+    expect(damasBox!.x).toBe(memoriceBox!.x);
+
+    // Columna centrada con ancho tope ~600px (x izquierdo ≈ (900−600)/2)
+    expect(memoriceBox!.x).toBeGreaterThan(100);
+    expect(memoriceBox!.width).toBeLessThanOrEqual(620);
   });
 });

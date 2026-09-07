@@ -1,4 +1,4 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { Platform, FlatList, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Easing } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -22,8 +22,12 @@ export default function HomeScreen() {
   // Tamaño real del área de lista (onLayout): las columnas se derivan del
   // ancho medido, no de useWindowDimensions → reflow automático al
   // rotar/redimensionar (el `key={numColumns}` remonta la lista).
+  // En web la lista es SIEMPRE de 1 columna (mismo comportamiento que móvil,
+  // con ancho tope y centrado — ver styles.listWrapper) para que el remount
+  // por `key={numColumns}` nunca dispare y el scroll sobreviva al resize.
   const { size, onLayout } = useContainerSize();
-  const numColumns = size ? columnsForWidth(size.width) : 1;
+  const numColumns: 1 | 2 | 3 =
+    Platform.OS === 'web' ? 1 : size ? columnsForWidth(size.width) : 1;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top + 12 }]}>
@@ -53,7 +57,11 @@ export default function HomeScreen() {
           </Text>
         </View>
       ) : (
-        <Animated.View entering={LIST_ENTER} style={styles.listWrapper} onLayout={onLayout}>
+        <Animated.View
+          entering={LIST_ENTER}
+          style={[styles.listWrapper, Platform.OS === 'web' && styles.listWrapperWeb]}
+          onLayout={onLayout}
+        >
           <FlatList
             key={numColumns}
             style={styles.listScroll}
@@ -107,6 +115,13 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
+  },
+  // Web: lista de 1 columna con ancho tope y centrada (comportamiento móvil).
+  // El padding horizontal del contenedor padre ya acota a ~360px en teléfono.
+  listWrapperWeb: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 600,
   },
   // El FlatList necesita su propia constraint de alto en web: sin `flex: 1`
   // directo el ScrollView interno no scrollea y las filas quedan fuera de vista.
