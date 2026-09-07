@@ -64,12 +64,13 @@ Orden de ejecución. Verificación estándar (typecheck → test → e2e) cierra
 
 ### Fase 3 — Persistencia de partida (solitario)
 
-- [ ] Persistencia dual: `gameStateRepository.ts` (expo-sqlite) + `gameStateRepository.web.ts` (localStorage), interfaz async `get(gameId)` / `set(gameId, json)` / `clear(gameId)`.
-- [ ] Migración: `SCHEMA_VERSION` 1→2, `MIGRATIONS[1]` = `CREATE TABLE IF NOT EXISTS game_state (game_id TEXT PRIMARY KEY, state TEXT NOT NULL)`. Sin tocar DDL existente.
-- [ ] `engine/persistence.ts` (puro, testeable): `serialize(state)` / `parse(raw)` con validación de forma (sin history ni finishedAt/stuck; esos se recalculan con `endFlags`).
-- [ ] Store: acción `restore(saved)` que monta el estado guardado + recalcula flags.
-- [ ] `SolitarioScreen`: mount → si hay `initialSeed` (E2E) reparto fresco + `clear()`; si no, restaurar si existe estado válido. Save con `subscribe` + debounce ~300ms. Clear al ganar/perder/reiniciar.
-- [ ] Tests unitarios: round-trip serialize/parse, JSON corrupto → degrada a reparto nuevo, migración v2, restore recalcula `stuck`.
+- [x] Persistencia dual: `gameStateRepository.ts` (expo-sqlite) + `gameStateRepository.web.ts` (localStorage), interfaz async `get(gameId)` / `set(gameId, json)` / `clear(gameId)`.
+- [x] Migración: `SCHEMA_VERSION` 1→2, `MIGRATIONS[1]` = `CREATE TABLE IF NOT EXISTS game_state (game_id TEXT PRIMARY KEY, state TEXT NOT NULL)`. Sin tocar DDL existente.
+- [x] `engine/persistence.ts` (puro, testeable): `serializeSolitarioState` / `parseSolitarioState` con validación defensiva (sin history ni finishedAt/stuck; esos se recalculan con `endFlags`).
+- [x] Store: acción `restore(saved)` que monta el estado guardado + recalcula flags; historial vacío tras restore.
+- [x] `SolitarioScreen`: mount → si hay `initialSeed` (E2E) reparto fresco + `clear()`; si no, restaurar si existe estado válido. Save con `subscribe` + debounce 300ms (omite estado virgen y terminales). Clear al ganar/perder/reiniciar.
+- [x] Tests unitarios: round-trip serialize/parse, JSON corrupto/forma inválida → degrada a reparto nuevo, migración v2, restore recalcula `stuck`, repositorio web (round-trip/clear/sin localStorage).
+- [x] Spec E2E extra: partida en curso restaurada tras recargar (contador `Movimientos: 1` sobrevive el reload).
 
 ### Verificación estándar (por fase)
 
@@ -87,3 +88,7 @@ Orden de ejecución. Verificación estándar (typecheck → test → e2e) cierra
 - Fase 2: la causa del scroll roto fue el `FlatList` sin constraint de alto
   propio — el wrapper `flex: 1` no alcanza en RN-web; el ScrollView necesita
   `style={{ flex: 1 }}` directo (candidato a `docs/GOTCHAS.md` en el cierre).
+- Fase 3: el blob guardado no incluye `history` ni `finishedAt`/`stuck`; el
+  restore recalcula los flags con `endFlags` y el undo queda disponible desde
+  el próximo movimiento. Los seeds E2E siempre fuerzan reparto fresco y
+  limpian el guardado (el canal de alteración del reparto sigue cerrado).
