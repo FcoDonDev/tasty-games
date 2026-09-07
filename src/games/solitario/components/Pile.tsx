@@ -30,6 +30,8 @@ interface PileProps {
   ty: SharedValue<number>;
   callbacks: DragCallbacks;
   onPressStock?: () => void;
+  /** Auto-envío a foundation vía clic derecho (web) sobre una carta */
+  onAutoMove?: (id: string) => void;
 }
 
 interface PileCardProps {
@@ -43,7 +45,11 @@ interface PileCardProps {
   tx: SharedValue<number>;
   ty: SharedValue<number>;
   callbacks: DragCallbacks;
+  /** Auto-envío a foundation: clic derecho en web (en nativo no ocurre el evento) */
+  onAutoMove?: () => void;
 }
+
+const IS_WEB = process.env.EXPO_OS === 'web';
 
 function PileCard({
   card,
@@ -56,6 +62,7 @@ function PileCard({
   tx,
   ty,
   callbacks,
+  onAutoMove,
 }: PileCardProps) {
   const gesture = useDragGesture(card.id, callbacks, draggable, { tx, ty });
   const position = cardPosition(layout, pileRef, cards, index);
@@ -90,6 +97,16 @@ function PileCard({
           dragActive ? styles.cardLift : null,
           animatedStyle,
         ]}
+        {...(IS_WEB && onAutoMove
+          ? // rn-web reenvía onContextMenu al DOM (forwardedProps); no está
+            // en los tipos de RN: cast + gate web. En nativo el evento no ocurre.
+            ({
+              onContextMenu: (e: { preventDefault?: () => void }) => {
+                e.preventDefault?.();
+                onAutoMove();
+              },
+            } as unknown as Record<string, never>)
+          : null)}
       >
         <PlayingCard card={card} width={layout.cardWidth} height={layout.cardHeight} />
       </Animated.View>
@@ -110,6 +127,7 @@ export function Pile({
   ty,
   callbacks,
   onPressStock,
+  onAutoMove,
 }: PileProps) {
   const theme = useTheme();
   const pileRef: PileRef =
@@ -200,6 +218,7 @@ export function Pile({
             tx={tx}
             ty={ty}
             callbacks={callbacks}
+            onAutoMove={onAutoMove ? () => onAutoMove(card.id) : undefined}
           />
         );
       })}

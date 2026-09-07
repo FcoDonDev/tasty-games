@@ -64,6 +64,47 @@ test('solitario: movimiento legal a foundation e intento ilegal con snap-back', 
   expect(Math.hypot(aceAfter.x - foundationCenter.x, aceAfter.y - foundationCenter.y)).toBeLessThan(10);
 });
 
+test('solitario: auto-move a foundation con doble click', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openGame(page, 'test-move');
+
+  // Robar: el A♠ (top del stock) pasa a la waste
+  await page.getByLabel('solitario-stock').click();
+  const ace = page.getByLabel('solitario-card-S-1', { exact: true });
+  await expect(ace).toBeVisible();
+
+  // Doble click sobre el as: va directo a la foundation de ♠ (index 0).
+  // El robo ya consumió 1 movimiento, el auto-move suma el 2º.
+  await ace.dblclick();
+  await expect(page.getByText('Movimientos: 2')).toBeVisible();
+  await page.waitForTimeout(1000); // commit inmediato, margen para el render
+  const aceAfter = await centerOf(ace);
+  const foundationCenter = await centerOf(
+    page.getByLabel('solitario-foundation-0', { exact: true }),
+  );
+  expect(Math.hypot(aceAfter.x - foundationCenter.x, aceAfter.y - foundationCenter.y)).toBeLessThan(10);
+});
+
+test('solitario: auto-move a foundation con clic derecho (web)', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openGame(page, 'test-move');
+
+  await page.getByLabel('solitario-stock').click();
+  const ace = page.getByLabel('solitario-card-S-1', { exact: true });
+  await expect(ace).toBeVisible();
+
+  // Clic derecho sobre el as: mismo camino de auto-move (robo=1, auto-move=2)
+  const before = await centerOf(ace);
+  await page.mouse.click(before.x, before.y, { button: 'right' });
+  await expect(page.getByText('Movimientos: 2')).toBeVisible();
+  await page.waitForTimeout(1000);
+  const aceAfter = await centerOf(ace);
+  const foundationCenter = await centerOf(
+    page.getByLabel('solitario-foundation-0', { exact: true }),
+  );
+  expect(Math.hypot(aceAfter.x - foundationCenter.x, aceAfter.y - foundationCenter.y)).toBeLessThan(10);
+});
+
 test('solitario: victoria forzada → modal + récord persistido + ScoreBoard', async ({ page }) => {
   test.setTimeout(60_000);
   await openGame(page, 'test-win');

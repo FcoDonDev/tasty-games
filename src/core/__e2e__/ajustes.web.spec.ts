@@ -12,6 +12,12 @@ test('ajustes: dark mode persiste tras recargar y borrar récords limpia el stor
   await expect(darkSwitch).toBeVisible();
   await darkSwitch.click();
 
+  // Toggle de sonido global (default on) persiste tras recargar
+  const soundSwitch = page.getByLabel('set-sound', { exact: true });
+  await expect(soundSwitch).toBeVisible();
+  await expect(soundSwitch).toBeChecked();
+  await soundSwitch.click();
+
   // Récord pre-cargado que debe sobrevivir hasta el borrado
   await page.evaluate(() =>
     localStorage.setItem(
@@ -42,6 +48,11 @@ test('ajustes: dark mode persiste tras recargar y borrar récords limpia el stor
   await page.reload();
   await expect(page.getByText('Ajustes')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByLabel('set-dark-mode', { exact: true })).toBeChecked();
+
+  // Sonido quedó apagado por el toggle y persiste
+  await expect(page.getByLabel('set-sound', { exact: true })).not.toBeChecked();
+  await page.getByLabel('set-sound', { exact: true }).click();
+  await expect(page.getByLabel('set-sound', { exact: true })).toBeChecked();
 
   // Volver al Home (el reload resetea el historial: back no aplica, se navega directo)
   await page.goto('/');

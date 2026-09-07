@@ -37,6 +37,8 @@ interface SolitarioState extends Deal {
   drawStock: () => void;
   /** Valida y ejecuta el movimiento; devuelve false si es ilegal */
   moveCards: (from: PileRef, to: TargetRef) => boolean;
+  /** Auto-envío a la foundation del palo de la carta (solo cartas sueltas elegibles) */
+  autoMoveToFoundation: (from: PileRef) => boolean;
   undo: () => void;
 }
 
@@ -52,6 +54,60 @@ function endFlags(piles: Deal): { finishedAt: number | null; stuck: boolean } {
   if (isWon(piles)) return { finishedAt: Date.now(), stuck: false };
   if (!hasAnyMove(piles)) return { finishedAt: null, stuck: true };
   return { finishedAt: null, stuck: false };
+}
+
+/** Validación + mutación compartida por moveCards y autoMoveToFoundation. */
+function commitMove(
+  set: (partial: Partial<SolitarioState>) => void,
+  s: SolitarioState,
+  from: PileRef,
+  to: TargetRef,
+  moving: Card[],
+): boolean {
+  if (to.kind === 'foundation') {
+    if (moving.length !== 1 || !canDropOnFoundation(moving[0], s.foundations[to.index])) return false;
+  } else {
+    if (from.kind === 'tableau' && from.index === to.index) return false;
+    if (!canDropOnTableau(moving, s.tableau[to.index])) return false;
+  }
+
+  const history = s.undoEnabled ? [...s.history, clonePiles(s)] : s.history;
+  const tableau = s.tableau.map((col) => [...col]);
+  const foundations = s.foundations.map((pile) => [...pile]);
+  const waste = [...s.waste];
+
+  if (from.kind === 'waste') {
+    waste.pop();
+  } else if (from.kind === 'foundation') {
+    foundations[from.index].pop();
+  } else {
+    const col = tableau[from.index];
+    col.splice(from.cardIndex);
+    if (col.length > 0 && !col[col.length - 1].faceUp) {
+      col[col.length - 1] = { ...col[col.length - 1], faceUp: true };
+    }
+  }
+
+  if (to.kind === 'foundation') {
+    foundations[to.index] = [...foundations[to.index], ...moving];
+  } else {
+    tableau[to.index] = [...tableau[to.index], ...moving];
+  }
+
+  const next: Deal = { tableau, foundations, stock: s.stock, waste };
+  const { finishedAt, stuck } = endFlags(next);
+
+  set({
+    tableau,
+    foundations,
+    waste,
+    history,
+    moves: s.moves + 1,
+    startedAt: s.startedAt ?? Date.now(),
+    finishedAt,
+    stuck,
+  });
+  return true;
 }
 
 export const useSolitarioStore = create<SolitarioState>()((set, get) => ({
@@ -116,50 +172,18 @@ export const useSolitarioStore = create<SolitarioState>()((set, get) => ({
     const moving = canPickUp(s, from);
     if (!moving) return false;
 
-    if (to.kind === 'foundation') {
-      if (moving.length !== 1 || !canDropOnFoundation(moving[0], s.foundations[to.index])) return false;
-    } else {
-      if (from.kind === 'tableau' && from.index === to.index) return false;
-      if (!canDropOnTableau(moving, s.tableau[to.index])) return false;
-    }
+    return commitMove(set, s, from, to, moving);
+  },
 
-    const history = s.undoEnabled ? [...s.history, clonePiles(s)] : s.history;
-    const tableau = s.tableau.map((col) => [...col]);
-    const foundations = s.foundations.map((pile) => [...pile]);
-    const waste = [...s.waste];
+  autoMoveToFoundation: (from) => {
+    const s = get();
+    if (s.finishedAt !== null || s.stuck) return false;
 
-    if (from.kind === 'waste') {
-      waste.pop();
-    } else if (from.kind === 'foundation') {
-      foundations[from.index].pop();
-    } else {
-      const col = tableau[from.index];
-      col.splice(from.cardIndex);
-      if (col.length > 0 && !col[col.length - 1].faceUp) {
-        col[col.length - 1] = { ...col[col.length - 1], faceUp: true };
-      }
-    }
+    const moving = canPickUp(s, from);
+    if (!moving || moving.length !== 1) return false;
 
-    if (to.kind === 'foundation') {
-      foundations[to.index] = [...foundations[to.index], ...moving];
-    } else {
-      tableau[to.index] = [...tableau[to.index], ...moving];
-    }
-
-    const next: Deal = { tableau, foundations, stock: s.stock, waste };
-    const { finishedAt, stuck } = endFlags(next);
-
-    set({
-      tableau,
-      foundations,
-      waste,
-      history,
-      moves: s.moves + 1,
-      startedAt: s.startedAt ?? Date.now(),
-      finishedAt,
-      stuck,
-    });
-    return true;
+    const index = foundationIndexFor(moving[0]);
+    return commitMove(set, s, from, { kind: 'foundation', index }, moving);
   },
 
   undo: () => {

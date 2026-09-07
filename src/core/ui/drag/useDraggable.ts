@@ -16,6 +16,8 @@ export interface DragCallbacks {
   ) => void;
   /** El gesto se canceló antes de terminar (segundo dedo, llamada, etc.) */
   onDragCancel?: (id: string) => void;
+  /** Doble tap sobre el elemento (auto-envío, etc.); no activa el Pan */
+  onDoubleTap?: (id: string) => void;
 }
 
 export interface DragTranslate {
@@ -38,49 +40,61 @@ export function useDragGesture(
   translate?: DragTranslate,
 ) {
   const { tx, ty } = translate ?? {};
-  return useMemo(
-    () =>
-      Gesture.Pan()
-        .enabled(enabled)
-        .activeOffsetX([-6, 6])
-        .activeOffsetY([-6, 6])
-        .onStart(() => {
-          'worklet';
-          if (tx && ty) {
-            // Interrumpe un settle/snap-back en vuelo: el gesto manda
-            cancelAnimation(tx);
-            cancelAnimation(ty);
+  return useMemo(() => {
+    const pan = Gesture.Pan()
+      .enabled(enabled)
+      .activeOffsetX([-6, 6])
+      .activeOffsetY([-6, 6])
+      .onStart(() => {
+        'worklet';
+        if (tx && ty) {
+          // Interrumpe un settle/snap-back en vuelo: el gesto manda
+          cancelAnimation(tx);
+          cancelAnimation(ty);
+        }
+        scheduleOnRN(callbacks.onDragStart, id);
+      })
+      .onUpdate((event) => {
+        'worklet';
+        tx?.set(event.translationX);
+        ty?.set(event.translationY);
+      })
+      .onEnd((event) => {
+        'worklet';
+        scheduleOnRN(
+          callbacks.onDragEnd,
+          id,
+          event.translationX,
+          event.translationY,
+          event.velocityX,
+          event.velocityY,
+        );
+      })
+      .onFinalize((_event, success) => {
+        'worklet';
+        if (!success) {
+          // Gesto cancelado: reset inmediato + limpieza del estado visual en JS
+          tx?.set(0);
+          ty?.set(0);
+          if (callbacks.onDragCancel) {
+            scheduleOnRN(callbacks.onDragCancel, id);
           }
-          scheduleOnRN(callbacks.onDragStart, id);
-        })
-        .onUpdate((event) => {
-          'worklet';
-          tx?.set(event.translationX);
-          ty?.set(event.translationY);
-        })
-        .onEnd((event) => {
-          'worklet';
-          scheduleOnRN(
-            callbacks.onDragEnd,
-            id,
-            event.translationX,
-            event.translationY,
-            event.velocityX,
-            event.velocityY,
-          );
-        })
-        .onFinalize((_event, success) => {
-          'worklet';
-          if (!success) {
-            // Gesto cancelado: reset inmediato + limpieza del estado visual en JS
-            tx?.set(0);
-            ty?.set(0);
-            if (callbacks.onDragCancel) {
-              scheduleOnRN(callbacks.onDragCancel, id);
-            }
-          }
-        }),
+        }
+      });
+
+    const doubleTap = Gesture.Tap()
+      .enabled(enabled)
+      .numberOfTaps(2)
+      .onStart(() => {
+        'worklet';
+        if (callbacks.onDoubleTap) {
+          scheduleOnRN(callbacks.onDoubleTap, id);
+        }
+      });
+
+    // El Pan exige ±6px de movimiento para activarse: un tap (sin movimiento)
+    // no lo dispara y un drag hace fallar el tap. Coexisten sin exclusión.
+    return Gesture.Simultaneous(pan, doubleTap);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [id, enabled, callbacks.onDragStart, callbacks.onDragEnd, callbacks.onDragCancel, tx, ty],
-  );
+  }, [id, enabled, callbacks.onDragStart, callbacks.onDragEnd, callbacks.onDragCancel, callbacks.onDoubleTap, tx, ty]);
 }
