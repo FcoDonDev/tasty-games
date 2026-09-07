@@ -44,3 +44,38 @@ for (const game of GAMES) {
     await expect(page.getByLabel(`ayuda-${game}`, { exact: true })).toBeVisible();
   });
 }
+
+test('responsive 360×640: Home — la 3ª tarjeta es alcanzable con scroll interno', async ({ page }) => {
+  test.setTimeout(30_000);
+  await page.goto('/');
+  await expect(page.getByText('Tasty Games')).toBeVisible({ timeout: 15_000 });
+
+  const damaCard = page.getByLabel('Jugar Damas');
+  await expect(page.getByLabel('Jugar Memorice')).toBeVisible();
+
+  // La lista interna (FlatList) debe permitir llegar a la última tarjeta
+  await damaCard.scrollIntoViewIfNeeded();
+  await expect(damaCard).toBeVisible();
+
+  // La página en sí sigue sin scrollear (la lista scrollea por dentro)
+  await assertNoPageScroll(page);
+});
+
+test.describe('responsive ancho 900×800: Home con 2 columnas', () => {
+  test.use({ viewport: { width: 900, height: 800 } });
+
+  test('las tarjetas se reordenan: memorice y solitario comparten fila', async ({ page }) => {
+    test.setTimeout(30_000);
+    await page.goto('/');
+    await expect(page.getByText('Tasty Games')).toBeVisible({ timeout: 15_000 });
+
+    const memoriceBox = await page.getByLabel('Jugar Memorice').boundingBox();
+    const solitarioBox = await page.getByLabel('Jugar Solitario').boundingBox();
+    expect(memoriceBox).not.toBeNull();
+    expect(solitarioBox).not.toBeNull();
+
+    // Misma fila (y casi igual), columnas distintas (x diferente)
+    expect(Math.abs((memoriceBox?.y ?? 0) - (solitarioBox?.y ?? 0))).toBeLessThan(8);
+    expect(memoriceBox?.x).not.toBe(solitarioBox?.x);
+  });
+});
