@@ -14,6 +14,8 @@ export default function AjustesScreen() {
   const insets = useSafeAreaInsets();
   const darkMode = useAppStore((state) => state.darkMode);
   const toggleDarkMode = useAppStore((state) => state.toggleDarkMode);
+  const soundOn = useAppStore((state) => state.soundOn);
+  const toggleSound = useAppStore((state) => state.toggleSound);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [cleared, setCleared] = useState(false);
 
@@ -49,6 +51,22 @@ export default function AjustesScreen() {
             accessibilityLabel="set-dark-mode"
             value={darkMode}
             onValueChange={toggleDarkMode}
+          />
+        </View>
+
+        <View style={[styles.separator, { borderColor: theme.surfaceBorder }]} />
+
+        <View style={styles.row}>
+          <View style={styles.rowText}>
+            <Text style={[styles.rowTitle, { color: theme.text }]}>Sonido</Text>
+            <Text style={[styles.rowSubtitle, { color: theme.textMuted }]}>
+              Efectos de sonido de los juegos
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="set-sound"
+            value={soundOn}
+            onValueChange={toggleSound}
           />
         </View>
 

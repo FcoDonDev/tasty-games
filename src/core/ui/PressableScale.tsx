@@ -69,11 +69,13 @@ export function PressableScale({
 }
 
 const styles = StyleSheet.create({
+  // Las props transition* existen en runtime (rn-web) pero no en los tipos de
+  // RN: cast local del estilo para que tsc pase sin cambiar el comportamiento.
   scale: {
     transitionProperty: 'transform',
     transitionDuration: '120ms',
     transitionTimingFunction: 'cubic-bezier(0.23, 1, 0.32, 1)',
-  },
+  } as unknown as ViewStyle,
   pressed: {
     transform: [{ scale: 0.97 }],
   },

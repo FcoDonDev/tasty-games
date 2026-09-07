@@ -7,6 +7,7 @@ import { preferencesRepository } from '@/core/db/repositories/preferencesReposit
 import { GameHeader } from '@/core/ui/GameHeader';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
+import { soundCardDrop, soundCardInvalid, soundCardMove, soundGameWin } from '@/core/ui/sound';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
@@ -128,6 +129,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     };
     void onGameEnd(result);
     hapticGameWin();
+    soundGameWin();
     setShowWin(true);
   }, [finishedAt, startedAt, moves, undos, onGameEnd]);
 
@@ -141,8 +143,57 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     setValidTargets(new Set());
   }, []);
 
+  /** Doble tap / clic derecho: auto-envío de una carta suelta a su foundation. */
+  const handleAutoMove = useCallback((id: string) => {
+    const state = useSolitarioStore.getState();
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.debug('[solitario:auto-move] tap id=', id, 'dragRef=', dragRef.current, 'finished=', state.finishedAt !== null, 'stuck=', state.stuck);
+    }
+    // Ignora taps mientras hay un arrastre activo: el clic derecho durante un
+    // drag caería sobre la carta que sigue al cursor y la movería a mitad del gesto.
+    if (dragRef.current !== null) {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.debug('[solitario:auto-move] ignorado: drag en curso');
+      }
+      return;
+    }
+    if (state.finishedAt !== null || state.stuck) return;
+    const ref = findRefByCardId(state.tableau, state.waste, state.foundations, id);
+    if (!ref) {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.debug('[solitario:auto-move] sin ref para', id);
+      }
+      return;
+    }
+    const moving = canPickUp(state, ref);
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.debug('[solitario:auto-move] ref=', ref, 'moving=', moving?.length ?? null);
+    }
+    if (state.autoMoveToFoundation(ref)) {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.debug('[solitario:auto-move] COMMIT', id);
+      }
+      soundCardDrop();
+      hapticDropCommit();
+    } else {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.debug('[solitario:auto-move] rechazado por el motor');
+      }
+    }
+  }, []);
+
   const handleDragStart = useCallback((id: string) => {
     const state = useSolitarioStore.getState();
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.debug('[solitario:drag] start id=', id);
+    }
     if (state.finishedAt !== null || state.stuck) return;
     const ref = findRefByCardId(state.tableau, state.waste, state.foundations, id);
     if (!ref) return;
@@ -173,6 +224,10 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       velocityX: number,
       velocityY: number,
     ) => {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.debug('[solitario:drag] end id=', id, 'dx=', translationX.toFixed(1), 'dy=', translationY.toFixed(1));
+      }
       const ref = dragRef.current;
       dragRef.current = null;
       setValidTargets(new Set());
@@ -203,8 +258,9 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
         withSpring(0, springConfig(axis === 'x' ? velocityX : velocityY));
 
       if (moved && target) {
-        // Haptic en el frame causal del commit, junto al settle visual
+        // Haptic + sonido en el frame causal del commit, junto al settle visual
         hapticDropCommit();
+        soundCardDrop();
         // Settle: la carta queda donde el dedo la soltó y glisa a su asiento final
         const destCards =
           target.kind === 'foundation' ? state.foundations[target.index] : state.tableau[target.index];
@@ -219,6 +275,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
         ty.set(withSpring(0, springConfig(velocityY), () => scheduleOnRN(finishDrag)));
       } else {
         // Snap-back con spring; dragKey se mantiene hasta terminar el gesto de retorno
+        soundCardInvalid();
         tx.set(spring('x'));
         ty.set(withSpring(0, springConfig(velocityY), () => scheduleOnRN(finishDrag)));
       }
@@ -227,9 +284,19 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   );
 
   const dragCallbacks = useMemo<DragCallbacks>(
-    () => ({ onDragStart: handleDragStart, onDragEnd: handleDragEnd, onDragCancel: finishDrag }),
-    [handleDragStart, handleDragEnd, finishDrag],
+    () => ({
+      onDragStart: handleDragStart,
+      onDragEnd: handleDragEnd,
+      onDragCancel: finishDrag,
+      onDoubleTap: handleAutoMove,
+    }),
+    [handleDragStart, handleDragEnd, finishDrag, handleAutoMove],
   );
+
+  const handleDrawStock = useCallback(() => {
+    drawStock();
+    soundCardMove();
+  }, [drawStock]);
 
   const currentSettings = useMemo(
     () => ({ drawMode: drawPref, undoEnabled: undoPref }),
@@ -325,7 +392,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
               tx={tx}
               ty={ty}
               callbacks={dragCallbacks}
-              onPressStock={drawStock}
+              onPressStock={handleDrawStock}
             />
             <Pile
               layout={layout}
@@ -336,6 +403,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
               tx={tx}
               ty={ty}
               callbacks={dragCallbacks}
+              onAutoMove={handleAutoMove}
             />
             {layout.foundations.map((rect, i) => (
               <Pile
@@ -351,6 +419,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
                 tx={tx}
                 ty={ty}
                 callbacks={dragCallbacks}
+                onAutoMove={handleAutoMove}
               />
             ))}
             {layout.tableau.map((rect, i) => (
@@ -366,6 +435,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
                 tx={tx}
                 ty={ty}
                 callbacks={dragCallbacks}
+                onAutoMove={handleAutoMove}
               />
             ))}
           </View>
