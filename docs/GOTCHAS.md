@@ -8,6 +8,12 @@ background están en `AGENTS.md`, no acá.
 
 - **RN 0.86: `columnWrapperStyle` con `numColumns=1` lanza invariant** y deja
   la pantalla en blanco (Home a 360px). Pasar el estilo solo si `numColumns > 1`.
+- **RNW: el `FlatList`/`ScrollView` necesita su propia constraint de alto**
+  (`style={{ flex: 1 }}` directo) para scrollear dentro de un contenedor `flex: 1`
+  — el constraint solo en el wrapper NO alcanza y el contenido queda inaccesible
+  (la 3ª tarjeta del Home fuera de vista, sin scroll).
+- **expo-router 57 no exporta el tipo `Router`**: derivarlo con
+  `ReturnType<typeof useRouter>` (ver `AppRouter` en `src/core/navigation.ts`).
 - **`fontVariant` es array** (`fontVariant: ['tabular-nums']`), no string — tsc
   lo rechaza en `Text` y `StyleSheet.create`.
 - **`hitSlop`/`pressRetentionOffset` no aceptan número** en RN 0.86 (solo
@@ -59,7 +65,11 @@ background están en `AGENTS.md`, no acá.
   juegos con estados bloqueantes, el spec debe esperar el estado antes de
   clickear.
 - **`page.reload()` resetea el historial del router**: tras recargar,
-  `router.back()` ya no vuelve al Home — navegar con `page.goto('/')`.
+  `router.back()` ya no vuelve al Home. Cubierto por `exitToHome`
+  (`src/core/navigation.ts`): sin historial en el stack hace `router.replace('/')`.
+- **`locator.tap()` exige `hasTouch` en el contexto Playwright**: el proyecto no
+  lo configura — los specs web deben usar `.click()`, si no falla con "page
+  does not support tap".
 - **Bump de `@playwright/test` exige re-instalar binarios**:
   `pnpm exec playwright install chromium`.
 - **Medición mid-gesto engañosa**: al verificar posiciones, partir siempre del

@@ -20,3 +20,4 @@ Para proponer un cambio que contradiga un ADR: crear un nuevo ADR que lo reempla
 | [0005](0005-convencion-score.md) | Aceptada | Convención de score: más es mejor |
 | [0006](0006-seeds-e2e-sentinelas.md) | Aceptada | Seeds E2E sentinelas, gated por `EXPO_PUBLIC_E2E` |
 | [0007](0007-damas-mvp-local.md) | Aceptada (revisable con IA) | Damas: 2 jugadores locales, MVP sin récord |
+| [0008](0008-persistencia-estado-en-curso.md) | Aceptada | Persistencia del estado en curso de una partida (auto-resume) |
