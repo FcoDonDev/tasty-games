@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { deal, type Card, type Deal, type DealSeed } from './deck';
+import type { SolitarioSavedState } from './persistence';
 import { canDropOnFoundation, canDropOnTableau, canPickUp, foundationIndexFor, hasAnyMove, isWon, type PileRef, type TargetRef } from './rules';
 
 export type DrawMode = 1 | 3;
@@ -31,6 +32,8 @@ interface SolitarioState extends Deal {
   stuck: boolean;
   history: Snapshot[];
   reset: (settings?: SolitarioSettings) => void;
+  /** Monta una partida guardada (auto-resume); flags de fin recalculados */
+  restore: (saved: SolitarioSavedState) => void;
   setDrawMode: (mode: DrawMode) => void;
   setUndoEnabled: (enabled: boolean) => void;
   /** Roba del stock (drawMode cartas); recicla waste→stock si está vacío */
@@ -136,6 +139,28 @@ export const useSolitarioStore = create<SolitarioState>()((set, get) => ({
       stuck: false,
       history: [],
     })),
+
+  restore: (saved) => {
+    const piles: Deal = {
+      tableau: saved.tableau.map((col) => col.map((card) => ({ ...card }))),
+      foundations: saved.foundations.map((pile) => pile.map((card) => ({ ...card }))),
+      stock: saved.stock.map((card) => ({ ...card })),
+      waste: saved.waste.map((card) => ({ ...card })),
+    };
+    const { finishedAt, stuck } = endFlags(piles);
+    set(() => ({
+      ...piles,
+      drawMode: saved.drawMode,
+      undoEnabled: saved.undoEnabled,
+      moves: saved.moves,
+      undos: saved.undos,
+      startedAt: saved.startedAt,
+      finishedAt,
+      stuck,
+      // El historial de undo no se persiste: disponible desde el próximo movimiento
+      history: [],
+    }));
+  },
 
   setDrawMode: (mode) => set({ drawMode: mode }),
   setUndoEnabled: (enabled) => set({ undoEnabled: enabled, history: enabled ? get().history : [] }),

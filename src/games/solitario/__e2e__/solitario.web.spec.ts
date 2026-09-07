@@ -193,3 +193,19 @@ test('solitario: salir vuelve al Home', async ({ page }) => {
   await page.getByLabel('salir-solitario').click();
   await expect(page.getByText('Tasty Games')).toBeVisible();
 });
+
+test('solitario: la partida en curso se restaura al recargar (auto-resume)', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openGame(page);
+
+  // Un robo marca el inicio: Movimientos: 1
+  await page.getByLabel('solitario-stock', { exact: true }).click();
+  await expect(page.getByText('Movimientos: 1')).toBeVisible();
+
+  // Esperar el guardado debounceado (300ms) antes de recargar
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(page.getByText(/Movimientos:/)).toBeVisible({ timeout: 15_000 });
+  // El contador restaurado prueba que se retomó el estado guardado, no un reparto nuevo
+  await expect(page.getByText('Movimientos: 1')).toBeVisible({ timeout: 15_000 });
+});

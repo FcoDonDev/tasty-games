@@ -7,7 +7,7 @@ export const DB_NAME = 'tasty-games.db';
  *    correspondiente (MIGRATIONS[0] lleva de 0 -> 1, etc.).
  * client.ts ejecuta las migraciones pendientes usando PRAGMA user_version.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const MIGRATIONS: string[][] = [
   [
@@ -24,5 +24,12 @@ export const MIGRATIONS: string[][] = [
       value TEXT NOT NULL
     )`,
     `CREATE INDEX IF NOT EXISTS idx_game_records_game_id ON game_records (game_id, score DESC)`,
+  ],
+  [
+    // Estado en curso por juego (blob JSON): auto-resume de la partida
+    `CREATE TABLE IF NOT EXISTS game_state (
+      game_id TEXT PRIMARY KEY,
+      state TEXT NOT NULL
+    )`,
   ],
 ];

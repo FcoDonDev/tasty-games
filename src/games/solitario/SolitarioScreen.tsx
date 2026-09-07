@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameResult, GameScreenProps } from '@/core/types';
+import { gameStateRepository } from '@/core/db/repositories/gameStateRepository';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { PressableScale } from '@/core/ui/PressableScale';
@@ -16,11 +17,15 @@ import { Pile } from './components/Pile';
 import { SettingsModal } from './components/SettingsModal';
 import { SUITS, SUIT_SYMBOLS, parseSeed, type Card } from './engine/deck';
 import { cardPosition, computeLayout, hitTestPile } from './engine/layout';
+import { parseSolitarioState, serializeSolitarioState } from './engine/persistence';
 import { canDropOnFoundation, canDropOnTableau, canPickUp, scoreFor, type PileRef, type TargetRef } from './engine/rules';
 import { useSolitarioStore, type DrawMode } from './engine/state';
 
+const GAME_ID = 'solitario';
 const PREF_DRAW = 'solitario.drawMode';
 const PREF_UNDO = 'solitario.undo';
+/** Debounce del guardado del estado en curso (agrupa ráfagas de movimientos). */
+const SAVE_DEBOUNCE_MS = 300;
 
 function findRefByCardId(
   tableau: Card[][],
@@ -70,6 +75,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   const finishedAt = useSolitarioStore((s) => s.finishedAt);
   const stuck = useSolitarioStore((s) => s.stuck);
   const reset = useSolitarioStore((s) => s.reset);
+  const restore = useSolitarioStore((s) => s.restore);
   const drawStock = useSolitarioStore((s) => s.drawStock);
   const moveCards = useSolitarioStore((s) => s.moveCards);
   const setUndoEnabled = useSolitarioStore((s) => s.setUndoEnabled);
@@ -90,35 +96,66 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   /** Claves `foundation-<i>` / `tableau-<j>` con drop legal para el drag activo */
   const [validTargets, setValidTargets] = useState<Set<string>>(() => new Set());
 
-  // Carga de preferencias + primer reparto (con seed de test si viene gated)
+  // Carga de preferencias + auto-resume: si hay partida en curso guardada se
+  // restaura; si no (o si llega seed de E2E) se reparte una partida nueva.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      // El seed solo llega en builds E2E: exige reparto fresco determinista,
+      // sin restaurar ni dejar estado previo guardado.
+      const savedRaw = initialSeed ? null : await gameStateRepository.get(GAME_ID);
       const [drawRaw, undoRaw] = await Promise.all([
         preferencesRepository.get(PREF_DRAW),
         preferencesRepository.get(PREF_UNDO),
       ]);
       if (cancelled) return;
+      if (initialSeed) void gameStateRepository.clear(GAME_ID);
       const loadedDraw: DrawMode = drawRaw === '3' ? 3 : 1;
       const loadedUndo = undoRaw === '1';
       setDrawPref(loadedDraw);
       setUndoPref(loadedUndo);
-      reset({
-        seed: parseSeed(initialSeed),
-        drawMode: loadedDraw,
-        undoEnabled: loadedUndo,
-      });
+      const saved = savedRaw ? parseSolitarioState(savedRaw) : null;
+      if (saved) {
+        restore(saved);
+      } else {
+        reset({
+          seed: parseSeed(initialSeed),
+          drawMode: loadedDraw,
+          undoEnabled: loadedUndo,
+        });
+      }
       setReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [reset, initialSeed]);
+  }, [reset, restore, initialSeed]);
+
+  // Persistencia del estado en curso: cada commit del store agenda un guardado
+  // debounceado. Se omite el estado virgen (sin empezar) y los terminales
+  // (ganada/trabada): esos se descartan, no se restauran.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = useSolitarioStore.subscribe((state) => {
+      if (state.startedAt === null || state.finishedAt !== null || state.stuck) return;
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        void gameStateRepository.set(GAME_ID, serializeSolitarioState(state));
+      }, SAVE_DEBOUNCE_MS);
+    });
+    return () => {
+      unsubscribe();
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, []);
 
   // Victoria: reporte único vía el contrato
   useEffect(() => {
     if (finishedAt === null || startedAt === null || hasReportedRef.current) return;
     hasReportedRef.current = true;
+    // Partida ganada: no hay estado en curso que restaurar
+    void gameStateRepository.clear(GAME_ID);
     const durationMs = Math.max(0, finishedAt - startedAt);
     const result: GameResult = {
       gameId: 'solitario',
@@ -133,9 +170,12 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     setShowWin(true);
   }, [finishedAt, startedAt, moves, undos, onGameEnd]);
 
-  // Sin movimientos: modal de derrota (sin récord, S5)
+  // Sin movimientos: modal de derrota (sin récord, S5). Partida descartada.
   useEffect(() => {
-    if (stuck && finishedAt === null) setShowLose(true);
+    if (stuck && finishedAt === null) {
+      void gameStateRepository.clear(GAME_ID);
+      setShowLose(true);
+    }
   }, [stuck, finishedAt]);
 
   const finishDrag = useCallback(() => {
@@ -307,6 +347,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     hasReportedRef.current = false;
     setShowWin(false);
     setShowLose(false);
+    void gameStateRepository.clear(GAME_ID);
     reset(currentSettings);
   }, [reset, currentSettings]);
 
@@ -314,6 +355,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     hasReportedRef.current = false;
     setShowWin(false);
     setShowLose(false);
+    void gameStateRepository.clear(GAME_ID);
     reset(currentSettings);
   }, [reset, currentSettings]);
 
