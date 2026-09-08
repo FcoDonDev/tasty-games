@@ -192,3 +192,14 @@ background están en `AGENTS.md`, no acá.
   recupera re-renderizando. Mitigación típica: posponer la lectura de récords
   a un `useEffect`. Ocurre en cualquier hosting del export estático. tracked
   en `docs/ROADMAP.md`.
+
+## Playwright / E2E multi-worktree
+
+- **:4173 compartido entre worktrees** — dos worktrees corriendo `e2e.mjs` en
+  paralelo se pisan: el segundo "Reutilizando servidor activo" sirve el `dist/`
+  del OTRO worktree (código viejo con síntomas impossibles: motor nuevo + UI
+  vieja en el mismo snapshot), y el cleanup del otro mata el server a mitad de
+  suite (ERR_CONNECTION_REFUSED masivo). Diagnóstico: `lsof -t -i :4173` +
+  `ps -o cmd -p <pid>` — si el cmd apunta a otro worktree, NO matar el server
+  (es de otra sesión): correr con `E2E_PORT=4183 node scripts/e2e.mjs`
+  (el orquestador y playwright.config.ts leen la misma variable).

@@ -26,6 +26,8 @@ export interface WorldSnapshot {
   drones: Array<Pose & { id: number; mode: DroneMode; powered: boolean }>;
   /** fracción de comestibles restantes (para efectos opcionales) */
   remaining: number;
+  /** fracción restante del modo power (0 = inactivo; <~0.33 = parpadeo) */
+  powerFraction: number;
 }
 
 export interface WakWakRenderer {

@@ -1,10 +1,10 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { FadeIn, useReducedMotion, ZoomIn } from 'react-native-reanimated';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import type { GameStatus } from '../engine/rules';
 
-/** Overlays discretos del juego: pausa y fin de partida (victoria/derrota). */
+/** Overlays discretos del juego: pausa y fin de run (victoria/derrota). */
 
 function OverlayFrame({ children, label }: { children: React.ReactNode; label: string }) {
   return (
@@ -15,7 +15,7 @@ function OverlayFrame({ children, label }: { children: React.ReactNode; label: s
       accessibilityRole="alert"
       accessibilityLabel={label}
     >
-      <View style={styles.card}>{children}</View>
+      {children}
     </Animated.View>
   );
 }
@@ -31,32 +31,54 @@ export function PauseOverlay({ onResume }: { onResume: () => void }) {
   );
 }
 
+export interface RunStats {
+  level: number;
+  bestChain: number;
+}
+
 export function EndOverlay({
   status,
   score,
+  stats,
   onRestart,
   onExit,
+  picker,
 }: {
   status: GameStatus;
   score: number;
+  stats: RunStats;
   onRestart: () => void;
   onExit: () => void;
+  /** slot del selector de nivel de inicio (react node) */
+  picker?: React.ReactNode;
 }) {
   const won = status === 'won';
+  const reduced = useReducedMotion();
   return (
     <OverlayFrame label="modal-fin-wakwak">
-      <Text style={[styles.title, { color: won ? '#4ADE80' : '#FB7185' }]}>
-        {won ? '¡Laberinto despejado!' : 'Sistemas comprometidos'}
-      </Text>
-      <Text style={styles.subtitle}>
-        {won ? 'Recogiste todas las baterías' : 'Los drones atraparon al robot'} · {score} pts
-      </Text>
-      <PressableScale accessibilityLabel="reintentar-wakwak" onPress={onRestart} style={styles.button}>
-        <Text style={styles.buttonText}>↻ Reintentar</Text>
-      </PressableScale>
-      <PressableScale accessibilityLabel="fin-salir-wakwak" onPress={onExit} style={styles.ghost}>
-        <Text style={styles.ghostText}>Salir</Text>
-      </PressableScale>
+      <Animated.View
+        entering={reduced ? FadeIn.duration(200) : ZoomIn.duration(200)}
+        style={styles.card}
+      >
+        <Text style={[styles.title, { color: won ? '#4ADE80' : '#FB7185' }]}>
+          {won ? '¡Run completa!' : 'Sistemas comprometidos'}
+        </Text>
+        <Text style={styles.subtitle}>
+          {won
+            ? `Despejaste los 8 niveles · nivel ${stats.level}`
+            : `Llegaste al nivel ${stats.level} · ${score} pts`}
+        </Text>
+        <Text style={styles.stats}>
+          Mejor combo: {stats.bestChain >= 2 ? `×${stats.bestChain}` : '—'} · {score} pts
+        </Text>
+        {picker}
+        <PressableScale accessibilityLabel="reintentar-wakwak" onPress={onRestart} style={styles.button}>
+          <Text style={styles.buttonText}>↻ Reintentar (nivel 1)</Text>
+        </PressableScale>
+        <PressableScale accessibilityLabel="fin-salir-wakwak" onPress={onExit} style={styles.ghost}>
+          <Text style={styles.ghostText}>Salir</Text>
+        </PressableScale>
+      </Animated.View>
     </OverlayFrame>
   );
 }
@@ -94,6 +116,12 @@ const styles = StyleSheet.create({
   subtitle: {
     color: '#94A3B8',
     fontSize: 14,
+    textAlign: 'center',
+  },
+  stats: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '600',
     textAlign: 'center',
   },
   button: {

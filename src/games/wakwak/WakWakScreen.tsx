@@ -1,21 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInUp,
+  FadeOut,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { beginPerfSession, endPerfSession, perfJsStall } from '@/core/perf';
 import { usePerfFrameMonitor } from '@/core/perf/usePerfFrameMonitor';
 import { useIsTouchDevice } from '@/core/ui/useIsTouchDevice';
-import { hapticGameWin, hapticSelection } from '@/core/ui/haptics';
-import { soundGameWin, soundHit, soundPickup, soundPowerUp } from '@/core/ui/sound';
+import { hapticCombo, hapticGameWin, hapticSelection } from '@/core/ui/haptics';
+import { soundCombo, soundGameWin, soundHit, soundPickup, soundPowerUp } from '@/core/ui/sound';
 import { useContainerSize } from '@/core/ui/useContainerSize';
 import type { GameScreenProps } from '@/core/types';
 import { ControlSettingsButton, ControlSettingsModal, type ControlMode } from './components/ControlSettings';
 import { Hud } from './components/Hud';
+import { LevelInterstitial } from './components/LevelInterstitial';
+import { LevelPicker } from './components/LevelPicker';
 import { EndOverlay, PauseOverlay } from './components/Overlays';
 import { beginFloatingDrag, directionFromSwipe, updateFloatingDrag } from './engine/controls';
+import { SLOWMO_RAMP_MS, hitStopMs, slowMoScale, threatsOf } from './engine/feel';
+import { MAX_LEVEL } from './engine/levels';
 import { MAZE_COLS, MAZE_ROWS, type Direction } from './engine/maze';
 import { worldSnapshot, type GameEvent } from './engine/rules';
 import { useWakWakStore } from './engine/state';
@@ -27,6 +39,9 @@ const BOARD_BG = '#0B1220';
 const STALL_BUDGET_MS = 25;
 const PREF_CONTROL = 'wakwak.controlMode';
 const PREF_RING = 'wakwak.floatingRing';
+const PREF_MAX_LEVEL = 'wakwak.maxLevel';
+/** Duración del interstitial entre niveles (D8). */
+const INTERSTITIAL_MS = 1500;
 
 const KEY_DIRS: Record<string, Direction> = {
   arrowup: 'up',
@@ -39,15 +54,24 @@ const KEY_DIRS: Record<string, Direction> = {
   d: 'right',
 };
 
+interface ScorePopup {
+  id: number;
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+}
+
 /**
  * WakWakScreen: orquestador del motor A (ADR 0010). Posee el loop rAF que
  * alimenta `store.tick(dt)` y escribe poses en `EntitiesLayer` vía el puerto
  * de presentación; React re-renderiza solo con eventos discretos.
  *
- * Input por plataforma: PC web → teclado (flechas + WASD); táctil (nativo y
- * web con puntero coarse) → modo configurable persistido: "gestos" (swipe en
- * toda la pantalla, una dirección por gesto) o "flotante" (pad invisible que
- * nace donde apoya el dedo, con re-centrado/histéresis y anillo opcional).
+ * Game feel (PLAN-WAK-WAK-V2): hit-stop paramétrico al comer drone (D4, única
+ * instancia, pausa el dt — visual-only), slow-mo near-death con rampa (D5) y
+ * popups de score por evento (D7). Run continua de niveles: ganar un nivel
+ * muestra el interstitial y avanza solo (D8); la run termina en derrota o al
+ * ganar el nivel 8 (D1).
  */
 export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScreenProps) {
   const { size, onLayout } = useContainerSize();
@@ -56,18 +80,33 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   const endedRef = useRef(false);
   const onGameEndRef = useRef(onGameEnd);
   onGameEndRef.current = onGameEnd;
+  const reduced = useReducedMotion();
 
   const isTouch = useIsTouchDevice();
   const [controlMode, setControlMode] = useState<ControlMode>('gestos');
   const [ringEnabled, setRingEnabled] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [maxLevel, setMaxLevel] = useState(1);
+  const maxLevelRef = useRef(1);
+  const [interstitial, setInterstitial] = useState<number | null>(null);
+  const [endShown, setEndShown] = useState(false);
+  const [popups, setPopups] = useState<ScorePopup[]>([]);
+  const cellSizeRef = useRef(0);
+  const popupIdRef = useRef(0);
+  const hitStopUntilRef = useRef(0);
+  const slowScaleRef = useRef(1);
+  const nextLevelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const endTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const paused = useWakWakStore((s) => s.paused);
   const status = useWakWakStore((s) => s.game.status);
+  const runLevel = useWakWakStore((s) => s.runLevel);
   const batteries = useWakWakStore((s) => s.game.batteries);
   const supers = useWakWakStore((s) => s.game.supers);
   const bonusActive = useWakWakStore((s) => s.game.bonus !== null);
   const score = useWakWakStore((s) => s.game.score);
+  const bestChain = useWakWakStore((s) => s.game.bestChain);
 
   // Métricas: FPS UI thread (no-op con gate off) + sesión de resumen
   usePerfFrameMonitor('wakwak');
@@ -79,8 +118,39 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   // --- partida: reset al montar y al reintentar (conserva seed E2E)
   useEffect(() => {
     endedRef.current = false;
+    setEndShown(false);
+    setInterstitial(null);
     useWakWakStore.getState().reset(initialSeed);
   }, [initialSeed]);
+
+  // --- limpieza de timers al desmontar
+  useEffect(
+    () => () => {
+      if (nextLevelTimerRef.current) clearTimeout(nextLevelTimerRef.current);
+      if (endTimerRef.current) clearTimeout(endTimerRef.current);
+    },
+    [],
+  );
+
+  // --- nivel máximo desbloqueado (persistido; D1)
+  useEffect(() => {
+    let cancelled = false;
+    void preferencesRepository.get(PREF_MAX_LEVEL).then((raw) => {
+      if (cancelled || !raw) return;
+      const value = Number(raw);
+      if (Number.isFinite(value) && value >= 1) {
+        maxLevelRef.current = Math.min(MAX_LEVEL, Math.floor(value));
+        setMaxLevel(maxLevelRef.current);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    cellSizeRef.current = cellSize;
+  }, [cellSize]);
 
   // --- preferencias de control (solo relevantes en dispositivos táctiles)
   useEffect(() => {
@@ -110,35 +180,116 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     void preferencesRepository.set(PREF_RING, ring ? '1' : '0');
   }, []);
 
-  // --- eventos discretos → sonido/haptics/récord
-  const handleEvents = useCallback((events: GameEvent[]) => {
-    for (const event of events) {
-      if (event === 'battery') soundPickup();
-      else if (event === 'super') soundPowerUp();
-      else if (event === 'droneEaten' || event === 'caught') soundHit();
-      else if (event === 'won' || event === 'lost') {
-        if (event === 'won') {
-          soundGameWin();
-          hapticGameWin();
-        } else {
-          soundHit();
-        }
-        if (!endedRef.current) {
-          endedRef.current = true;
-          const game = useWakWakStore.getState().game;
-          onGameEndRef.current({
-            gameId: 'wakwak',
-            won: game.status === 'won',
-            score: game.score,
-            durationMs: game.elapsedMs,
-            finishedAt: new Date().toISOString(),
-          });
-        }
-      }
-    }
+  // --- popup de score (D7): spawn discreto por evento, en la celda del robot
+  const spawnPopup = useCallback((text: string, color: string) => {
+    const cell = cellSizeRef.current;
+    if (cell <= 0) return;
+    const game = useWakWakStore.getState().game;
+    const col = game.robot.cell % MAZE_COLS;
+    const row = Math.floor(game.robot.cell / MAZE_COLS);
+    const id = ++popupIdRef.current;
+    setPopups((prev) => [
+      ...prev.slice(-5),
+      { id, x: (col + 0.5) * cell, y: row * cell, text, color },
+    ]);
+    setTimeout(() => setPopups((prev) => prev.filter((p) => p.id !== id)), 800);
   }, []);
 
-  // --- loop del juego (adaptador A): rAF + tick + present
+  // --- fin de run: récord (solo aquí escribe onGameEnd) + overlay diferido
+  const endRun = useCallback((won: boolean) => {
+    if (!endedRef.current) {
+      endedRef.current = true;
+      const game = useWakWakStore.getState().game;
+      onGameEndRef.current({
+        gameId: 'wakwak',
+        won,
+        score: game.score,
+        durationMs: game.elapsedMs,
+        finishedAt: new Date().toISOString(),
+      });
+    }
+    // secuencia antes del overlay: victoria ~1s, derrota ~0.8s (D6)
+    if (endTimerRef.current) clearTimeout(endTimerRef.current);
+    endTimerRef.current = setTimeout(() => setEndShown(true), won ? 1000 : 800);
+  }, []);
+
+  // --- interstitial de nivel (D8): congela el juego (status won) y avanza solo
+  const scheduleNextLevel = useCallback((nextLevel: number) => {
+    setInterstitial(nextLevel);
+    if (nextLevelTimerRef.current) clearTimeout(nextLevelTimerRef.current);
+    nextLevelTimerRef.current = setTimeout(() => {
+      setInterstitial(null);
+      useWakWakStore.getState().advanceLevel();
+      // desbloqueo persistido del nuevo nivel
+      if (nextLevel > maxLevelRef.current) {
+        maxLevelRef.current = nextLevel;
+        setMaxLevel(nextLevel);
+        void preferencesRepository.set(PREF_MAX_LEVEL, String(nextLevel));
+      }
+    }, INTERSTITIAL_MS);
+  }, []);
+
+  // --- eventos discretos → sonido/haptics/animaciones/récord
+  const handleEvents = useCallback(
+    (events: GameEvent[]) => {
+      for (const event of events) {
+        switch (event.type) {
+          case 'battery':
+            soundPickup();
+            break;
+          case 'super':
+            soundPowerUp();
+            spawnPopup('+50', '#FDE047');
+            break;
+          case 'droneEaten': {
+            if (event.chain >= 2) {
+              soundCombo(event.chain); // pitch sube con la cadena
+              hapticCombo(); // mismo instante que el hit-stop (D4)
+            } else {
+              soundHit();
+            }
+            entitiesRef.current?.onEvent({ kind: 'droneEaten', id: event.id });
+            spawnPopup(`${event.points}`, '#FDE047');
+            // hit-stop paramétrico, única instancia (D4): si llega otro, reinicia
+            const now = performance.now();
+            hitStopUntilRef.current =
+              Math.max(now, hitStopUntilRef.current) + hitStopMs(event.chain);
+            break;
+          }
+          case 'caught':
+            soundHit();
+            entitiesRef.current?.onEvent({ kind: 'robotCaught' });
+            break;
+          case 'bonusTaken':
+            spawnPopup('+100', '#4ADE80');
+            break;
+          case 'bonusSpawn':
+          case 'bonusExpired':
+            break;
+          case 'won': {
+            entitiesRef.current?.onEvent({ kind: 'levelWin' });
+            const game = useWakWakStore.getState().game;
+            if (game.level >= MAX_LEVEL) {
+              soundGameWin();
+              hapticGameWin();
+              endRun(true);
+            } else {
+              scheduleNextLevel(game.level + 1);
+            }
+            break;
+          }
+          case 'lost':
+            soundHit();
+            entitiesRef.current?.onEvent({ kind: 'runLost' });
+            endRun(false);
+            break;
+        }
+      }
+    },
+    [endRun, scheduleNextLevel, spawnPopup],
+  );
+
+  // --- loop del juego (adaptador A): rAF + tick + present + feel (D4/D5)
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
@@ -148,7 +299,15 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
       last = now;
       const store = useWakWakStore.getState();
       if (!store.paused && store.game.status === 'playing') {
-        handleEvents(store.tick(dt));
+        // hit-stop activo: el engine no avanza (pausa visual-only, D4)
+        if (hitStopUntilRef.current - now <= 0) {
+          // slow-mo near-death (D5): factor objetivo con rampa temporal
+          const game = store.game;
+          const target = slowMoScale(threatsOf(game), game.powerUntil !== null);
+          const k = Math.min(1, rawDt / SLOWMO_RAMP_MS);
+          slowScaleRef.current += (target - slowScaleRef.current) * k;
+          handleEvents(store.tick(dt * slowScaleRef.current));
+        }
       }
       entitiesRef.current?.present(worldSnapshot(useWakWakStore.getState().game));
       // Métrica de jank del loop (JS thread): dt crudo por encima del presupuesto
@@ -237,8 +396,18 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     setCellSize((prev) => (prev === next ? prev : Math.max(0, next)));
   }, [size]);
 
+  const startLevel = useCallback((level: number) => {
+    endedRef.current = false;
+    setEndShown(false);
+    setInterstitial(null);
+    setPickerOpen(false);
+    useWakWakStore.getState().startRun(level);
+  }, []);
+
   const restart = useCallback(() => {
     endedRef.current = false;
+    setEndShown(false);
+    setInterstitial(null);
     useWakWakStore.getState().reset(initialSeed);
   }, [initialSeed]);
 
@@ -259,6 +428,17 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
             bonusActive={bonusActive}
           />
           <EntitiesLayer ref={entitiesRef} cellSize={cellSize} />
+          {popups.map((popup) => (
+            <Animated.View
+              key={popup.id}
+              entering={reduced ? FadeIn.duration(120) : FadeInUp.duration(160)}
+              exiting={FadeOut.duration(150)}
+              pointerEvents="none"
+              style={[styles.popup, { left: popup.x - 28, top: popup.y - 14 }]}
+            >
+              <Text style={[styles.popupText, { color: popup.color }]}>{popup.text}</Text>
+            </Animated.View>
+          ))}
         </View>
       ) : null}
     </View>
@@ -273,6 +453,9 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
       ) : null}
     </View>
   );
+
+  const endVisible = endShown && status !== 'playing';
+  const finalWin = status === 'won';
 
   return (
     <View style={styles.screen}>
@@ -292,6 +475,13 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
                 <View style={styles.pauseBar} />
               </View>
             </PressableScale>
+            <PressableScale
+              accessibilityLabel="niveles-wakwak"
+              onPress={() => setPickerOpen(true)}
+              style={styles.levelButton}
+            >
+              <Text style={styles.levelButtonText}>NVL {runLevel}</Text>
+            </PressableScale>
             {isTouch ? (
               <ControlSettingsButton onPress={() => setSettingsOpen(true)} />
             ) : null}
@@ -299,6 +489,7 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
         }
       />
       {panGesture ? <GestureDetector gesture={panGesture}>{area}</GestureDetector> : area}
+      {interstitial !== null ? <LevelInterstitial level={interstitial} /> : null}
       {isTouch ? (
         <ControlSettingsModal
           visible={settingsOpen}
@@ -309,11 +500,44 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
+      {pickerOpen ? (
+        <View style={styles.pickerOverlay} accessibilityLabel="modal-niveles-wakwak">
+          <View style={styles.pickerCard}>
+            <Text style={styles.pickerTitle}>Nivel de inicio</Text>
+            <LevelPicker
+              maxUnlocked={maxLevel}
+              current={runLevel}
+              onPick={startLevel}
+            />
+            <PressableScale
+              accessibilityLabel="cerrar-niveles-wakwak"
+              onPress={() => setPickerOpen(false)}
+              style={styles.pickerClose}
+            >
+              <Text style={styles.pickerCloseText}>Cerrar</Text>
+            </PressableScale>
+          </View>
+        </View>
+      ) : null}
       {paused && status === 'playing' ? (
         <PauseOverlay onResume={() => useWakWakStore.getState().togglePause()} />
       ) : null}
-      {status !== 'playing' ? (
-        <EndOverlay status={status} score={score} onRestart={restart} onExit={onExit} />
+      {endVisible ? (
+        <EndOverlay
+          status={status}
+          score={score}
+          stats={{ level: finalWin ? MAX_LEVEL : runLevel, bestChain }}
+          onRestart={restart}
+          onExit={onExit}
+          picker={
+            maxLevel > 1 ? (
+              <View style={styles.pickerInOverlay}>
+                <Text style={styles.pickerInOverlayLabel}>Empezar en:</Text>
+                <LevelPicker maxUnlocked={maxLevel} current={1} onPick={startLevel} />
+              </View>
+            ) : null
+          }
+        />
       ) : null}
     </View>
   );
@@ -361,6 +585,16 @@ const styles = StyleSheet.create({
     borderColor: '#33415C',
     overflow: 'hidden',
   },
+  popup: {
+    position: 'absolute',
+    zIndex: 10,
+  },
+  popupText: {
+    fontSize: 13,
+    fontWeight: '900',
+    textShadowColor: '#0B1220',
+    textShadowRadius: 4,
+  },
   ring: {
     position: 'absolute',
     top: 0,
@@ -386,5 +620,71 @@ const styles = StyleSheet.create({
     height: 14,
     backgroundColor: '#94A3B8',
     borderRadius: 1,
+  },
+  levelButton: {
+    borderWidth: 1,
+    borderColor: '#33415C',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  levelButtonText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  pickerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: '#0B1220E6',
+  },
+  pickerCard: {
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#141D33',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#33415C',
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+  },
+  pickerTitle: {
+    color: '#E2E8F0',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  pickerClose: {
+    borderColor: '#33415C',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    marginTop: 4,
+  },
+  pickerCloseText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  pickerInOverlay: {
+    width: '100%',
+    gap: 6,
+  },
+  pickerInOverlayLabel: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
 });

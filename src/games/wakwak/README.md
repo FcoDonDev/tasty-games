@@ -32,20 +32,22 @@ original aplicado — verificar al tocar cualquier asset visual/sonoro:
 src/games/wakwak/
   index.ts                # GameDefinition registrado en src/core/game-registry.ts
   WakWakScreen.tsx        # orquestador: loop rAF, input por plataforma, HUD, modales, récord
-  components/             # HUD, ControlSettings, Overlays (UI RN estándar, agnóstica)
+  components/             # HUD, ControlSettings, Overlays, LevelInterstitial, LevelPicker
   engine/                 # NÚCLEO PURO: TS sin RN, determinista, testeado con Jest
     maze.ts               #   laberinto 19×21 propio + vecinos (túnel/corral/puerta)
+    levels.ts             #   8 niveles: knobs de dificultad (v2)
     rules.ts              #   advance(state, dtMs) por ticks fijos: movimiento,
-                          #   colisiones, power mode, chip, win/lose, worldSnapshot()
+                          #   colisiones, combo, power, chip, win/lose, worldSnapshot()
+    feel.ts               #   hit-stop y slow-mo: puro, lo aplica el loop (v2)
     ai.ts                 #   4 personalidades: Cazador/Emboscador/Caprichoso/Tímido
-    seed.ts               #   mulberry32 + seeds sentinelas E2E
-    state.ts              #   store zustand (no exportado fuera de la carpeta)
+    seed.ts               #   mulberry32 + seeds sentinelas E2E (v2: por nivel)
+    state.ts              #   store zustand: startRun/advanceLevel (run continua, v2)
     controls.ts           #   PURO: gesto → Direction (swipe + flotante re-centrado)
   renderer/
     types.ts              # PUERTO de presentación (createWorld/present/onDirection)
     reanimated/           # ADAPTADOR A (ADR 0010): MazeLayer + EntitiesLayer
-  __tests__/              # 59 tests del núcleo (sin RN)
-  __e2e__/                # Playwright web (seeds test-win/test-lose/test-power)
+  __tests__/              # ~100 tests del núcleo (sin RN)
+  __e2e__/                # Playwright web (test-win/test-lose/test-power/test-combo/test-level)
 ```
 
 ## Decisiones clave
@@ -102,3 +104,33 @@ src/games/wakwak/
   dt crudo > 25ms) y FPS de render (UI thread, `usePerfFrameMonitor`) — ejes
   separados porque miden threads distintos. Resumen al salir; snapshot en
   `localStorage` (web).
+
+## v2 — Niveles, combo y game feel (PLAN-WAK-WAK-V2)
+
+- **Run continua de niveles (D1/D2):** 8 niveles en `engine/levels.ts` con
+  knobs por nivel (velocidades, power, scatter/chase, salida del corral);
+  nivel 1 más fácil que el MVP, nivel 3 = MVP, nivel 8 más duro. Ganar un
+  nivel muestra el interstitial (~1.5s) y avanza solo conservando score y +1
+  vida (cap 5); el bonus ×100/vida solo al cerrar la run (nivel 8). El
+  `wakwak.maxLevel` desbloqueado persiste en `preferencesRepository` (dual) y
+  el selector del header permite iniciar en cualquier nivel desbloqueado.
+- **Elroy (D2.1):** el Cazador acelera (×1.05-1.06) cuando la fracción de
+  comestibles restantes baja del umbral del nivel — dirección validada contra
+  el Pac-Man Dossier.
+- **Combo tipo CE DX+ (D3):** drones comidos en un mismo power duplican:
+  `droneChainPoints(chain) = min(200·2^(chain−1), 3200)`. Se reinicia al
+  expirar el power o al ser atrapado; `bestChain` alimenta el overlay final.
+- **Hit-stop paramétrico (D4):** 60ms + 25ms por eslabón (cap 150ms), única
+  instancia y guard de pausa; pausa el dt del loop (visual-only, el engine no
+  cambia). Duraciones en ms (no frames) por independencia de framerate.
+- **Slow-mo near-death (D5):** `engine/feel.ts` calcula amenazas (distancia
+  con wrap + closing) y la escala objetivo ×0.5; el loop la suaviza con rampa
+  de 200ms. Desviación aceptada: el dt escalado también estira power/fases en
+  tiempo real (en CE DX+ el timer no se detiene).
+- **Animaciones (D6/D7):** bobbing/wobble como loops `withRepeat` del UI
+  thread (gateados por reduced motion y por `moving`), parpadeo de drones al
+  expirar el power (<⅓), pop del drone comido, shake/hurt del robot; popups de
+  score solo para eventos grandes (drone/chip/súper — batería sin popup);
+  sonido de combo con playback rate creciente + haptic Medium en cadena ≥2.
+- **E2E v2:** `test-win` fijado al nivel 8 (cierra la run), `test-level`
+  (nivel 1 → interstitial + avance), `test-combo` (cadena 200+400 = 650 pts).
