@@ -16,6 +16,13 @@ export function hapticSelection(): void {
   }
 }
 
+/** Impacto medio: eslabón del combo (cadena ≥ 2), en el arranque del hit-stop. */
+export function hapticCombo(): void {
+  if (ENABLED) {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }
+}
+
 /** Notificación de éxito: partida ganada. */
 export function hapticGameWin(): void {
   if (ENABLED) {

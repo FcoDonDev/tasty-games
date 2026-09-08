@@ -51,12 +51,17 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
 
 ## Wak Wak — v2 (diferido del MVP, ver `src/games/wakwak/README.md`)
 
-- [ ] Niveles progresivos (laberintos/velocidades distintos)
+- [x] **Niveles progresivos** — hecho en v2 (PLAN-WAK-WAK-V2): 8 niveles con
+      knobs por nivel, run continua, interstitial y `wakwak.maxLevel` persistido
+      (sin laberintos distintos: mismo layout, dificultad por knobs).
 - [ ] Persistencia de partida en curso vía `gameStateRepository` (ADR 0008):
-      wakwak es el primer juego que lo necesitaría por su duración real
+      wakwak es el primer juego que lo necesitaría por su duración real (con la
+      run continua de v2 la partida dura más: sube de prioridad).
 - [ ] Ojos/drones "comidos" que regresan al corral volando (ojos clásicos) — hoy
-      reaparecen directamente
-- [ ] Desmultiplicador de dificultad por nivel (velocidad de drones vs robot)
+      reaparecen directamente.
+- [x] **Desmultiplicador de dificultad por nivel** — hecho en v2: velocidades,
+      power y timers por nivel (`engine/levels.ts`) + modo Elroy (el Cazador
+      acelera al final del nivel).
 
 ## Solitario — animaciones fuera de alcance (diferido de PLAN-ESCALA-CONTENIDO)
 

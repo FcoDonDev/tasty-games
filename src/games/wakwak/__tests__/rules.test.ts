@@ -3,24 +3,31 @@ import {
   TICK_MS,
   advance,
   createGameState,
+  droneChainPoints,
   floatPos,
   queueDirection,
   worldSnapshot,
+  type GameEvent,
   type GameState,
 } from '../engine/rules';
 import { MAZE, toIndex } from '../engine/maze';
 import { seedConfig } from '../engine/seed';
+import { levelConfig } from '../engine/levels';
 
 /** Avanza n ticks fijos agregando los eventos. */
-function run(state: GameState, ticks: number): { state: GameState; events: string[] } {
+function run(state: GameState, ticks: number): { state: GameState; events: GameEvent[] } {
   let current = state;
-  const events: string[] = [];
+  const events: GameEvent[] = [];
   for (let i = 0; i < ticks; i++) {
     const result = advance(current, TICK_MS);
     events.push(...result.events);
     current = result.state;
   }
   return { state: current, events };
+}
+
+function typeNames(events: GameEvent[]): string[] {
+  return events.map((e) => e.type);
 }
 
 function playingGame(): GameState {
@@ -78,7 +85,7 @@ describe('rules: movimiento del robot', () => {
     expect(after.robot.cell).toBe(toIndex(15, 4));
     expect(after.robot.dir).toBeNull(); // se detiene contra el muro
     expect(after.score).toBe(50);
-    expect(events).toContain('battery');
+    expect(typeNames(events)).toContain('battery');
     expect(after.eaten).toBe(5);
   });
 
@@ -128,13 +135,24 @@ describe('rules: recolección y victoria', () => {
     };
   }
 
-  it('comer todos los comestibles declara victoria con bonus por vidas', () => {
+  it('comer todos los comestibles gana el nivel (sin bonus: nivel intermedio)', () => {
     const { state: after, events } = run(queueDirection(straightGame(5), 'left'), 60 * 3);
     expect(after.status).toBe('won');
     expect(after.finishedAt).not.toBeNull();
-    // 5 baterías × 10 + 3 vidas × 100
+    // 5 baterías × 10; el bonus por vidas solo aplica al cerrar la RUN (nivel 8)
+    expect(after.score).toBe(5 * 10);
+    expect(typeNames(events)).toContain('battery');
+  });
+
+  it('ganar el último nivel cierra la run con bonus por vidas', () => {
+    // test-win está fijado al nivel 8: 5 baterías ×10 + 3 vidas ×100
+    const { state: after } = run(
+      queueDirection(createGameState(seedConfig('__test_win__')), 'left'),
+      60 * 3,
+    );
+    expect(after.status).toBe('won');
+    expect(after.level).toBe(8);
     expect(after.score).toBe(5 * 10 + 3 * 100);
-    expect(events).toContain('battery');
   });
 
   it('súper batería activa el modo power y suma puntos', () => {
@@ -143,7 +161,7 @@ describe('rules: recolección y victoria', () => {
     expect(state.supers).toEqual([toIndex(15, 8)]); // izquierda del spawn
     state = queueDirection(state, 'left');
     const { state: after, events } = run(state, 60);
-    expect(events).toContain('super');
+    expect(typeNames(events)).toContain('super');
     expect(after.powerUntil).not.toBeNull();
     expect(after.score).toBeGreaterThanOrEqual(50);
   });
@@ -158,7 +176,7 @@ describe('rules: recolección y victoria', () => {
     };
     expect(BONUS_CELL).toBe(toIndex(11, 9));
     const { state: after, events } = run(state, 60);
-    expect(events).toContain('bonusTaken');
+    expect(typeNames(events)).toContain('bonusTaken');
     expect(after.bonusTaken).toBe(true);
     // batería en la celda de partida (f11,c8) + chip + baterías f11,c10..c12
     expect(after.score).toBe(4 * 10 + 100);
@@ -169,7 +187,7 @@ describe('rules: recolección y victoria', () => {
     const base = createGameState(seedConfig());
     const state: GameState = { ...base, bonus: { expiresAt: 200 }, bonusTaken: false };
     const { state: after, events } = run(state, 30);
-    expect(events).toContain('bonusExpired');
+    expect(typeNames(events)).toContain('bonusExpired');
     expect(after.bonus).toBeNull();
     expect(after.bonusTaken).toBe(true);
   });
@@ -190,7 +208,7 @@ describe('rules: colisiones, power y vidas', () => {
 
   it('sin power: el robot es atrapado, pierde una vida y se reinician posiciones', () => {
     const { state: after, events } = run(droneOnRobot(false), 5);
-    expect(events).toContain('caught');
+    expect(typeNames(events)).toContain('caught');
     expect(after.lives).toBe(2);
     expect(after.robot.cell).toBe(MAZE.robotSpawn);
     expect(after.robot.dir).toBeNull();
@@ -199,7 +217,7 @@ describe('rules: colisiones, power y vidas', () => {
 
   it('con power: el robot come al drone, suma puntos y este reaparece luego', () => {
     const { state: after, events } = run(droneOnRobot(true), 5);
-    expect(events).toContain('droneEaten');
+    expect(typeNames(events)).toContain('droneEaten');
     expect(after.score).toBe(200);
     const eaten = after.drones[0];
     expect(eaten.mode).toBe('eaten');
@@ -242,19 +260,119 @@ describe('rules: colisiones, power y vidas', () => {
   it('test-lose: robot quieto pierde la partida sin intervención', () => {
     const { state: after, events } = run(createGameState(seedConfig('__test_lose__')), 60 * 30);
     expect(after.status).toBe('lost');
-    expect(events).toContain('caught');
+    expect(typeNames(events)).toContain('caught');
     expect(after.lives).toBe(0);
   });
 });
 
 describe('rules: fases scatter/chase', () => {
-  it('arranca en scatter y alterna con reversa de drones', () => {
+  it('arranca en scatter y alterna con reversa de drones (duración del nivel)', () => {
     const state = playingGame();
     expect(state.phase).toBe('scatter');
-    // scatter dura 5000ms; tras ~5s alterna a chase
-    const { state: after } = run(state, Math.ceil(5200 / TICK_MS));
+    // scatter dura `scatterMs` del nivel; tras ese tiempo alterna a chase
+    const ticks = Math.ceil((levelConfig(state.level).scatterMs + 200) / TICK_MS);
+    const { state: after } = run(state, ticks);
     expect(after.phase).toBe('chase');
     expect(after.phaseUntil).toBeGreaterThan(after.elapsedMs);
+  });
+});
+
+describe('rules: combo (cadena de drones en un power)', () => {
+  it('droneChainPoints duplica con cap en 3200', () => {
+    expect(droneChainPoints(1)).toBe(200);
+    expect(droneChainPoints(2)).toBe(400);
+    expect(droneChainPoints(3)).toBe(800);
+    expect(droneChainPoints(4)).toBe(1600);
+    expect(droneChainPoints(5)).toBe(3200);
+    expect(droneChainPoints(6)).toBe(3200);
+    expect(droneChainPoints(12)).toBe(3200);
+  });
+
+  it('test-combo: dos drones en el mismo power → eventos chain 1 y 2, 650 pts', () => {
+    let lastState = queueDirection(createGameState(seedConfig('__test_combo__')), 'left');
+    let eaten = 0;
+    const allEvents: GameEvent[] = [];
+    for (let i = 0; i < 60 * 10 && eaten < 2; i++) {
+      const result = advance(lastState, TICK_MS);
+      allEvents.push(...result.events);
+      lastState = result.state;
+      eaten += result.events.filter((e) => e.type === 'droneEaten').length;
+    }
+    const eatenEvents = allEvents.filter((e) => e.type === 'droneEaten');
+    expect(eatenEvents.map((e) => (e as { chain: number }).chain)).toEqual([1, 2]);
+    expect(eatenEvents.map((e) => (e as { points: number }).points)).toEqual([200, 400]);
+    // 50 (súper) + 200 + 400
+    expect(lastState.score).toBe(650);
+    expect(lastState.chain).toBe(2);
+    expect(lastState.bestChain).toBe(2);
+  });
+
+  it('la cadena se reinicia al expirar el modo power', () => {
+    const base = createGameState(seedConfig());
+    const powered: GameState = {
+      ...base,
+      powerUntil: base.elapsedMs + 100,
+      chain: 2,
+      bestChain: 2,
+    };
+    const { state: after } = run(powered, 30);
+    expect(after.powerUntil).toBeNull();
+    expect(after.chain).toBe(0);
+    expect(after.bestChain).toBe(2); // el récord de la partida se conserva
+  });
+
+  it('la cadena se reinicia al ser atrapado', () => {
+    const base = createGameState(seedConfig());
+    const state: GameState = {
+      ...base,
+      powerUntil: null,
+      chain: 3,
+      bestChain: 3,
+      drones: base.drones.map((d, i) =>
+        i === 0 ? { ...d, cell: base.robot.cell, mode: 'roaming' as const, dir: null, progress: 0 } : d,
+      ),
+    };
+    const { state: after, events } = run(state, 5);
+    expect(typeNames(events)).toContain('caught');
+    expect(after.chain).toBe(0);
+    expect(after.bestChain).toBe(3); // el récord de la partida se conserva
+  });
+});
+
+describe('rules: Elroy (Cazador acelera al final del nivel)', () => {
+  /** Drone 0 lejos del robot (esquina) para aislar la velocidad sin colisiones. */
+  function stateAt(remainingFrac: number, threshold: number | null, power = false): GameState {
+    const base = createGameState(seedConfig());
+    const total = base.totalEdibles;
+    const eaten = Math.floor(total * (1 - remainingFrac));
+    const cfg = { ...base.cfg, elroyThreshold: threshold, elroyBoost: 1.05 };
+    return {
+      ...base,
+      cfg,
+      eaten,
+      powerUntil: power ? base.elapsedMs + 5000 : null,
+      drones: base.drones.map((d, i) =>
+        i === 0 ? { ...d, cell: toIndex(1, 1), mode: 'roaming' as const, dir: 'right' as const, progress: 0 } : d,
+      ),
+    };
+  }
+
+  it('bajo el umbral: el Cazador avanza más rápido (boost)', () => {
+    // restan pocas baterías: 1 - eaten/total < 0.12
+    const { state: boosted } = run(stateAt(0.05, 0.12), 1);
+    const { state: normal } = run(stateAt(0.05, null), 1);
+    expect(boosted.drones[0].progress).toBeGreaterThan(normal.drones[0].progress);
+  });
+
+  it('sobre el umbral o en power: velocidad normal', () => {
+    const { state: above } = run(stateAt(0.5, 0.12), 1);
+    const { state: noElroy } = run(stateAt(0.5, null), 1);
+    expect(above.drones[0].progress).toBeCloseTo(noElroy.drones[0].progress, 10);
+
+    // en power huye a droneFrightened: el boost no aplica
+    const { state: powered } = run(stateAt(0.05, 0.12, true), 1);
+    const { state: poweredNormal } = run(stateAt(0.05, null, true), 1);
+    expect(powered.drones[0].progress).toBeCloseTo(poweredNormal.drones[0].progress, 10);
   });
 });
 

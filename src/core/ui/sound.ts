@@ -109,3 +109,22 @@ export function soundPowerUp(): void {
 export function soundHit(): void {
   play('hit');
 }
+
+/**
+ * Blip del combo (wakwak): reutiliza el pickup con playback rate creciente —
+ * el pitch sube con la cadena (1..8+) para que cada eslabón "suene" más alto.
+ * Silencioso con el sonido apagado o si el rate no está soportado.
+ */
+export function soundCombo(chain: number): void {
+  if (!useAppStore.getState().soundOn) return;
+  const player = ensurePlayer('pickup');
+  if (!player) return;
+  try {
+    const rate = Math.min(2, 1 + 0.12 * Math.max(0, Math.floor(chain) - 1));
+    (player as unknown as { setPlaybackRate?: (rate: number) => void }).setPlaybackRate?.(rate);
+  } catch {
+    // rate no soportado: pitch por defecto
+  }
+  player.seekTo(0);
+  player.play();
+}
