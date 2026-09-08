@@ -248,18 +248,26 @@ export function worldSnapshot(state: GameState): {
 const PERSONALITIES: readonly Personality[] = [0, 1, 2, 3];
 
 export function createGameState(config: SeedConfig): GameState {
+  const drones = MAZE.droneSpawns.map((cell, i) => ({
+    id: i,
+    personality: PERSONALITIES[i],
+    cell,
+    dir: null,
+    progress: 0,
+    mode: 'waiting' as DroneMode,
+    releaseAt: config.releaseBase + i * config.releaseStagger,
+    respawnAt: null,
+  }));
+  for (const override of config.droneStart ?? []) {
+    const drone = drones[override.id];
+    if (drone) {
+      drone.cell = override.cell;
+      drone.mode = override.mode;
+    }
+  }
   return {
     robot: { cell: MAZE.robotSpawn, dir: null, progress: 0, queued: null },
-    drones: MAZE.droneSpawns.map((cell, i) => ({
-      id: i,
-      personality: PERSONALITIES[i],
-      cell,
-      dir: null,
-      progress: 0,
-      mode: 'waiting' as DroneMode,
-      releaseAt: config.releaseBase + i * config.releaseStagger,
-      respawnAt: null,
-    })),
+    drones,
     batteries: [...config.batteryCells].sort((a, b) => a - b),
     supers: [...config.superCells].sort((a, b) => a - b),
     score: 0,
@@ -268,8 +276,8 @@ export function createGameState(config: SeedConfig): GameState {
     totalEdibles: config.batteryCells.length + config.superCells.length,
     elapsedMs: 0,
     powerUntil: null,
-    phase: 'scatter',
-    phaseUntil: SCATTER_MS,
+    phase: config.startPhase ?? 'scatter',
+    phaseUntil: config.startPhase === 'chase' ? CHASE_MS : SCATTER_MS,
     bonus: null,
     bonusTaken: false,
     status: 'playing',
@@ -495,6 +503,7 @@ function step(state: GameState, dtMs: number): StepResult {
   if (lives <= 0) {
     status = 'lost';
     finishedAt = elapsed;
+    events.push('lost');
   }
 
   // --- victoria
@@ -502,6 +511,7 @@ function step(state: GameState, dtMs: number): StepResult {
     status = 'won';
     score += lives * SCORE_LIFE_BONUS;
     finishedAt = elapsed;
+    events.push('won');
   }
 
   const next: GameState = {

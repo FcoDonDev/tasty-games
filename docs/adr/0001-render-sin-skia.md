@@ -1,6 +1,7 @@
 # 0001 — Render con Views nativos, sin Skia
 
-**Estado:** Aceptada
+**Estado:** Aceptada (salvedad de alcance: ver [ADR 0009](0009-wakwak-motor-agnostico.md)
+para juegos en tiempo real con opción Skia como contingencia)
 
 ## Contexto
 

@@ -48,13 +48,13 @@ describe('seed: seedConfig', () => {
     expect(config.releaseStagger).toBeGreaterThan(0);
   });
 
-  it('test-win: baterías solo en filas 17+, sin súper, drones no salen', () => {
+  it('test-win: 5 baterías en línea recta a la izquierda del spawn, sin súper, drones no salen', () => {
     const config = seedConfig('__test_win__');
     expect(config.superCells).toHaveLength(0);
-    expect(config.batteryCells.length).toBeGreaterThan(0);
-    expect(config.batteryCells.length).toBeLessThan(MAZE.batteryCells.length);
+    expect(config.batteryCells).toHaveLength(5);
     for (const cell of config.batteryCells) {
-      expect(Math.floor(cell / 19)).toBeGreaterThanOrEqual(17);
+      expect(Math.floor(cell / 19)).toBe(15);
+      expect(cell).toBeLessThan(15 * 19 + 9); // a la izquierda del spawn (f15,c9)
     }
     expect(config.releaseBase).toBe(600_000);
   });
@@ -65,10 +65,14 @@ describe('seed: seedConfig', () => {
     expect(config.batteryCells).toHaveLength(MAZE.batteryCells.length);
   });
 
-  it('test-power: súper junto al spawn del robot', () => {
+  it('test-power: súper junto al spawn y drone 0 en roaming en su camino', () => {
     const config = seedConfig('__test_power__');
     expect(config.superCells).toEqual([toIndex(15, 8)]);
     expect(config.batteryCells).not.toContain(toIndex(15, 8));
     expect(config.batteryCells).toHaveLength(MAZE.batteryCells.length - 1);
+    expect(config.droneStart).toEqual([
+      { id: 0, cell: toIndex(15, 6), mode: 'roaming' },
+    ]);
+    expect(config.startPhase).toBe('chase');
   });
 });

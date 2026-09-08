@@ -40,6 +40,10 @@ export interface SeedConfig {
   /** ms de juego hasta que sale el primer drone; luego + stagger por drone */
   releaseBase: number;
   releaseStagger: number;
+  /** Overrides de arranque de drones (E2E): celda y modo iniciales */
+  droneStart?: Array<{ id: number; cell: number; mode: 'waiting' | 'roaming' }>;
+  /** Fase inicial scatter/chase (E2E); default 'scatter' */
+  startPhase?: 'scatter' | 'chase';
 }
 
 const DEFAULT_RNG_SEED = 20260908;
@@ -76,12 +80,13 @@ function defaultConfig(): SeedConfig {
 }
 
 /**
- * E2E `test-win`: solo baterías en las 3 filas inferiores (cerca del spawn del
- * robot, camino corto de victoria) y drones que no salen del corral durante
- * la partida.
+ * E2E `test-win`: solo 5 baterías en línea recta a la izquierda del spawn
+ * (f15, c8..c4): un swipe/press a la izquierda las come todas y gana. Drones
+ * que no salen del corral durante la partida.
  */
 function testWinConfig(): SeedConfig {
-  const batteryCells = MAZE.batteryCells.filter((cell) => Math.floor(cell / MAZE_COLS) >= 17);
+  const batteryCells: number[] = [];
+  for (let col = 8; col >= 4; col--) batteryCells.push(15 * MAZE_COLS + col);
   return {
     label: TEST_WIN_SEED,
     rngSeed: DEFAULT_RNG_SEED,
@@ -105,8 +110,9 @@ function testLoseConfig(): SeedConfig {
 }
 
 /**
- * E2E `test-power`: una súper batería pegada al spawn del robot y un drone que
- * sale enseguida: el robot la come, invierte roles y captura al drone.
+ * E2E `test-power`: una súper batería pegada al spawn del robot y el drone 0
+ * ya en roaming sobre la fila del robot: el robot come la súper, activa la
+ * carga y alcanza al drone que huye (el robot es más rápido en modo flee).
  */
 function testPowerConfig(): SeedConfig {
   const superCell = 15 * MAZE_COLS + 8; // vecina izquierda del spawn del robot
@@ -118,6 +124,8 @@ function testPowerConfig(): SeedConfig {
     superCells: [superCell],
     releaseBase: 500,
     releaseStagger: 5000,
+    droneStart: [{ id: 0, cell: 15 * MAZE_COLS + 6, mode: 'roaming' }],
+    startPhase: 'chase', // sin scatter: el drone 0 caza de inmediato y el power lo alcanza en vuelo
   };
 }
 

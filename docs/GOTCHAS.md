@@ -104,6 +104,13 @@ background están en `AGENTS.md`, no acá.
   Validado con dblclick de Playwright, pausas de 200–250 ms y jitter de 8 px que
   activa el Pan sin romper el tap.
 
+## Playwright (E2E web)
+
+- **`locator.tap()` exige `hasTouch`** en el context options; el default del
+  `playwright.config.ts` del repo no lo activa y falla con "The page does not
+  support tap". En specs web usar `click()` (funciona igual para botones RN
+  renderizados como `role="button"`), como hacen damas/solitario/wakwak.
+
 ## Audio (expo-audio)
 
 - **Header WAV: offsets corridos rompen el archivo** — un generador que escribió

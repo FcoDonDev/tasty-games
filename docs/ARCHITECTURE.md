@@ -41,6 +41,8 @@ Todo juego nuevo implementa un `GameDefinition` (`src/core/types.ts`) para regis
 
 Los engines (`rules.ts`, `deck.ts`, `board.ts`, `layout.ts`) son **funciones puras sin UI**: ahí vive el riesgo y ahí van los tests. La lógica de timing que depende del reloj (ej: timeout del mismatch en memorice) vive en la pantalla, no en el store, para que los tests sean deterministas.
 
+**Juegos en tiempo real (wakwak, [ADR 0009](adr/0009-wakwak-motor-agnostico.md)):** el núcleo expone `advance(state, dtMs)` por ticks fijos y un **puerto de presentación** (`renderer/types.ts`) que los adaptadores de render implementan — solo `renderer/` importa la librería de render; el loop rAF vive en el adaptador y la lógica sigue siendo pura y testeable. Referencia para cualquier futuro juego continuo.
+
 ## Persistencia dual y migraciones
 
 - Repositorios en `src/core/db/repositories/` en pares `*.ts` (expo-sqlite) / `*.web.ts` (localStorage) con la misma interfaz async — **siempre editar las dos** (ADR 0002).

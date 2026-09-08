@@ -185,16 +185,16 @@ Cambios en core (mínimos): línea en `game-registry.ts`; nuevos IDs de sonido e
 - [x] 2. Engine `maze.ts`: laberinto propio (diseño original) + tests
 - [x] 3. Engine `rules.ts`: ticks, colisiones, túnel, power mode, win/lose + tests
 - [x] 4. Engine `ai.ts`: 4 personalidades deterministas + tests
-- [x] 5. Engine `state.ts` + `seed.ts` (sentinelas `test-win`/`test-lose`/`test-power`, velocidad reducida si `EXPO_PUBLIC_E2E=1`) + tests
+- [x] 5. Engine `state.ts` + `seed.ts` (sentinelas `test-win`/`test-lose`/`test-power`; multiplicador de velocidad E2E descartado, ver §8) + tests
 - [x] 6. Puerto de presentación `renderer/types.ts` (contrato agnóstico) — revisar que `engine/` no importe nada de RN
-- [ ] 7. UI: laberinto estático responsive (360×640 sin scroll)
-- [ ] 8. UI: adaptador del loop + entidades (motor elegido) + input swipe/teclado vía el puerto
-- [ ] 9. UI: HUD, pausa, modales pausa/derrota/victoria, sonidos + haptics
-- [ ] 10. Assets de audio propios + nuevos IDs en `core/ui/sound.ts`
-- [ ] 11. Registro en `game-registry.ts` + verificación de wiring del récord
-- [ ] 12. Spec E2E `wakwak.web.spec.ts`
-- [ ] 13. Docs: `README.md` (incluye checklist legal de expresión original) + `RULES.md`
-- [ ] 14. Verificación estándar: `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs` (25/25) → revisión visual 360×640
+- [x] 7. UI: laberinto estático responsive (360×640 sin scroll)
+- [x] 8. UI: adaptador del loop + entidades (motor elegido) + input swipe/teclado vía el puerto
+- [x] 9. UI: HUD, pausa, modales pausa/derrota/victoria, sonidos + haptics
+- [x] 10. Assets de audio propios + nuevos IDs en `core/ui/sound.ts`
+- [x] 11. Registro en `game-registry.ts` + wiring del récord vía `onGameEnd`
+- [x] 12. Spec E2E `wakwak.web.spec.ts`
+- [x] 13. Docs: `README.md` (incluye checklist legal de expresión original) + `RULES.md`
+- [x] 14. Verificación estándar: `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs` (25/25) → revisión visual 360×640
 - [ ] 15. Cierre: migrar hallazgos (ADR motor, GOTCHAS si aplica, ROADMAP: v2 niveles + persistencia partida en curso), actualizar ARCHITECTURE/UI-UX si corresponde, eliminar este PLAN en el commit final
 
 ## 7. Riesgos
@@ -215,4 +215,36 @@ Cambios en core (mínimos): línea en `game-registry.ts`; nuevos IDs de sonido e
 - (2026-09-08) Decisión de diseño: núcleo `engine/` puro + puerto de presentación
   en `renderer/types.ts` con adaptadores intercambiables (A Reanimated → B Skia);
   la migración queda confinada a `renderer/` y `WakWakScreen.tsx`.
+- (2026-09-08) **Hallazgo del pickup por tick**: el `pickup` corre cada tick
+  mientras el robot está en una celda (parked). Si la celda del chip dorado
+  hubiera tenido batería, el robot la comía en un tick y el chip en el siguiente
+  (doble recolección encadenada). Solución: la celda del chip es camino SIN
+  batería en el layout (f11,c9 = ' ').
+- (2026-09-08) **Dilatación temporal bajo stall**: `advance()` procesa máx 8
+  ticks por llamada (~133 ms); si el JS thread se congela más, el juego va a
+  cámara lenta en vez de espirar de muerte. Decisión deliberada para MVP.
+- (2026-09-08) **Sin multiplicador de velocidad E2E**: se descartó el plan de
+  reducir velocidad con `EXPO_PUBLIC_E2E=1` — los seeds sentinelas + D-pad
+  accesible hacen los specs deterministas sin tocar gameplay.
+- (2026-09-08) Sonidos sintetizados (script WAV PCM 16-bit) en
+  `core/ui/assets/audio/`: pickup/power-up/hit + reuso de game-win; nuevos IDs
+  en `core/ui/sound.ts` (envuelto compartido, no importa expo-audio el juego).
+- (2026-09-08) **Bug hallado en E2E — eventos de fin**: `step()` no emitía los
+  eventos `won`/`lost`, así que el modal aparecía (por el selector de estado)
+  pero `onGameEnd` nunca se invocaba y el récord no se guardaba. Lección: el
+  modal no es evidencia de que el contrato del juego se cumplió; los specs E2E
+  verifican `game_records` y lo destaparon.
+- (2026-09-08) **E2E: `locator.tap()` requiere `hasTouch`** (no activado en el
+  config) → usar `click()`; lección migrada a `docs/GOTCHAS.md`.
+- (2026-09-08) **Carreras de E2E**: la persistencia del récord es async (poll
+  con `expect.poll`) y el score debe leerse DESPUÉS de que el overlay de pausa
+  sea visible (antes hay ventana de simulación).
+- (2026-09-08) **Sentinela test-power**: con scatter inicial los drones huyen a
+  su esquina antes de que el robot coma la súper → nunca son alcanzados.
+  Solución: `startPhase: 'chase'` en la config del sentinela + drone 0 en
+  roaming sobre el camino del robot; score esperado 290 (4 baterías + súper +
+  drone), no 300.
+- (2026-09-08) Verificación visual 360×640 OK (render, D-pad, pickup, modal de
+  derrota); único error de consola es el React #418 preexistente (deuda en
+  ROADMAP, no de esta feature).
 - (pendiente) …

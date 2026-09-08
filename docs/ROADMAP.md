@@ -40,6 +40,18 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
 - [ ] Drag largo de secuencia completa de tableau
 - [ ] Timing del haptic contra el settle visual
 - [ ] Feedback de press/haptics general de U1–U3
+- [ ] **Wak Wak (tiempo real):** fluidez del loop rAF en el device más lento —
+      si hay jank, migrar el adaptador de render a Skia (ADR 0009, el núcleo
+      puro no cambia); timing del haptic y del audio contra el pickup
+
+## Wak Wak — v2 (diferido del MVP, ver `src/games/wakwak/README.md`)
+
+- [ ] Niveles progresivos (laberintos/velocidades distintos)
+- [ ] Persistencia de partida en curso vía `gameStateRepository` (ADR 0008):
+      wakwak es el primer juego que lo necesitaría por su duración real
+- [ ] Ojos/drones "comidos" que regresan al corral volando (ojos clásicos) — hoy
+      reaparecen directamente
+- [ ] Desmultiplicador de dificultad por nivel (velocidad de drones vs robot)
 
 ## Deudas técnicas conocidas
 

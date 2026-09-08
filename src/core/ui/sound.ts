@@ -1,13 +1,16 @@
 import { useAppStore } from '@/core/stores/useAppStore';
 
 // Assets: require() se resuelve a número de módulo Metro; wav es asset nativo.
-type SoundId = 'cardMove' | 'cardDrop' | 'cardInvalid' | 'gameWin';
+type SoundId = 'cardMove' | 'cardDrop' | 'cardInvalid' | 'gameWin' | 'pickup' | 'powerUp' | 'hit';
 
 const SOURCES: Record<SoundId, number> = {
   cardMove: require('./assets/audio/card-move.wav'),
   cardDrop: require('./assets/audio/card-drop.wav'),
   cardInvalid: require('./assets/audio/card-invalid.wav'),
   gameWin: require('./assets/audio/game-win.wav'),
+  pickup: require('./assets/audio/pickup.wav'),
+  powerUp: require('./assets/audio/power-up.wav'),
+  hit: require('./assets/audio/hit.wav'),
 };
 
 // expo-audio hace monkey-patching de prototipos en su import (necesita el módulo
@@ -66,4 +69,19 @@ export function soundCardInvalid(): void {
 /** Arpegio breve al ganar la partida. */
 export function soundGameWin(): void {
   play('gameWin');
+}
+
+/** Blip corto al recoger una batería (wakwak). */
+export function soundPickup(): void {
+  play('pickup');
+}
+
+/** Barrido ascendente al activar la súper carga (wakwak). */
+export function soundPowerUp(): void {
+  play('powerUp');
+}
+
+/** Golpe grave: robot atrapado o drone recogido (wakwak). */
+export function soundHit(): void {
+  play('hit');
 }

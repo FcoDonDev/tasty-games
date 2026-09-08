@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 // Mobile-first: viewport de teléfono chico (criterio del ADR 0004)
 test.use({ viewport: { width: 360, height: 640 } });
 
-const GAMES = ['memorice', 'solitario', 'damas'] as const;
+const GAMES = ['memorice', 'solitario', 'damas', 'wakwak'] as const;
 
 async function assertNoPageScroll(page: Page): Promise<void> {
   const metrics = await page.evaluate(() => ({
@@ -31,6 +31,9 @@ for (const game of GAMES) {
     } else if (game === 'solitario') {
       await expect(page.getByText(/Movimientos:/)).toBeVisible({ timeout: 15_000 });
       await expect(page.getByLabel(/^solitario-card-/).first()).toBeVisible({ timeout: 15_000 });
+    } else if (game === 'wakwak') {
+      await expect(page.getByLabel('tablero-wakwak', { exact: true })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByLabel('wakwak-robot', { exact: true })).toBeVisible();
     } else {
       await expect(page.getByLabel('damas-turno-1', { exact: true })).toBeVisible({ timeout: 15_000 });
       await expect(page.getByLabel(/^damas-ficha-/).first()).toBeVisible({ timeout: 15_000 });

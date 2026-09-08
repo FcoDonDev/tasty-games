@@ -9,6 +9,13 @@ export function hapticDropCommit(): void {
   }
 }
 
+/** Selección direccional (D-pad): un tick por commit del usuario. */
+export function hapticSelection(): void {
+  if (ENABLED) {
+    void Haptics.selectionAsync();
+  }
+}
+
 /** Notificación de éxito: partida ganada. */
 export function hapticGameWin(): void {
   if (ENABLED) {
