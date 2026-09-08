@@ -53,4 +53,9 @@ module.exports = {
     out: identity,
     inOut: identity,
   },
+  // Helper de CSS transitions (consume PressableScale). En runtime nativo
+  // normalizeTimingFunction acepta este objeto; en Jest basta con que exista.
+  cubicBezier: (x1, y1, x2, y2) => ({
+    normalize: () => ({ name: 'cubicBezier', x1, y1, x2, y2 }),
+  }),
 };

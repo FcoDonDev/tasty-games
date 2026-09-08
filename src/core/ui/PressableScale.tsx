@@ -7,7 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { cubicBezier } from 'react-native-reanimated';
 
 interface PressableScaleProps {
   /** Label estable de accesibilidad: es el selector de los E2E */
@@ -71,10 +71,13 @@ export function PressableScale({
 const styles = StyleSheet.create({
   // Las props transition* existen en runtime (rn-web) pero no en los tipos de
   // RN: cast local del estilo para que tsc pase sin cambiar el comportamiento.
+  // El timing function usa el helper cubicBezier() de Reanimated, NO el string
+  // 'cubic-bezier(...)': el normalizador nativo de CSS transitions solo acepta
+  // keywords predefinidas o este objeto (en web se serializa al mismo string).
   scale: {
     transitionProperty: 'transform',
     transitionDuration: '120ms',
-    transitionTimingFunction: 'cubic-bezier(0.23, 1, 0.32, 1)',
+    transitionTimingFunction: cubicBezier(0.23, 1, 0.32, 1),
   } as unknown as ViewStyle,
   pressed: {
     transform: [{ scale: 0.97 }],

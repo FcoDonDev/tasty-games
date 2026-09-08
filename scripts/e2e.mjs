@@ -18,7 +18,9 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-const PORT = 4173;
+// Override del puerto para corridas en paralelo con otro worktree: E2E_PORT=4183 pnpm e2e:web
+// (playwright.config.ts lee la misma variable para su baseURL)
+const PORT = Number(process.env.E2E_PORT ?? 4173);
 // 127.0.0.1: evita el problema localhost→::1 (issue #22144 de Playwright)
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const passthroughArgs = process.argv.slice(2).filter((arg, i, all) => !(arg === '--' && i === 0));
