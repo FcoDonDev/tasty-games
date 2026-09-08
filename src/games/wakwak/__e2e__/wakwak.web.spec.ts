@@ -76,7 +76,7 @@ test('wakwak: pausa congela la simulación y se reanuda', async ({ page }) => {
   await expect(modal).toBeHidden();
 });
 
-test('wakwak: test-win — victoria, récord guardado y reintentar reinicia', async ({ page }) => {
+test('wakwak: test-win — run completa (nivel 8), récord guardado y reintentar reinicia', async ({ page }) => {
   test.setTimeout(60_000);
   await openGame(page, 'test-win');
 
@@ -84,7 +84,7 @@ test('wakwak: test-win — victoria, récord guardado y reintentar reinicia', as
   await pressDir(page, 'ArrowLeft');
   const modal = page.getByLabel('modal-fin-wakwak', { exact: true });
   await expect(modal).toBeVisible({ timeout: 20_000 });
-  await expect(modal.getByText('¡Laberinto despejado!')).toBeVisible();
+  await expect(modal.getByText('¡Run completa!')).toBeVisible();
 
   // el récord quedó persistido (won: true) — save() es async: se sondea
   await expect
@@ -100,6 +100,53 @@ test('wakwak: test-win — victoria, récord guardado y reintentar reinicia', as
   await expect(modal).toBeHidden();
   await expect(page.getByText('0 pts')).toBeVisible();
   await expect(page.getByLabel('tablero-wakwak', { exact: true })).toBeVisible();
+});
+
+test('wakwak: test-combo — cadena de dos drones en un mismo power suma 650 pts', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openGame(page, 'test-combo');
+
+  // súper (50) + drone 1 de la cadena (200) + drone 2 (400): el hit-stop y el
+  // popup del combo son la presentación de esos mismos eventos discretos
+  await pressDir(page, 'ArrowLeft');
+  const marcador = page.getByLabel('marcador-puntos', { exact: true });
+  await expect
+    .poll(async () => Number((await marcador.textContent())?.replace(/\D/g, '')), {
+      timeout: 45_000, // margen por dilación de rAF bajo carga de la suite completa
+    })
+    .toBe(650);
+
+  // con el power vencido, los drones terminan atrapando al robot
+  const modal = page.getByLabel('modal-fin-wakwak', { exact: true });
+  await expect(modal).toBeVisible({ timeout: 60_000 });
+  await expect(modal.getByText('Sistemas comprometidos')).toBeVisible();
+});
+
+test('wakwak: test-level — ganar el nivel 1 abre interstitial y avanza solo', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openGame(page, 'test-level');
+
+  await pressDir(page, 'ArrowLeft');
+  // interstitial "NIVEL 2" (~1.5s) mientras el juego queda congelado
+  const banner = page.getByLabel('wakwak-interstitial-nivel-2', { exact: true });
+  await expect(banner).toBeVisible({ timeout: 20_000 });
+
+  // avanza solo: tablero nuevo, nivel 2, score conservado y +1 vida
+  await expect(banner).toBeHidden({ timeout: 10_000 });
+  await expect(page.getByLabel('tablero-wakwak', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('wakwak-nivel', { exact: true })).toHaveText('NVL 2');
+  await expect(page.getByLabel('marcador-puntos', { exact: true })).toHaveText('50 pts');
+  await expect(page.getByLabel('vidas-restantes', { exact: true })).toHaveText('🔋🔋🔋🔋');
+
+  // el nivel 2 quedó desbloqueado y persistido (D1, preferences dual repo)
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem('preferences');
+        return raw ? (JSON.parse(raw) as Record<string, string>)['wakwak.maxLevel'] : undefined;
+      }),
+    )
+    .toBe('2');
 });
 
 test('wakwak: test-lose — los drones atrapan al robot y pierde', async ({ page }) => {

@@ -1,7 +1,8 @@
 # PLAN — Wak Wak v2: Animaciones, Niveles y Combo
 
-> Estado: **PLAN aprobado, sin implementar.** Un PLAN activo por requerimiento
-> (convención en `AGENTS.md`); se elimina en el commit de cierre.
+> Estado: **IMPLEMENTADO y verificado** (typecheck + 301 tests + E2E 39/39 +
+> perf ≥ baseline). T22 no aplicó: A1 pasó sin jank. El commit de cierre
+> elimina este PLAN (convención AGENTS.md).
 > Revisión crítica v2: supuestos validados contra el Pac-Man Dossier, fuentes
 > de game-feel (hit-stop/juice) y la skill `expo-animation` (§6).
 
@@ -205,82 +206,82 @@ Estado actual relevante:
 
 ### Fase 1 — Eventos + animaciones base
 
-- [ ] T1. Refactor `GameEvent` a unión discriminada con payload
+- [x] T1. Refactor `GameEvent` a unión discriminada con payload
       (`{ type: 'droneEaten'; chain: number; points: number }`, etc.): toca
       `rules.ts`, `state.ts` (`tick`), `WakWakScreen.tsx` y tests existentes.
       La colisión de `step()` emite UN evento por drone comido (payload propio).
-- [ ] T2. Snapshot extendido: `powerFraction` (fracción restante del power);
+- [x] T2. Snapshot extendido: `powerFraction` (fracción restante del power);
       `EntitiesLayer` lo consume.
-- [ ] T3. Animación continua de entidades: bobbing del robot al moverse + pulso
+- [x] T3. Animación continua de entidades: bobbing del robot al moverse + pulso
       en power; hover wobble de drones — como loops `withRepeat` en el UI
       thread (worklet), compuestos con el translate de `present()` (translate
       primero en el array transform). Gate de reduced motion (`useReducedMotion`):
       transform loop off, opacity/color siguen. Parpadeo blanco de drones
       cuando `powerFraction` < umbral (~2s), sobre el drone (no fullscreen).
-- [ ] T4. API `EntitiesHandle.onEvent()` para efectos one-shot: shake del
+- [x] T4. API `EntitiesHandle.onEvent()` para efectos one-shot: shake del
       robot en `caught`, pop del drone comido (encoge a 0.6 con fade antes de
       `hidden`). Hit-stop del loop: duración paramétrica por cadena (D4),
       única instancia, guard de pausa.
-- [ ] T5. Popups de score flotantes (D7): solo drone/chip/súper/combo; spawn
+- [x] T5. Popups de score flotantes (D7): solo drone/chip/súper/combo; spawn
       por evento en `WakWakScreen`; entrada scale 0.9→1 + fade, salida fade;
       no bloquean al personaje. Indicador de combo en el HUD (×N) con escala
       spring al crecer. Micro-pulso de celda en MazeLayer para baterías
       (opcional, solo si el presupuesto de frame aguanta).
-- [ ] T6. Secuencias de fin: victoria (pulso de despedida + delay del overlay
+- [x] T6. Secuencias de fin: victoria (pulso de despedida + delay del overlay
       ~1s) y derrota (shake + desaturación antes del overlay); EndOverlay con
       entrada escalada y stats (`bestChain`, nivel alcanzado).
-- [ ] T7. Sonidos/haptics: pitch del blip sube con la cadena; haptic impact
+- [x] T7. Sonidos/haptics: pitch del blip sube con la cadena; haptic impact
       (Medium) en cadena ≥2; sonidos y haptic en el MISMO instante que arranca
       el hit-stop (sincronía <20ms perceptual, §6.N3). Todo vía wrappers
       `core/ui/sound.ts` / `haptics.ts`.
 
 ### Fase 2 — Combo (motor puro) y slow-mo
 
-- [ ] T8. `GameState.chain`/`bestChain`: `droneChainPoints(chain)` función pura
+- [x] T8. `GameState.chain`/`bestChain`: `droneChainPoints(chain)` función pura
       con cap 3200; reset al expirar power y en caught; eventos por drone.
-- [ ] T9. Hit-stop real del loop: flag en el screen que congela la acumulación
+- [x] T9. Hit-stop real del loop: flag en el screen que congela la acumulación
       de dt al recibir `droneEaten` (no toca el engine); reinicio si llega otro
       hit-stop activo; guard contra pausa.
-- [ ] T10. Slow-mo: `engine/feel.ts` — `slowMoFactor(distances, closing)`;
+- [x] T10. Slow-mo: `engine/feel.ts` — `slowMoFactor(distances, closing)`;
       el screen escala dt ×0.5 con rampa ~200ms cuando hay amenaza cercana.
-- [ ] T11. Tests unitarios: escala 200/400/800/1600/3200, resets, eventos por
+- [x] T11. Tests unitarios: escala 200/400/800/1600/3200, resets, eventos por
       drone, factor de slow-mo (pure function), hit-stop paramétrico (duración
       por cadena, reinicio, guard de pausa).
 
 ### Fase 3 — Niveles
 
-- [ ] T12. `engine/levels.ts`: `LEVELS[]` (8) con knobs D2 (incl.
+- [x] T12. `engine/levels.ts`: `LEVELS[]` (8) con knobs D2 (incl.
       `elroyThreshold`); `SeedConfig.level`; `createGameState` deriva
       velocidades y timers por nivel y los lleva en `GameState` (dejar de usar
       `SPEEDS`/`POWER_MS`/`SCATTER_MS`/`CHASE_MS` globales dentro de `step`).
-- [ ] T13. Elroy en `step()`: boost ~5% al Cazador bajo umbral, solo chase,
+- [x] T13. Elroy en `step()`: boost ~5% al Cazador bajo umbral, solo chase,
       fuera de power.
-- [ ] T14. `state.ts`: `startRun(level)`; avance de nivel al `won`
+- [x] T14. `state.ts`: `startRun(level)`; avance de nivel al `won`
       (`nextLevel`) conservando score/vidas (+1, cap 5); power/fases/chain
       reiniciados por nivel; fin de run al ganar el nivel 8.
-- [ ] T15. Interstitial de nivel (D8): banner "NIVEL N+1" ~1.5s con entrada/
+- [x] T15. Interstitial de nivel (D8): banner "NIVEL N+1" ~1.5s con entrada/
       salida ease-out, bloquea input, la simulación arranca sola al terminar.
-- [ ] T16. Selector de nivel inicial (al empezar/reintentar: desbloqueados
+- [x] T16. Selector de nivel inicial (al empezar/reintentar: desbloqueados
       jugables, bloqueados con candado + `accessibilityLabel` estable);
       persistencia `wakwak.maxLevel` vía `preferencesRepository`.
-- [ ] T17. HUD y EndOverlay muestran nivel actual / nivel alcanzado.
-- [ ] T18. Seeds E2E: sentinel nuevo `test-combo` (dos drones al alcance del
+- [x] T17. HUD y EndOverlay muestran nivel actual / nivel alcanzado.
+- [x] T18. Seeds E2E: sentinel nuevo `test-combo` (dos drones al alcance del
       power en línea recta); `test-win/test-lose/test-power` siguen pasando
       (configs compatibles con niveles; `test-power` fija nivel explícito).
-- [ ] T19. Tests unitarios: knobs por nivel, progresión de run, Elroy (A7),
+- [x] T19. Tests unitarios: knobs por nivel, progresión de run, Elroy (A7),
       desbloqueo persistido (mock del repo según patrón existente).
 
 ### Fase 4 — Documentación y verificación
 
-- [ ] T20. Docs: actualizar `src/games/wakwak/README.md` (decisiones clave,
+- [x] T20. Docs: actualizar `src/games/wakwak/README.md` (decisiones clave,
       checklist legal §6) y `RULES.md` (combo, niveles, Elroy, slow-mo);
       cerrar ítems v2 en `docs/ROADMAP.md`; GOTCHAS si aparece algo
       reproducible.
-- [ ] T21. Verificación estándar completa: `pnpm typecheck` → `pnpm test` →
+- [x] T21. Verificación estándar completa: `pnpm typecheck` → `pnpm test` →
       `node scripts/e2e.mjs` (specs nuevos + regresión 25/25) → inspección
       visual manual si los specs no cubren una animación (viewport 360×640,
       borrar screenshots después). Comparar sesión de perf baseline-vs-v2 (A1).
-- [ ] T22. Si A1 falla (jank): evaluar adaptador B (Skia) según ADR 0010 —
+- [x] T22. Si A1 falla (jank): evaluar adaptador B (Skia) según ADR 0010 —
       decisión con el usuario antes de emprenderla.
 
 ## 6. Notas / hallazgos
@@ -323,6 +324,26 @@ Estado actual relevante:
   rAF; `.get()`/`.set()` y nunca shared values en render; reduced motion =
   "menos y más suave" (drop transform, mantener opacity/color); haptics: uno
   por acción, mismo frame que el visual, nunca el único feedback.
+- **N5 (hallazgo de implementación)** — el bonus ×100/vida estaba sumándose en
+  CADA nivel ganado; corregido: solo al cerrar la run (nivel ≥ MAX_LEVEL),
+  como decía D1. Los sentinelas E2E quedaron fijados a nivel 3 (MVP) para
+  candar sus scores; `test-win` subió a nivel 8 para cerrar la run y conservar
+  la cobertura de récord.
+- **N6 (hallazgo de implementación)** — `test-combo` debió quitar TODAS las
+  baterías de la fila 15: el robot que persigue la cadena se come baterías del
+  camino y el score esperado deja de ser exacto (650 = 50 + 200 + 400).
+- **N7 (perf, A1)** — medición con `EXPO_PUBLIC_PERF_METRICS=1` (15s de juego
+  real, teclado): v2 = 877 frames UI (≈58 fps), 2 dropped, 21 stalls (avg
+  44.6ms, p95 83.4ms). Baseline pre-v2 (worktree temporal en b3cad19): 515
+  frames, 15 dropped, 36 stalls (avg 347.9ms, p95 1550ms). v2 ≥ baseline en
+  todos los ejes. Caveat: corridas con dev servers paralelos; los stalls
+  incluyen la primera carga (compilación dev) — números para comparación
+  relativa, no absolutos.
+- **N8 (gotcha migrado a `docs/GOTCHAS.md`)** — `:4173` compartido entre
+  worktrees en paralelo: síntomas de bundle mezclado (motor nuevo + UI vieja
+  en el mismo snapshot) y ERR_CONNECTION_REFUSED masivo a mitad de suite.
+  Solución: `E2E_PORT=4183 node scripts/e2e.mjs`.
+- **T22 no aplicó**: A1 pasó sin jank (números en N7).
 - (Se completará durante la implementación.)
 
 ## 7. Cierre

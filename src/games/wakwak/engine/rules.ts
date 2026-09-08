@@ -22,7 +22,7 @@ import {
 import { chooseDroneDirection, type Personality } from './ai';
 import type { SeedConfig } from './seed';
 import { mulberry32 } from './seed';
-import { levelConfig, type LevelConfig } from './levels';
+import { levelConfig, MAX_LEVEL, type LevelConfig } from './levels';
 
 // --- Constantes de juego -------------------------------------------------
 
@@ -546,7 +546,8 @@ function step(state: GameState, dtMs: number): StepResult {
   // --- victoria de nivel (el fin de RUN lo decide la pantalla según level)
   if (status === 'playing' && eaten >= state.totalEdibles) {
     status = 'won';
-    score += lives * SCORE_LIFE_BONUS;
+    // bonus por vidas solo al cerrar la RUN (último nivel; D1)
+    if (state.level >= MAX_LEVEL) score += lives * SCORE_LIFE_BONUS;
     finishedAt = elapsed;
     events.push({ type: 'won' });
   }

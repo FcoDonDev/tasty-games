@@ -135,13 +135,24 @@ describe('rules: recolección y victoria', () => {
     };
   }
 
-  it('comer todos los comestibles declara victoria con bonus por vidas', () => {
+  it('comer todos los comestibles gana el nivel (sin bonus: nivel intermedio)', () => {
     const { state: after, events } = run(queueDirection(straightGame(5), 'left'), 60 * 3);
     expect(after.status).toBe('won');
     expect(after.finishedAt).not.toBeNull();
-    // 5 baterías × 10 + 3 vidas × 100
-    expect(after.score).toBe(5 * 10 + 3 * 100);
+    // 5 baterías × 10; el bonus por vidas solo aplica al cerrar la RUN (nivel 8)
+    expect(after.score).toBe(5 * 10);
     expect(typeNames(events)).toContain('battery');
+  });
+
+  it('ganar el último nivel cierra la run con bonus por vidas', () => {
+    // test-win está fijado al nivel 8: 5 baterías ×10 + 3 vidas ×100
+    const { state: after } = run(
+      queueDirection(createGameState(seedConfig('__test_win__')), 'left'),
+      60 * 3,
+    );
+    expect(after.status).toBe('won');
+    expect(after.level).toBe(8);
+    expect(after.score).toBe(5 * 10 + 3 * 100);
   });
 
   it('súper batería activa el modo power y suma puntos', () => {
