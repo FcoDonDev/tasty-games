@@ -6,6 +6,8 @@
  * motor. Testeadas con Jest.
  */
 
+import { floatPos, wrappedDistance } from './rules';
+
 // --- Hit-stop (celebración del combo) -------------------------------------
 
 export const HITSTOP_BASE_MS = 60;
@@ -49,4 +51,37 @@ export function slowMoScale(threats: readonly Threat[], powered: boolean): numbe
     if (threat.distance <= SLOWMO_RADIUS && threat.closing) return SLOWMO_SCALE;
   }
   return 1;
+}
+
+// --- Amenazas (entrada de slowMoScale) -------------------------------------
+
+const DIR_VECTORS: Record<string, { dx: number; dy: number }> = {
+  up: { dx: 0, dy: -1 },
+  down: { dx: 0, dy: 1 },
+  left: { dx: -1, dy: 0 },
+  right: { dx: 1, dy: 0 },
+};
+
+/**
+ * Amenazas activas para el slow-mo: drones en roaming/exiting con dirección,
+ * su distancia (con wrap, la misma métrica de colisión) y si se acercan
+ * (proyección de su velocidad reduce la distancia).
+ */
+export function threatsOf(state: import('./rules').GameState): Threat[] {
+  const robotPos = floatPos(state.robot, false);
+  const threats: Threat[] = [];
+  for (const drone of state.drones) {
+    if (drone.mode !== 'roaming' && drone.mode !== 'exiting') continue;
+    if (!drone.dir) continue;
+    const dronePos = floatPos(drone, drone.mode === 'exiting');
+    const distance = wrappedDistance(robotPos, dronePos);
+    const vec = DIR_VECTORS[drone.dir];
+    const closing =
+      wrappedDistance(
+        { x: dronePos.x + vec.dx * 0.1, y: dronePos.y + vec.dy * 0.1 },
+        robotPos,
+      ) < distance;
+    threats.push({ distance, closing });
+  }
+  return threats;
 }

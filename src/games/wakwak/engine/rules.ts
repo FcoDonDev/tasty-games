@@ -125,7 +125,7 @@ export interface GameState {
 export type GameEvent =
   | { type: 'battery' }
   | { type: 'super' }
-  | { type: 'droneEaten'; chain: number; points: number }
+  | { type: 'droneEaten'; id: number; chain: number; points: number }
   | { type: 'caught' }
   | { type: 'bonusSpawn' }
   | { type: 'bonusTaken' }
@@ -219,8 +219,8 @@ export function floatPos(entity: Mover, canUseDoor: boolean): { x: number; y: nu
   return { x: baseX + dx * entity.progress, y: baseY + (ty - baseY) * entity.progress };
 }
 
-/** Distancia con wrap horizontal (para colisiones en el túnel). */
-function wrappedDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
+/** Distancia con wrap horizontal (para colisiones y slow-mo en el túnel). */
+export function wrappedDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
   let dx = Math.abs(a.x - b.x);
   if (dx > MAZE_COLS / 2) dx = MAZE_COLS - dx;
   return Math.hypot(dx, a.y - b.y);
@@ -516,7 +516,7 @@ function step(state: GameState, dtMs: number): StepResult {
       const points = droneChainPoints(chain);
       bestChain = Math.max(bestChain, chain);
       score += points;
-      events.push({ type: 'droneEaten', chain, points });
+      events.push({ type: 'droneEaten', id: drone.id, chain, points });
       return {
         ...drone,
         mode: 'eaten' as DroneMode,
