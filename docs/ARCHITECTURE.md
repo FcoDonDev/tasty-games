@@ -22,7 +22,7 @@ ADRs en [`docs/adr/`](adr/README.md).
 
 Todo juego nuevo implementa un `GameDefinition` (`src/core/types.ts`) para registrarse en la pantalla principal sin tocar código ajeno:
 
-- **GameDefinition**: `id`, `name`, `description`, `thumbnail?`, `minDurationHint?`, `rules?` (condensado de texto plano para la ayuda in-app — la fuente completa de reglas es el `RULES.md` del juego), `Component` (pantalla del juego).
+- **GameDefinition**: `id`, `name`, `description`, `thumbnail?`, `minDurationHint?`, `rules?` (condensado de texto plano para la ayuda in-app — la fuente completa de reglas es el `RULES.md` del juego), `supportsLandscape?` (adaptación a landscape móvil; [ADR 0009](adr/0009-landscape-movil-por-juego.md)), `Component` (pantalla del juego).
 - **GameScreenProps** (props del `Component`): `onExit()`, `onGameEnd(result)` e `initialSeed?` (solo E2E, ver ADR 0006).
 - **GameResult**: `gameId`, `won`, `score?`, `durationMs`, `finishedAt` (ISO 8601).
 
@@ -54,12 +54,13 @@ Los juegos no importan librerías de animación/gestos directamente: consumen lo
 
 | Módulo | Rol |
 |---|---|
-| `GameHeader.tsx` | Header estándar de juego: Salir (`salir-<id>`) / Reiniciar con confirmación (`reiniciar-<id>`) / Ayuda (`ayuda-<id>`); `center` lo aporta cada juego (turno/movimientos), `left` para acciones propias (undo/ajustes de solitario) |
+| `GameHeader.tsx` | Header estándar de juego: Salir (`salir-<id>`) / Reiniciar con confirmación (`reiniciar-<id>`) / Ayuda (`ayuda-<id>`); `center` lo aporta cada juego (turno/movimientos), `left` para acciones propias (undo/ajustes de solitario); `variant="vertical"` lo vuelve rail lateral en landscape móvil ([ADR 0009](adr/0009-landscape-movil-por-juego.md)) |
 | `HelpModal.tsx` | Modal genérico de ayuda (`modal-ayuda-<id>`) con `GameDefinition.rules`; usado por GameHeader y por el contenedor `[id].tsx` |
 | `ScoreBoard.tsx` | Récord; variante `compact` (una línea, `record-<id>`) en GameCard y en la chromeBar del contenedor |
 | `PressableScale.tsx` | Botón con feedback de press (CSS transition 120 ms / scale 0.97), `hitSlop` + `pressRetentionOffset` configurables |
 | `overlayAnimation.ts` | Builders `FadeIn`/`FadeOut` perezosos-memoizados para overlays (220 ms entrada / 150 ms salida) |
 | `useContainerSize.ts` | Medición real del contenedor con `onLayout` (guard anti re-render); alimenta los `computeLayout` (ADR 0004) |
+| `useLandscapeMobile.ts` | Detección de landscape móvil (función pura `isLandscapeMobile` + hook reactivo); condición del modo compacto en juegos con `supportsLandscape` ([ADR 0009](adr/0009-landscape-movil-por-juego.md)) |
 | `drag/useDraggable.ts` | Patrón de drag & drop reutilizable (ver abajo) |
 | `haptics.ts` | Wrapper de expo-haptics; ningún juego importa expo-haptics directamente |
 | `sound.ts` | Wrapper de expo-audio (mismo patrón que haptics): preload perezoso de efectos, API `soundCardMove/Drop/Invalid/GameWin()`, gated por toggle global (`useAppStore.soundOn`) y por plataforma. Ningún juego importa expo-audio directamente |
@@ -88,10 +89,10 @@ Patrón reutilizable consumido por solitario y damas:
 
 ```
 app/
-  _layout.tsx     # GestureHandlerRootView + SafeAreaProvider + ThemeProvider + hydrate
+  _layout.tsx     # GestureHandlerRootView + SafeAreaProvider + ThemeProvider + hydrate + lock portrait (nativo)
   index.tsx       # Home: lista GAME_REGISTRY como cards (nativo: columnas según ancho REAL medido, ADR 0004; web: 1 columna centrada con ancho tope; + engranaje a ajustes)
   ajustes.tsx     # Dark mode + borrar récords
-  juego/[id].tsx  # Contenedor: monta Component del juego; ÚNICO escritor de récords
+  juego/[id].tsx  # Contenedor: monta Component del juego; ÚNICO escritor de récords; unlock/lock de orientación según supportsLandscape (ADR 0009)
 ```
 
 El contenedor `[id].tsx` resuelve el juego por id, reenvía `seed` solo con

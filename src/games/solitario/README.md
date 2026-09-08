@@ -49,6 +49,16 @@ src/games/solitario/
   (`useAppStore.soundOn`, persistido con clave `sound_enabled`, default on).
 - **Persistencia de settings:** `preferencesRepository` (KV dual sqlite/localStorage), claves `solitario.drawMode` y `solitario.undo`. El cambio de drawMode aplica al próximo reparto; undo, inmediato.
 - **Auto-resume (partida en curso persistida, [ADR 0008](../../../docs/adr/0008-persistencia-estado-en-curso.md)):** al entrar se restaura el estado guardado en `gameStateRepository` (blob JSON de `engine/persistence.ts`). Guardado debounceado (300 ms) con `store.subscribe` — solo partidas en curso (omite el estado virgen y los terminales). Se descarta al ganar, perder (sin movimientos) o reiniciar manualmente. No se persiste el historial de undo (tras restaurar, disponible desde el próximo movimiento); `finishedAt`/`stuck` se recalculan con `endFlags`. JSON corrupto o forma inválida degrada a reparto nuevo, nunca a crash. Los seeds E2E fuerzan reparto fresco y limpian el guardado.
+- **Cartas más grandes:** `PADDING 4` / `GAP 2` en `engine/layout.ts` — a 360px
+  portrait la carta pasa de 45 a 48px (el ancho con 7 columnas es el límite
+  duro; los offsets de fan y el hit-testing ya escalan con `cardWidth`).
+- **Landscape móvil ([ADR 0009](../../../docs/adr/0009-landscape-movil-por-juego.md)):**
+  único juego con `supportsLandscape: true` en el registro. Con
+  `useLandscapeMobile()` (landscape real + dimensión corta ≤ 480) el contenedor
+  pasa a fila con `GameHeader variant="vertical"` (rail de ~64px a la
+  izquierda, labels a11y intactos) y la carta crece a ~71px: `computeLayout`
+  no cambia, la carta la limita `alto/4.6` en vez del ancho. En nativo el
+  contenedor libera la rotación (`unlockAsync`) mientras el juego está montado.
 - **E2E gate:** `app/juego/[id].tsx` solo reenvía el query param `seed` cuando el build se exporta con `EXPO_PUBLIC_E2E=1` (lo hace `scripts/e2e.mjs`). Seeds soportados en `engine/deck.ts`: `test-win` (un drag gana) y `test-move` (reparto determinista para drag legal/ilegal). En producción no existe canal para alterar el reparto.
 
 ## Tests
@@ -56,7 +66,7 @@ src/games/solitario/
 - Unit: `pnpm test -- solitario` (engine puro: reglas —el más exhaustivo del
   proyecto—, store, layout, hit-testing, persistencia: round-trip
   serialize/parse, blob inválido → null, restore recalcula `stuck`).
-- E2E web: `pnpm e2e:web` — drag legal, snap-back ilegal, victoria forzada → récord + ScoreBoard, salir; auto-move (doble tap, doble tap humano con pausa, clic derecho, clic derecho durante drag no mueve); auto-resume (la partida en curso se restaura tras recargar).
+- E2E web: `pnpm e2e:web` — drag legal, snap-back ilegal, victoria forzada → récord + ScoreBoard, salir; auto-move (doble tap, doble tap humano con pausa, clic derecho, clic derecho durante drag no mueve); auto-resume (la partida en curso se restaura tras recargar); landscape (`solitario.landscape.web.spec.ts`, viewport 740×360): rail a la izquierda, carta >60px, sin scroll, drag legal en modo rail.
 
 **Labels a11y estables** (selectores de Playwright/Maestro): `solitario-card-<id>`,
 `solitario-tableau-<i>`, `solitario-foundation-<i>`, `solitario-stock`,
