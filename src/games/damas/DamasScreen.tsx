@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, Profiler } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameScreenProps } from '@/core/types';
+import {
+  beginPerfSession,
+  endPerfSession,
+  perfDragEvent,
+  perfRenderReport,
+} from '@/core/perf';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
@@ -15,6 +21,43 @@ import { computeLayout, hitTestSquare, squarePosition } from './engine/layout';
 import { legalMovesForPiece, movablePieceIds, type Move } from './engine/rules';
 import { useDamasStore } from './engine/state';
 import { PieceView } from './components/Piece';
+
+const GAME_ID = 'damas';
+
+// memo: las 64 celdas no re-renderizan ante un commit; solo las que pasan de
+// target/no-target (props numéricas estables)
+const Square = memo(function Square({
+  index,
+  x,
+  y,
+  size,
+  dark,
+  target,
+}: {
+  index: number;
+  x: number;
+  y: number;
+  size: number;
+  dark: boolean;
+  target: boolean;
+}) {
+  return (
+    <View
+      accessibilityLabel={dark ? `damas-celda-${index}` : undefined}
+      style={[
+        styles.square,
+        {
+          left: x,
+          top: y,
+          width: size,
+          height: size,
+          backgroundColor: dark ? '#B58863' : '#F0D9B5',
+        },
+        dark && target ? styles.targetSquare : null,
+      ]}
+    />
+  );
+});
 
 export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
   const theme = useTheme();
@@ -44,6 +87,12 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
     reset(parseSetupSeed(initialSeed));
     setReady(true);
   }, [reset, initialSeed]);
+
+  // Sesión de métricas (no-op con EXPO_PUBLIC_PERF_METRICS off)
+  useEffect(() => {
+    beginPerfSession(GAME_ID);
+    return () => endPerfSession(GAME_ID);
+  }, []);
 
   // Victoria: haptic de éxito (visual: overlay de fin)
   useEffect(() => {
@@ -80,7 +129,9 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
       translationY: number,
       velocityX: number,
       velocityY: number,
+      timestamp?: number,
     ) => {
+      const t0 = performance.now();
       const from = dragFromRef.current;
       dragFromRef.current = null;
       setValidTargets(new Set());
@@ -124,6 +175,11 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
         tx.set(spring('x'));
         ty.set(withSpring(0, springConfig(velocityY), () => scheduleOnRN(finishDrag)));
       }
+      // Métricas del drag: duración del handler + latencia UI→JS (ver PLAN 1.6)
+      perfDragEvent(GAME_ID, {
+        ui2jsMs: timestamp !== undefined ? performance.now() - timestamp : undefined,
+        handlerMs: performance.now() - t0,
+      });
     },
     [layout, tx, ty, finishDrag],
   );
@@ -170,25 +226,22 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
 
       <View style={styles.board} onLayout={onLayout}>
         {layout !== null ? (
-          <>
+          <Profiler
+            id="board"
+            onRender={(_id, _phase, actualDuration) => perfRenderReport(GAME_ID, actualDuration)}
+          >
             {Array.from({ length: 64 }, (_, i) => {
               const pos = squarePosition(layout, i);
               const dark = isDark(i);
               return (
-                <View
+                <Square
                   key={i}
-                  accessibilityLabel={dark ? `damas-celda-${i}` : undefined}
-                  style={[
-                    styles.square,
-                    {
-                      left: pos.x,
-                      top: pos.y,
-                      width: layout.square,
-                      height: layout.square,
-                      backgroundColor: dark ? '#B58863' : '#F0D9B5',
-                    },
-                    dark && validTargets.has(i) ? styles.targetSquare : null,
-                  ]}
+                  index={i}
+                  x={pos.x}
+                  y={pos.y}
+                  size={layout.square}
+                  dark={dark}
+                  target={dark && validTargets.has(i)}
                 />
               );
             })}
@@ -209,7 +262,7 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
                 />
               ) : null,
             )}
-          </>
+          </Profiler>
         ) : null}
       </View>
 

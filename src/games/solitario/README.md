@@ -47,6 +47,12 @@ src/games/solitario/
   snap-back → `soundCardInvalid()`, victoria → `soundGameWin()`. Infraestructura en
   core (`src/core/ui/sound.ts`, mismo patrón que haptics), toggle global en Ajustes
   (`useAppStore.soundOn`, persistido con clave `sound_enabled`, default on).
+  **Latencia:** el sonido se dispara ANTES del commit del store (validación espejo
+  de `commitMove` permite decidir el drop sin commitear) y `play()` es
+  fire-and-forget tras `seekTo(0)`; los players se precalientan al montar la
+  pantalla (`primeAudioPlayers`) — el primer movimiento no paga la creación del
+  player. Ver [ADR 0011](../../../docs/adr/0011-metricas-performance.md) y
+  PLAN-PERFORMANCE (métricas con `EXPO_PUBLIC_PERF_METRICS=1`).
 - **Persistencia de settings:** `preferencesRepository` (KV dual sqlite/localStorage), claves `solitario.drawMode` y `solitario.undo`. El cambio de drawMode aplica al próximo reparto; undo, inmediato.
 - **Auto-resume (partida en curso persistida, [ADR 0008](../../../docs/adr/0008-persistencia-estado-en-curso.md)):** al entrar se restaura el estado guardado en `gameStateRepository` (blob JSON de `engine/persistence.ts`). Guardado debounceado (300 ms) con `store.subscribe` — solo partidas en curso (omite el estado virgen y los terminales). Se descarta al ganar, perder (sin movimientos) o reiniciar manualmente. No se persiste el historial de undo (tras restaurar, disponible desde el próximo movimiento); `finishedAt`/`stuck` se recalculan con `endFlags`. JSON corrupto o forma inválida degrada a reparto nuevo, nunca a crash. Los seeds E2E fuerzan reparto fresco y limpian el guardado.
 - **Cartas más grandes:** `PADDING 4` / `GAP 2` en `engine/layout.ts` — a 360px

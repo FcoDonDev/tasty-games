@@ -3,6 +3,8 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { PressableScale } from '@/core/ui/PressableScale';
+import { beginPerfSession, endPerfSession, perfJsStall } from '@/core/perf';
+import { usePerfFrameMonitor } from '@/core/perf/usePerfFrameMonitor';
 import { hapticGameWin } from '@/core/ui/haptics';
 import { soundGameWin, soundHit, soundPickup, soundPowerUp } from '@/core/ui/sound';
 import { useContainerSize } from '@/core/ui/useContainerSize';
@@ -17,6 +19,8 @@ import { EntitiesLayer, type EntitiesHandle } from './renderer/reanimated/Entiti
 import { MazeLayer } from './renderer/reanimated/MazeLayer';
 
 const BOARD_BG = '#0B1220';
+/** Presupuesto de frame ~16.7ms: dt > 25ms = stall del loop rAF (JS thread). */
+const STALL_BUDGET_MS = 25;
 const KEY_DIRS: Record<string, Direction> = {
   ArrowUp: 'up',
   ArrowDown: 'down',
@@ -43,6 +47,13 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   const supers = useWakWakStore((s) => s.game.supers);
   const bonusActive = useWakWakStore((s) => s.game.bonus !== null);
   const score = useWakWakStore((s) => s.game.score);
+
+  // Métricas: FPS UI thread (no-op con gate off) + sesión de resumen
+  usePerfFrameMonitor('wakwak');
+  useEffect(() => {
+    beginPerfSession('wakwak');
+    return () => endPerfSession('wakwak');
+  }, []);
 
   // --- partida: reset al montar y al reintentar (conserva seed E2E)
   useEffect(() => {
@@ -83,13 +94,16 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     let raf = 0;
     let last = performance.now();
     const frame = (now: number) => {
-      const dt = Math.min(100, now - last);
+      const rawDt = now - last;
+      const dt = Math.min(100, rawDt);
       last = now;
       const store = useWakWakStore.getState();
       if (!store.paused && store.game.status === 'playing') {
         handleEvents(store.tick(dt));
       }
       entitiesRef.current?.present(worldSnapshot(useWakWakStore.getState().game));
+      // Métrica de jank del loop (JS thread): dt crudo por encima del presupuesto
+      if (rawDt > STALL_BUDGET_MS) perfJsStall('wakwak', rawDt);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);

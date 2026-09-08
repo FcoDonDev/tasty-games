@@ -88,3 +88,8 @@ src/games/wakwak/
   `test-win` (5 baterías en línea → un press gana), `test-lose` (drones
   convergen sobre robot idle), `test-power` (súper pegada al spawn + drone 0 en
   roaming, fase chase → 290 pts y luego derrota).
+- **Métricas ([ADR 0011](../../../docs/adr/0011-metricas-performance.md)):** con
+  `EXPO_PUBLIC_PERF_METRICS=1` se reportan stalls del loop rAF (JS thread,
+  dt crudo > 25ms) y FPS de render (UI thread, `usePerfFrameMonitor`) — ejes
+  separados porque miden threads distintos. Resumen al salir; snapshot en
+  `localStorage` (web).

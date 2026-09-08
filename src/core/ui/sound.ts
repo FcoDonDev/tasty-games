@@ -33,10 +33,9 @@ function getAudioModule(): ExpoAudio | null {
   return audioModule;
 }
 
-function play(id: SoundId): void {
-  if (!useAppStore.getState().soundOn) return;
+function ensurePlayer(id: SoundId): Player | null {
   const audio = getAudioModule();
-  if (!audio) return;
+  if (!audio) return null;
 
   let player = players[id];
   if (!player) {
@@ -45,10 +44,35 @@ function play(id: SoundId): void {
       player.volume = 0.5;
       players[id] = player;
     } catch {
-      return;
+      return null;
     }
   }
-  void player.seekTo(0).then(() => player?.play());
+  return player;
+}
+
+function play(id: SoundId): void {
+  if (!useAppStore.getState().soundOn) return;
+  const player = ensurePlayer(id);
+  if (!player) return;
+
+  // seekTo + play fire-and-forget (patrón de los docs de expo-audio): encadenar
+  // el play a la promesa de seekTo sumaba un round-trip nativo completo al
+  // desfase del sonido (ver PLAN-PERFORMANCE.md, Fase 2).
+  player.seekTo(0);
+  player.play();
+}
+
+/**
+ * Precalienta el módulo de audio y crea los players indicados (o todos) sin
+ * reproducir: el primer play() de la sesión no paga la creación del player.
+ * Llamar en idle (post-primer render de la pantalla del juego).
+ */
+export function primeAudioPlayers(ids?: SoundId[]): void {
+  if (ids) {
+    ids.forEach(ensurePlayer);
+    return;
+  }
+  (Object.keys(SOURCES) as SoundId[]).forEach(ensurePlayer);
 }
 
 /** Pluck corto al robar del stock. */

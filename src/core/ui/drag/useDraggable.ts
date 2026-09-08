@@ -3,16 +3,25 @@ import { Gesture } from 'react-native-gesture-handler';
 import { cancelAnimation, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+declare global {
+  /** Reloj expuesto por react-native-worklets en ambos runtimes (UI y JS);
+   * ver privateGlobals.d.ts del paquete. Base para la latencia UI→JS. */
+  function _getAnimationTimestamp(): number;
+}
+
 export interface DragCallbacks {
   /** El gesto superó el umbral de activación: empieza el arrastre */
   onDragStart: (id: string) => void;
-  /** El puntero se soltó; translation/velocity = desplazamiento y velocidad total del gesto */
+  /** El puntero se soltó; translation/velocity = desplazamiento y velocidad total del gesto.
+   * `timestamp` = reloj del runtime UI al terminar el gesto (para latencia UI→JS;
+   * comparabilidad de relojes dependiente de plataforma, ver PLAN-PERFORMANCE.md 1.6). */
   onDragEnd: (
     id: string,
     translationX: number,
     translationY: number,
     velocityX: number,
     velocityY: number,
+    timestamp?: number,
   ) => void;
   /** El gesto se canceló antes de terminar (segundo dedo, llamada, etc.) */
   onDragCancel?: (id: string) => void;
@@ -68,6 +77,7 @@ export function useDragGesture(
           event.translationY,
           event.velocityX,
           event.velocityY,
+          _getAnimationTimestamp(),
         );
       })
       .onFinalize((_event, success) => {

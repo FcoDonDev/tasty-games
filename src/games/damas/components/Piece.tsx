@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { memo, useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -8,6 +8,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useDragGesture, type DragCallbacks } from '@/core/ui/drag/useDraggable';
+import { perfRenderCount } from '@/core/perf';
 import type { Piece } from '../engine/board';
 
 const COLORS = {
@@ -29,7 +30,9 @@ interface PieceViewProps {
   callbacks: DragCallbacks;
 }
 
-export function PieceView({
+// memo: props estables (piece por referencia, x/y numéricos); solo la ficha
+// arrastrada (o promovida) re-renderiza ante un commit
+export const PieceView = memo(function PieceView({
   piece,
   square,
   x,
@@ -40,6 +43,8 @@ export function PieceView({
   ty,
   callbacks,
 }: PieceViewProps) {
+  // Contador de renders por ficha (CA3 en damas)
+  perfRenderCount('damas', `piece:${piece.id}`);
   const gesture = useDragGesture(piece.id, callbacks, draggable, { tx, ty });
   const scale = useSharedValue(1);
   const rotate = useSharedValue(0);
@@ -94,7 +99,7 @@ export function PieceView({
       </Animated.View>
     </GestureDetector>
   );
-}
+});
 
 const styles = StyleSheet.create({
   piece: {

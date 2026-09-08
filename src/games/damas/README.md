@@ -50,6 +50,10 @@ src/games/damas/
 - **E2E gate:** seeds solo con `EXPO_PUBLIC_E2E=1` (lo hace `scripts/e2e.mjs`).
   Sentinels en `engine/board.ts`: `test-capture` (captura obligatoria
   determinista) y `test-win` (un drag gana). Tableros artesanales fijos, sin PRNG.
+- **Métricas ([ADR 0011](../../../docs/adr/0011-metricas-performance.md)):** con
+  `EXPO_PUBLIC_PERF_METRICS=1` se reporta drag (handler + latencia UI→JS),
+  render del tablero (Profiler) y contador de renders por ficha. Celdas y fichas
+  memoizadas (`Square`/`PieceView` con props numéricas estables).
 
 ## Tests
 

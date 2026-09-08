@@ -1,14 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Profiler } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameResult, GameScreenProps } from '@/core/types';
+import {
+  beginPerfSession,
+  endPerfSession,
+  perfAudio,
+  perfDragEvent,
+  perfRenderReport,
+} from '@/core/perf';
 import { gameStateRepository } from '@/core/db/repositories/gameStateRepository';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
-import { soundCardDrop, soundCardInvalid, soundCardMove, soundGameWin } from '@/core/ui/sound';
+import { primeAudioPlayers, soundCardDrop, soundCardInvalid, soundCardMove, soundGameWin } from '@/core/ui/sound';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
 import { useLandscapeMobile } from '@/core/ui/useLandscapeMobile';
@@ -19,7 +26,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { SUITS, SUIT_SYMBOLS, parseSeed, type Card } from './engine/deck';
 import { cardPosition, computeLayout, hitTestPile } from './engine/layout';
 import { parseSolitarioState, serializeSolitarioState } from './engine/persistence';
-import { canDropOnFoundation, canDropOnTableau, canPickUp, scoreFor, type PileRef, type TargetRef } from './engine/rules';
+import { canDropOnFoundation, canDropOnTableau, canPickUp, foundationIndexFor, scoreFor, type PileRef, type TargetRef } from './engine/rules';
 import { useSolitarioStore, type DrawMode } from './engine/state';
 
 const GAME_ID = 'solitario';
@@ -90,6 +97,22 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   const [drawPref, setDrawPref] = useState<DrawMode>(1);
   const [undoPref, setUndoPref] = useState(false);
   const hasReportedRef = useRef(false);
+
+  // Sesión de métricas (no-op con EXPO_PUBLIC_PERF_METRICS off)
+  useEffect(() => {
+    beginPerfSession(GAME_ID);
+    return () => endPerfSession(GAME_ID);
+  }, []);
+
+  // Precalentar players del juego post-primer render: el primer sonido de la
+  // sesión no paga la creación del player (fuente de desfase en el 1er movimiento)
+  useEffect(() => {
+    if (!ready) return;
+    const timer = setTimeout(() => {
+      primeAudioPlayers(['cardMove', 'cardDrop', 'cardInvalid', 'gameWin']);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [ready]);
 
   // Estado del arrastre: shared values para el gesto + ref con el origen
   const tx = useSharedValue(0);
@@ -188,6 +211,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
 
   /** Doble tap / clic derecho: auto-envío de una carta suelta a su foundation. */
   const handleAutoMove = useCallback((id: string) => {
+    const t0 = performance.now();
     const state = useSolitarioStore.getState();
     if (__DEV__) {
       // eslint-disable-next-line no-console
@@ -216,13 +240,17 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       // eslint-disable-next-line no-console
       console.debug('[solitario:auto-move] ref=', ref, 'moving=', moving?.length ?? null);
     }
-    if (state.autoMoveToFoundation(ref)) {
+    if (moving && moving.length === 1 && canDropOnFoundation(moving[0], state.foundations[foundationIndexFor(moving[0])])) {
       if (__DEV__) {
         // eslint-disable-next-line no-console
         console.debug('[solitario:auto-move] COMMIT', id);
       }
+      // Sonido/haptic ANTES del commit: el drop ya está validado, el orden no
+      // afecta la lógica y el audio no espera al render que dispara el store
       soundCardDrop();
       hapticDropCommit();
+      perfAudio(GAME_ID, { handlerToPlayMs: performance.now() - t0 });
+      state.autoMoveToFoundation(ref);
     } else {
       if (__DEV__) {
         // eslint-disable-next-line no-console
@@ -266,7 +294,9 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       translationY: number,
       velocityX: number,
       velocityY: number,
+      timestamp?: number,
     ) => {
+      const t0 = performance.now();
       if (__DEV__) {
         // eslint-disable-next-line no-console
         console.debug('[solitario:drag] end id=', id, 'dx=', translationX.toFixed(1), 'dy=', translationY.toFixed(1));
@@ -288,6 +318,32 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       const dropX = origin.x + layout.cardWidth / 2 + translationX;
       const dropY = origin.y + layout.cardHeight / 2 + translationY;
       const target = hitTestPile(layout, dropX, dropY, state.tableau);
+
+      // Validación espejo de commitMove ANTES del commit: permite disparar el
+      // sonido/haptic antes del store (el re-render que el commit dispara no
+      // retrasa el audio; ver PLAN-PERFORMANCE.md, Fase 2).
+      const selfDrop =
+        target !== null &&
+        ref.kind === 'tableau' &&
+        target.kind === 'tableau' &&
+        ref.index === target.index;
+      const moving = target !== null && !selfDrop ? canPickUp(state, ref) : null;
+      const willMove =
+        moving !== null &&
+        target !== null &&
+        (target.kind === 'foundation'
+          ? moving.length === 1 && canDropOnFoundation(moving[0], state.foundations[target.index])
+          : canDropOnTableau(moving, state.tableau[target.index]));
+
+      if (willMove) {
+        hapticDropCommit();
+        soundCardDrop();
+        perfAudio(GAME_ID, { handlerToPlayMs: performance.now() - t0 });
+      } else {
+        soundCardInvalid();
+        perfAudio(GAME_ID, { handlerToPlayMs: performance.now() - t0 });
+      }
+
       const moved = target ? state.moveCards(ref, target) : false;
 
       // Spring con handoff de velocidad del gesto (settle y snap-back)
@@ -301,9 +357,6 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
         withSpring(0, springConfig(axis === 'x' ? velocityX : velocityY));
 
       if (moved && target) {
-        // Haptic + sonido en el frame causal del commit, junto al settle visual
-        hapticDropCommit();
-        soundCardDrop();
         // Settle: la carta queda donde el dedo la soltó y glisa a su asiento final
         const destCards =
           target.kind === 'foundation' ? state.foundations[target.index] : state.tableau[target.index];
@@ -318,10 +371,15 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
         ty.set(withSpring(0, springConfig(velocityY), () => scheduleOnRN(finishDrag)));
       } else {
         // Snap-back con spring; dragKey se mantiene hasta terminar el gesto de retorno
-        soundCardInvalid();
         tx.set(spring('x'));
         ty.set(withSpring(0, springConfig(velocityY), () => scheduleOnRN(finishDrag)));
       }
+      // Métricas del drag: duración del handler + latencia UI→JS (si el spike de
+      // relojes la valida; ver PLAN 1.6)
+      perfDragEvent(GAME_ID, {
+        ui2jsMs: timestamp !== undefined ? performance.now() - timestamp : undefined,
+        handlerMs: performance.now() - t0,
+      });
     },
     [layout, tx, ty, finishDrag],
   );
@@ -337,8 +395,12 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   );
 
   const handleDrawStock = useCallback(() => {
-    drawStock();
+    // Guard espejo de drawStock(): permite sonar antes del commit del store
+    const state = useSolitarioStore.getState();
+    if (state.finishedAt !== null || state.stuck) return;
+    if (state.stock.length === 0 && state.waste.length === 0) return;
     soundCardMove();
+    drawStock();
   }, [drawStock]);
 
   const currentSettings = useMemo(
@@ -380,6 +442,14 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   // queda debajo para que las columnas crezcan, y una columna que crece no
   // desplaza al resto (antes el recentrado vertical las movía a todas).
   const boardTop = 8;
+
+  // Duración de render del tablero (Profiler); solo con métricas activadas
+  const onBoardRender = useCallback(
+    (_id: string, _phase: 'mount' | 'update' | 'nested-update', actualDuration: number) => {
+      perfRenderReport(GAME_ID, actualDuration);
+    },
+    [],
+  );
 
   if (!ready) {
     return (
@@ -431,10 +501,11 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
 
       <View style={styles.board} onLayout={onLayout}>
         {layout !== null ? (
-          <View
-            style={[styles.boardInner, { top: boardTop }]}
-            accessibilityLabel="solitario-tablero"
-          >
+          <Profiler id="board" onRender={onBoardRender}>
+            <View
+              style={[styles.boardInner, { top: boardTop }]}
+              accessibilityLabel="solitario-tablero"
+            >
             <Pile
               layout={layout}
               rect={layout.stock}
@@ -491,6 +562,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
               />
             ))}
           </View>
+          </Profiler>
         ) : null}
       </View>
 

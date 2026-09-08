@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { cardLabel, isRedSuit, rankLabel, type Card } from '../engine/deck';
 
@@ -86,7 +87,9 @@ const PIP_LAYOUTS: Record<number, Array<[number, number]>> = {
 
 const COURT_ICONS: Record<number, string> = { 11: '🤴', 12: '👸', 13: '👑' };
 
-export function PlayingCard({ card, width, height }: PlayingCardProps) {
+// memo: las 52 cartas re-renderizan ante cada commit del store si no se
+// memoiza (props estables: card por referencia, width/height numéricos).
+export const PlayingCard = memo(function PlayingCard({ card, width, height }: PlayingCardProps) {
   const indexFontSize = Math.round(width * 0.17);
   const indexSuitSize = Math.round(width * 0.14);
 
@@ -158,7 +161,7 @@ export function PlayingCard({ card, width, height }: PlayingCardProps) {
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

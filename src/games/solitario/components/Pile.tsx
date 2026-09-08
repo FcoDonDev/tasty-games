@@ -1,4 +1,4 @@
-import { Fragment, useEffect } from 'react';
+import { Fragment, memo, useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -8,6 +8,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useDragGesture, type DragCallbacks } from '@/core/ui/drag/useDraggable';
+import { perfRenderCount } from '@/core/perf';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import type { Card } from '../engine/deck';
 import { cardPosition, type Rect, type SolitaireLayout } from '../engine/layout';
@@ -30,15 +31,16 @@ interface PileProps {
   ty: SharedValue<number>;
   callbacks: DragCallbacks;
   onPressStock?: () => void;
-  /** Auto-envío a foundation vía clic derecho (web) sobre una carta */
+  /** Auto-envío a foundation vía doble tap / clic derecho sobre una carta */
   onAutoMove?: (id: string) => void;
 }
 
 interface PileCardProps {
   card: Card;
   layout: SolitaireLayout;
-  pileRef: PileRef;
-  cards: Card[];
+  /** Coordenadas precomputadas (números estables): nada de objetos nuevos por render */
+  x: number;
+  y: number;
   index: number;
   draggable: boolean;
   dragActive: boolean;
@@ -46,16 +48,18 @@ interface PileCardProps {
   ty: SharedValue<number>;
   callbacks: DragCallbacks;
   /** Auto-envío a foundation: clic derecho en web (en nativo no ocurre el evento) */
-  onAutoMove?: () => void;
+  onAutoMove?: (id: string) => void;
 }
 
 const IS_WEB = process.env.EXPO_OS === 'web';
 
-function PileCard({
+// memo: al cambiar el estado (drag start/end, commit del store) solo re-renderizan
+// las cartas cuyas props cambiaron; el resto de las ~52 salta la reconciliación.
+const PileCard = memo(function PileCard({
   card,
   layout,
-  pileRef,
-  cards,
+  x,
+  y,
   index,
   draggable,
   dragActive,
@@ -65,7 +69,6 @@ function PileCard({
   onAutoMove,
 }: PileCardProps) {
   const gesture = useDragGesture(card.id, callbacks, draggable, { tx, ty });
-  const position = cardPosition(layout, pileRef, cards, index);
   const scale = useSharedValue(1);
   const rotate = useSharedValue(0);
 
@@ -93,7 +96,7 @@ function PileCard({
         accessibilityLabel={`solitario-card-${card.id}`}
         style={[
           styles.cardSlot,
-          { left: position.x, top: position.y, zIndex: dragActive ? 100 + index : index },
+          { left: x, top: y, zIndex: dragActive ? 100 + index : index },
           dragActive ? styles.cardLift : null,
           animatedStyle,
         ]}
@@ -107,7 +110,7 @@ function PileCard({
                   // eslint-disable-next-line no-console
                   console.debug('[solitario:contextmenu] card=', card.id);
                 }
-                onAutoMove();
+                onAutoMove(card.id);
               },
             } as unknown as Record<string, never>)
           : null)}
@@ -116,9 +119,9 @@ function PileCard({
       </Animated.View>
     </GestureDetector>
   );
-}
+});
 
-export function Pile({
+export const Pile = memo(function Pile({
   layout,
   rect,
   kind,
@@ -134,12 +137,19 @@ export function Pile({
   onAutoMove,
 }: PileProps) {
   const theme = useTheme();
-  const pileRef: PileRef =
-    kind === 'waste'
-      ? { kind: 'waste' }
-      : kind === 'foundation'
-        ? { kind: 'foundation', index: pileIndex }
-        : { kind: 'tableau', index: pileIndex, cardIndex: 0 };
+  // Contador de renders por pila (CA3): verifica la efectividad de la memoización
+  perfRenderCount('solitario', `pile:${kind === 'waste' ? 'waste' : `${kind}-${pileIndex}`}`);
+
+  // Ref estable: si se recrea por render, rompería el memo de los PileCard
+  const pileRef: PileRef = useMemo<PileRef>(
+    () =>
+      kind === 'waste'
+        ? { kind: 'waste' }
+        : kind === 'foundation'
+          ? { kind: 'foundation', index: pileIndex }
+          : { kind: 'tableau', index: pileIndex, cardIndex: 0 },
+    [kind, pileIndex],
+  );
 
   const dragIndex = dragKey ? cards.findIndex((card) => card.id === dragKey) : -1;
 
@@ -209,27 +219,27 @@ export function Pile({
 
       {cards.slice(firstRendered).map((card, offset) => {
         const index = firstRendered + offset;
+        const { x, y } = cardPosition(layout, pileRef, cards, index);
         return (
           <PileCard
             key={card.id}
             card={card}
             layout={layout}
-            pileRef={pileRef}
-            cards={cards}
+            x={x}
+            y={y}
             index={index}
             draggable={isDraggable(index)}
             dragActive={isDragActive(index)}
             tx={tx}
             ty={ty}
             callbacks={callbacks}
-            onAutoMove={onAutoMove ? () => onAutoMove(card.id) : undefined}
+            onAutoMove={onAutoMove}
           />
         );
       })}
     </Fragment>
   );
-}
-
+});
 const styles = StyleSheet.create({
   slot: {
     position: 'absolute',
