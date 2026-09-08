@@ -1,5 +1,5 @@
 /**
- * Puerto de presentación de Wak Wak (ADR 0009): contrato agnóstico al motor.
+ * Puerto de presentación de Wak Wak (ADR 0010): contrato agnóstico al motor.
  * El núcleo (`engine/`) no conoce esta interfaz; los adaptadores en
  * `renderer/<motor>/` la implementan y son el ÚNICO lugar que importa la
  * librería de render elegida.

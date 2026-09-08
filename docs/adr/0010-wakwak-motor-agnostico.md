@@ -1,4 +1,4 @@
-# 0009 — Wak Wak: núcleo lógico agnóstico al motor + adaptador Views/Reanimated
+# 0010 — Wak Wak: núcleo lógico agnóstico al motor + adaptador Views/Reanimated
 
 **Estado:** Aceptada
 

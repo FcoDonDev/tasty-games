@@ -25,7 +25,7 @@ const KEY_DIRS: Record<string, Direction> = {
 };
 
 /**
- * WakWakScreen: orquestador del motor A (ADR 0009). Posee el loop rAF que
+ * WakWakScreen: orquestador del motor A (ADR 0010). Posee el loop rAF que
  * alimenta `store.tick(dt)` y escribe poses en `EntitiesLayer` vía el puerto
  * de presentación; React re-renderiza solo con eventos discretos.
  */

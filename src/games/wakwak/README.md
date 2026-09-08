@@ -2,7 +2,7 @@
 
 Maze-chase en tiempo real: el robot aspiradora recoge baterías en un laberinto
 mientras esquivan 4 drones antivirus. Primer juego en tiempo real del proyecto;
-núcleo lógico agnóstico al motor ([ADR 0009](../../../docs/adr/0009-wakwak-motor-agnostico.md)).
+núcleo lógico agnóstico al motor ([ADR 0010](../../../docs/adr/0010-wakwak-motor-agnostico.md)).
 
 ## Origen y resguardo legal
 
@@ -42,14 +42,14 @@ src/games/wakwak/
     state.ts              #   store zustand (no exportado fuera de la carpeta)
   renderer/
     types.ts              # PUERTO de presentación (createWorld/present/onDirection)
-    reanimated/           # ADAPTADOR A (ADR 0009): MazeLayer + EntitiesLayer
+    reanimated/           # ADAPTADOR A (ADR 0010): MazeLayer + EntitiesLayer
   __tests__/              # 59 tests del núcleo (sin RN)
   __e2e__/                # Playwright web (seeds test-win/test-lose/test-power)
 ```
 
 ## Decisiones clave
 
-- **Núcleo/rendrización desacopladas (ADR 0009):** `engine/` no importa nada de
+- **Núcleo/rendrización desacopladas (ADR 0010):** `engine/` no importa nada de
   RN; el único punto de entrada de la simulación es `advance(state, dtMs)`, que
   procesa ticks fijos de `TICK_MS` (16.67 ms) con residuo acumulado (dilata en
   vez de espirar bajo stall, tope 8 ticks/frame). El puerto

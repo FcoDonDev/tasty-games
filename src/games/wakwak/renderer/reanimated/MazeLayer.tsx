@@ -4,7 +4,7 @@ import { MAZE, MAZE_COLS, MAZE_ROWS, colOf, rowOf, toIndex } from '../../engine/
 import { BONUS_CELL } from '../../engine/rules';
 
 /**
- * Capa estática del laberinto (motor A: Views nativos, ADR 0009).
+ * Capa estática del laberinto (motor A: Views nativos, ADR 0010).
  * Muros: Views absolutos memoizados por celda. Baterías/súper/chip: Views que
  * re-renderizan solo con cambios discretos (pickup), nunca por frame.
  * Paleta tech/neón propia (resguardo legal PLAN-WAK-WAK §2): fondo oscuro,

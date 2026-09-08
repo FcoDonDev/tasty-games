@@ -8,7 +8,7 @@ import Animated, {
 import type { WorldSnapshot } from '../types';
 
 /**
- * Entidades móviles del motor A (ADR 0009): un Animated.View por entidad, con
+ * Entidades móviles del motor A (ADR 0010): un Animated.View por entidad, con
  * shared values escritas por `present()` desde el loop rAF. Cero setState por
  * frame — React solo entera a la capa estática (MazeLayer) de cambios discretos.
  *

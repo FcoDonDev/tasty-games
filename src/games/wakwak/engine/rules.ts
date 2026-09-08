@@ -2,7 +2,7 @@
  * Reglas de Wak Wak: simulación por ticks fijos, 100% pura y determinista.
  * El render consume posiciones interpoladas (`floatPos`); la UI de React solo
  * se entera de eventos discretos (`GameEvent`). El loop en sí vive en el
- * adaptador de render (ADR 0009) y llama a `advance(state, dtMs)`.
+ * adaptador de render (ADR 0010) y llama a `advance(state, dtMs)`.
  *
  * Modelo de movimiento en grilla: cada entidad está EN una celda y AVANZA hacia
  * la vecina (`dir`) con progreso 0..1. Las decisiones (giro del robot, IA del
