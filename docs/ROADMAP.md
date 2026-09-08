@@ -24,6 +24,11 @@ de desarrollo). Ver [ADR 0003](adr/0003-e2e-android-dev-build.md).
 
 - [ ] `eas build -p android` (preview APK / producción AAB); probar release build
 - [ ] Feel-check en device de U1–U3 (ver checklist abajo)
+- [ ] Validar landscape por juego en device ([ADR 0009](adr/0009-landscape-movil-por-juego.md)):
+      solitario rota y muestra el rail vertical a la izquierda; damas/memorice
+      y Home quedan en portrait (lock runtime); salir de solitario re-locka
+      portrait. Requiere rebuild del dev build (`app.json` cambió a
+      `"orientation": "default"` + plugin `expo-screen-orientation`).
 
 **CI**
 
@@ -55,6 +60,10 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
 
 ## Deudas técnicas conocidas
 
+- [ ] **Landscape sin adaptar en damas/memorice**: el patrón existe
+      ([ADR 0009](adr/0009-landscape-movil-por-juego.md): `supportsLandscape` +
+      `useLandscapeMobile` + `GameHeader variant="vertical"`); ambos juegos
+      quedan portrait-locked hasta adoptarlo.
 - [ ] **React #418 (hydration mismatch)** en consola web: el HTML pre-renderizado
       difiere del primer render cliente (récords leídos de localStorage/sqlite
       durante el render inicial). No bloquea: React se recupera. Mitigación

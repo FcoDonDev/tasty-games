@@ -21,6 +21,7 @@ const solitario: GameDefinition = {
   description: 'Klondike clásico: ordena las 52 cartas en las 4 pilas por palo, del As al K.',
   minDurationHint: '5-10 min',
   rules: RULES,
+  supportsLandscape: true,
   Component: SolitarioScreen,
 };
 

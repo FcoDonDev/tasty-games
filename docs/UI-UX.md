@@ -11,12 +11,17 @@ el [ADR 0004](adr/0004-mobile-first-responsive.md).
 2. **Layout desde medición real**: `flex: 1` distribuye el contenedor;
    `computeLayout` del engine (alimentado con `useContainerSize`) reparte la
    geometría interna (ver nota de diseño abajo).
-3. **Animar solo lo que aporta**: toda animación nombra su propósito antes de
+3. **Landscape móvil por juego** ([ADR 0009](adr/0009-landscape-movil-por-juego.md)):
+   los juegos con `supportsLandscape` activan el modo compacto
+   (`useLandscapeMobile`): `GameHeader variant="vertical"` como rail de ~64px
+   a la izquierda, liberando el alto para la zona de juego. Desktop y tablets
+   sin cambios (umbral dimensión corta ≤ 480).
+4. **Animar solo lo que aporta**: toda animación nombra su propósito antes de
    escribirse (gate de abajo). `ReduceMotion.System` en todo `withSpring`/
    `withTiming` nuevo.
-4. **Haptics con moderación**: un haptic por acción, en el mismo frame que el
+5. **Haptics con moderación**: un haptic por acción, en el mismo frame que el
    feedback visual. Nada por frame ni en snap-backs.
-5. **Accesibilidad como contrato**: todo interactivo lleva `accessibilityLabel`
+6. **Accesibilidad como contrato**: todo interactivo lleva `accessibilityLabel`
    estable — son los selectores E2E (Playwright/Maestro).
 
 ## Gate de animación
@@ -87,8 +92,9 @@ solitario y damas (pilas que crecen, superposición, drop por coordenadas) la
 
 ## Verificación visual
 
-- Verificar con viewport 360×640 (y 1280×900 para desktop web); capturas
-  temporales que se borran antes de commitear.
+- Verificar con viewport 360×640 (1280×900 para desktop web; 740×360 para el
+  modo landscape de solitario); capturas temporales que se borran antes de
+  commitear.
 - Las animaciones que los specs solo validan por resultado final se verifican
   **mid-gesto**: muestrear `getComputedStyle(el).transform` con el mouse down
   sostenido (ej: drag activo, press activo). Los E2E miden posición final;

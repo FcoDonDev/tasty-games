@@ -84,6 +84,12 @@ background están en `AGENTS.md`, no acá.
   fantasma: medir `scrollHeight` después de que el render asiente (~500 ms).
 - **Los E2E de posición final tras springs necesitan ≥900–1000 ms** de wait
   (spring 400 ms perceptual ≈ 600 ms real + render).
+- **El alto del tablero interior es casi igual en portrait y landscape**
+  (solitario): en portrait la carta la limita el ancho y en landscape el alto,
+  con lo que el contenido ocupa un alto similar. Para candear el modo rail
+  landscape asertar el **tamaño de carta** (48→71px) y la posición/ancho del
+  rail (x del botón salir < x del tablero, ancho ≤ 64), nunca el alto del
+  tablero.
 
 ## Metro / Expo
 
@@ -96,6 +102,11 @@ background están en `AGENTS.md`, no acá.
   sin cambios propios.
 - **Nunca `spawn('pnpm')` sin `shell`** (Windows: `pnpm.cmd`) — preferir
   resolver el binario y lanzarlo con `process.execPath`.
+- **`expo-screen-orientation.lockAsync` en web**: el lock del navegador puede
+  rechazar (desktop) o pedir fullscreen (móvil) — todo lock/unlock va tras
+  guard `IS_NATIVE` (lo hace `src/core/orientation.ts`, no-op en web). Con
+  `app.json "orientation": "default"` el lock portrait debe hacerse en runtime
+  (root layout), si no el Home rota libre en Android.
 
 ## Gestos (gesture-handler)
 

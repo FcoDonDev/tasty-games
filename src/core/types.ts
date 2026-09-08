@@ -37,5 +37,11 @@ export interface GameDefinition {
   minDurationHint?: string; // ej: "5-10 min", solo informativo
   /** Reglas condensadas para la ayuda in-app (RULES.md sigue siendo la fuente QA) */
   rules?: string;
+  /**
+   * Adapta su layout a landscape móvil (header vertical al costado) y habilita
+   * la rotación nativa del dispositivo mientras el juego está activo
+   * (lock/unlock por juego en app/juego/[id].tsx). Default: false.
+   */
+  supportsLandscape?: boolean;
   Component: ComponentType<GameScreenProps>;
 }

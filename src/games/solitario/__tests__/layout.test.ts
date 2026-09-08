@@ -36,7 +36,7 @@ describe('computeLayout', () => {
     // el tablero inicial (peor columna con 7 cartas) cabe en el área medida
     expect(contentHeight).toBeLessThanOrEqual(640);
     // sin reserva de chrome adivinada: el ancho es quien limita el tamaño de carta
-    expect(mobile.cardWidth).toBe(Math.floor((360 - 8 * 2 - 4 * 6) / 7));
+    expect(mobile.cardWidth).toBe(Math.floor((360 - 4 * 2 - 2 * 6) / 7));
   });
 
   it('el fan de faceUp es mayor que el de faceDown', () => {

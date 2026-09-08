@@ -21,4 +21,5 @@ Para proponer un cambio que contradiga un ADR: crear un nuevo ADR que lo reempla
 | [0006](0006-seeds-e2e-sentinelas.md) | Aceptada | Seeds E2E sentinelas, gated por `EXPO_PUBLIC_E2E` |
 | [0007](0007-damas-mvp-local.md) | Aceptada (revisable con IA) | Damas: 2 jugadores locales, MVP sin récord |
 | [0008](0008-persistencia-estado-en-curso.md) | Aceptada | Persistencia del estado en curso de una partida (auto-resume) |
+| [0009](0009-landscape-movil-por-juego.md) | Aceptada (validación device pendiente) | Landscape móvil por juego: `supportsLandscape`, header vertical, orientación nativa |
 | [0010](0010-wakwak-motor-agnostico.md) | Aceptada | Wak Wak: núcleo lógico agnóstico al motor + adaptador Views/Reanimated |
