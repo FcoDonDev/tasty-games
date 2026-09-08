@@ -73,3 +73,12 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
       cada juego que lo usa, por la regla de aislamiento entre juegos).
 - [ ] Pendiente de definición: score/persistencia e IA para damas (revocaría
       [ADR 0007](adr/0007-damas-mvp-local.md)).
+- [ ] **Performance (métricas, [ADR 0011](adr/0011-metricas-performance.md))**:
+      - Validar comparabilidad de relojes UI→JS en Android (`_getAnimationTimestamp`
+        vs `performance.now` del JS thread) — hoy solo validado en web.
+      - Persistir métricas en sqlite (sesiones nativas) — hoy memoria + consola.
+      - Mover `dragKey` a shared value en el patrón de drag (`src/core/ui/drag/`)
+        para eliminar los pases baratos de todas las pilas al iniciar/terminar un
+        drag (los PileCard internos ya saltan por memo).
+      - Guardado debounceado del estado en curso: mover a idle solo si la medición
+        en dispositivo muestra jank (web/nativo es µs hoy).

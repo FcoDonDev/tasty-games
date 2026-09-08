@@ -32,6 +32,21 @@ background están en `AGENTS.md`, no acá.
 ## Reanimated 4 / worklets
 
 - **`runOnJS` está deprecado** — usar `scheduleOnRN` (de `react-native-worklets`).
+- **RNGH no expone `timestamp` en el evento de gesto**: para latencia UI→JS usar
+  el global `_getAnimationTimestamp()` (react-native-worklets lo define en ambos
+  runtimes; en web es el mismo reloj que `performance.now()`). En nativo la
+  comparabilidad de relojes está sin validar.
+- **babel-preset-expo inlinea `process.env.EXPO_OS` y los `EXPO_PUBLIC_*` en
+  compilación**: setearlos en runtime (tests) no tiene efecto — el código
+  compilado ya trae la constante. Para testear módulos que dependen de esos
+  valores, inyectar el estado con setters exportados del módulo (patrón de
+  `setPerfEnabledForTests`/`setPerfStorageForTests` en `src/core/perf/`).
+- **`scheduleOnRN` encola cuando el JS thread está ocupado**: la latencia de un
+  callback post-gesto crece con el trabajo JS pendiente (render agrupado, etc.).
+  Si algo sensible a latencia (audio, haptics) depende de un callback JS,
+  dispararlo LO PRIMERO del handler y con llamadas nativas fire-and-forget
+  (`seekTo(0); play()` sin encadenar la promesa — el `.then` sumaba un
+  round-trip nativo completo al desfase del sonido).
 - **`withSpring` toma `velocity?: number` por eje** (no vector): con springs
   separados para `tx/ty`, pasar `velocityX`/`velocityY` respectivamente.
 - **El callback de finalización va como 3er argumento** de
@@ -107,6 +122,29 @@ background están en `AGENTS.md`, no acá.
   guard `IS_NATIVE` (lo hace `src/core/orientation.ts`, no-op en web). Con
   `app.json "orientation": "default"` el lock portrait debe hacerse en runtime
   (root layout), si no el Home rota libre en Android.
+
+## Performance (prácticas para mantener, ver ADR 0011 y PLAN-PERFORMANCE)
+
+- **Cierres inline rompen `React.memo`**: pasar `onX={() => fn(id)}` recrea la
+  prop en cada render del padre y la memo no sirve. Pasar el callback estable
+  (`fn` mismo) y que el hijo invoque `fn(card.id)` con su propio prop.
+- **Props objeto nuevos por render rompen memo igual**: `position`/`style`
+  calculados dentro del padre → pasar números (x/y) o memoizar el objeto
+  (`useMemo`). Referencias a datos de pila (`pileRef`) también.
+- **Medir antes de optimizar**: el módulo `src/core/perf/` (EXPO_PUBLIC_PERF_METRICS=1)
+  entrega baseline/delta sin instrumentación manual; el flujo probado fue
+  métricas → baseline → fix → re-medición (mismo protocolo, Playwright con
+  pasos de mouse escalonados).
+- **El coste del audio audible no se mide con reloj JS**: `handlerToPlay` solo
+  captura el coste de invocar; el desfase real venía del round-trip de
+  `seekTo().then()` y del primer `createAudioPlayer`. Métrica + razonamiento
+  estructural juntos para cerrar conclusiones.
+- **RNGH Pan en Playwright**: `dragTo` es demasiado rápido (no activa el Pan /
+  no respeta `activeOffsetX/Y` con estabilidad); usar `mouse.down` → moves
+  escalonados (25-30ms por paso) → `up` (receta en los specs E2E de damas).
+- **Prime de recursos en idle tras `ready`**: precalentar players (y cualquier
+  recurso pesado) con `setTimeout(0)` post-primer render — el primer uso del
+  usuario no paga la creación.
 
 ## Gestos (gesture-handler)
 

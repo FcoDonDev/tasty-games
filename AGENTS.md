@@ -131,6 +131,27 @@ lsof -t -i :$PORT > tmp/expo.pid
 - El 8081 puede ser el Metro de **otro worktree o del usuario** — identificar con `ps -o cmd -p $(lsof -t -i :8081)` y no matarlo: usar otro puerto.
 - `.env` (`EXPO_PUBLIC_E2E=1` activa seeds en dev) se inlinea al compilar: cambiarlo exige **reiniciar Metro**. El reinicio del juego re-reparta aleatorio (sin seed): recargar la página con `?seed=` para repetir un escenario.
 
+## Métricas de performance (ADR 0011)
+
+Activación en dev: env **inline en la línea de comando** (no tocar `.env`, se
+filtraría al build E2E) + reiniciar Metro (el env se inlinea al compilar):
+
+```bash
+EXPO_PUBLIC_PERF_METRICS=1 EXPO_NO_TELEMETRY=1 setsid pnpm exec expo start --web --offline --port $PORT > tmp/expo.log 2>&1 &
+```
+
+- Log por evento `[perf][<gameId>]` en consola; resumen (count/avg/min/p95) al
+  desmontar la pantalla; snapshot en `localStorage` (`perf-metrics-<gameId>`,
+  sobrescrito por sesión). Consulta posterior: `localStorage.getItem('perf-metrics-solitario')`.
+- **Default OFF = cero overhead** (gate inlineado; API no-op). Togglear la env
+  exige rebuild/export fresco.
+- Protocolo de medición probado (baseline→fix→delta): Playwright con
+  `mouse.down` → moves escalonados (25-30ms/paso) → `up` (ver GOTCHAS); el
+  flujo completo y los números del cierre viven en el historial del PLAN de
+  performance y en [ADR 0011](docs/adr/0011-metricas-performance.md).
+- Métricas de UI→JS usan `_getAnimationTimestamp()` (reloj worklets; validado
+  en web, pendiente en nativo — ver ROADMAP).
+
 ## Procesos en background (estrategia predefinida — no reinventar)
 
 **Regla dura: NUNCA usar `pkill`** (ni `pkill -f`, ni `pkill -9`): cuelga la sesión del agente. Detener SIEMPRE por PID o grupo de procesos.

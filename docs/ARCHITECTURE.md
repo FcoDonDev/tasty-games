@@ -79,6 +79,17 @@ Patrón reutilizable consumido por solitario y damas:
 - JS↔worklet con `scheduleOnRN` (de `react-native-worklets`) — no `runOnJS` (deprecado en Reanimated 4).
 - Haptics: un haptic al commit del drop (no al terminar la animación); `scheduleOnRN(hapticFn)` desde worklets; solo nativo (`EXPO_OS !== 'web'`).
 - **Layout como fuente única**: cada engine tiene un `layout.ts` puro que calcula geometría (rects/posiciones) e hit-testing (`hitTestPile` / `hitTestSquare`) desde el tamaño medido del contenedor. Render (posición absoluta) y validación del drop consumen las mismas funciones — nada de `measure()` async.
+- `onDragEnd` reporta además el timestamp del reloj UI (`_getAnimationTimestamp()`) para la latencia UI→JS que consume el módulo de métricas.
+
+## Métricas de performance (`src/core/perf/`)
+
+Módulo gated por `EXPO_PUBLIC_PERF_METRICS=1` (**default off, cero overhead** —
+[ADR 0011](adr/0011-metricas-performance.md)): latencias de drag y audio,
+`React.Profiler` del tablero, contador de renders por pila/ficha, stalls del loop
+rAF (JS thread) y FPS de render (UI thread, `usePerfFrameMonitor`, solo se monta
+con el gate activo). Log por evento `[perf][<gameId>]`, resumen al desmontar y
+snapshot en `localStorage` (web, escritura en idle). Los juegos instrumentan sus
+handlers; el resto del código queda intacto con el gate apagado.
 
 ## Testing
 

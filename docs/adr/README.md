@@ -23,3 +23,4 @@ Para proponer un cambio que contradiga un ADR: crear un nuevo ADR que lo reempla
 | [0008](0008-persistencia-estado-en-curso.md) | Aceptada | Persistencia del estado en curso de una partida (auto-resume) |
 | [0009](0009-landscape-movil-por-juego.md) | Aceptada (validación device pendiente) | Landscape móvil por juego: `supportsLandscape`, header vertical, orientación nativa |
 | [0010](0010-wakwak-motor-agnostico.md) | Aceptada | Wak Wak: núcleo lógico agnóstico al motor + adaptador Views/Reanimated |
+| [0011](0011-metricas-performance.md) | Aceptada | Métricas de performance gated por `EXPO_PUBLIC_PERF_METRICS` |
