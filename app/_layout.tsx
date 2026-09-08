@@ -5,12 +5,16 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@/core/ui/ThemeProvider';
 import { useAppStore } from '@/core/stores/useAppStore';
+import { lockPortrait } from '@/core/orientation';
 
 export default function RootLayout() {
   const hydrate = useAppStore((state) => state.hydrate);
 
   useEffect(() => {
     void hydrate();
+    // La app base (Home, ajustes) queda en portrait; los juegos con
+    // supportsLandscape liberan la rotación en app/juego/[id].tsx.
+    void lockPortrait();
   }, [hydrate]);
 
   return (

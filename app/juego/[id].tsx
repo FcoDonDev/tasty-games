@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getGameById } from '@/core/game-registry';
 import { exitToHome } from '@/core/navigation';
+import { lockPortrait, unlockOrientation } from '@/core/orientation';
 import { recordsRepository } from '@/core/db/repositories/recordsRepository';
 import { HelpModal } from '@/core/ui/HelpModal';
 import { ScoreBoard } from '@/core/ui/ScoreBoard';
@@ -27,6 +28,21 @@ export default function GameScreen() {
     },
     [],
   );
+
+  // Rotación nativa por juego: solo los que declaran supportsLandscape liberan
+  // el giro; el resto (y el retorno de cualquiera) vuelve a portrait. En web es
+  // no-op (core/orientation.ts).
+  useEffect(() => {
+    if (!game) return;
+    if (game.supportsLandscape) {
+      void unlockOrientation();
+    } else {
+      void lockPortrait();
+    }
+    return () => {
+      void lockPortrait();
+    };
+  }, [game]);
 
   if (!game) {
     return (

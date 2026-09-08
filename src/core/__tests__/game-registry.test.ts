@@ -15,4 +15,11 @@ describe('game-registry', () => {
     expect(game?.id).toBe('memorice');
     expect(typeof game?.Component).toBe('function');
   });
+
+  it('declaraciones de soporte landscape por juego', () => {
+    expect(getGameById('solitario')?.supportsLandscape).toBe(true);
+    // sin opt-in, el default es no-adaptado (falso por omisión)
+    expect(getGameById('memorice')?.supportsLandscape).toBeFalsy();
+    expect(getGameById('damas')?.supportsLandscape).toBeFalsy();
+  });
 });

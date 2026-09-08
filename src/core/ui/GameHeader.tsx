@@ -16,6 +16,11 @@ interface GameHeaderProps {
   center?: ReactNode;
   /** Acciones propias del juego a la derecha (undo, ajustes...) */
   left?: ReactNode;
+  /**
+   * `vertical` (landscape móvil): rail de botones apilados al costado
+   * izquierdo, liberando el alto para la zona de juego. Default: horizontal.
+   */
+  variant?: 'horizontal' | 'vertical';
 }
 
 const HEADER_ACTIONS = { paddingH: 12, paddingV: 6, gap: 8 } as const;
@@ -26,20 +31,34 @@ function HeaderButton({
   onPress,
   borderColor,
   textColor,
+  vertical = false,
 }: {
   label: string;
   text: string;
   onPress: () => void;
   borderColor: string;
   textColor: string;
+  vertical?: boolean;
 }) {
   return (
     <PressableScale
       accessibilityLabel={label}
       onPress={onPress}
-      style={[styles.headerButton, { borderColor, paddingVertical: HEADER_ACTIONS.paddingV, borderCurve: 'continuous' }]}
+      style={[
+        styles.headerButton,
+        vertical && styles.headerButtonVertical,
+        { borderColor, paddingVertical: HEADER_ACTIONS.paddingV, borderCurve: 'continuous' },
+      ]}
     >
-      <Text style={[styles.headerButtonText, { color: textColor }]}>{text}</Text>
+      <Text
+        style={[
+          styles.headerButtonText,
+          vertical && styles.headerButtonTextVertical,
+          { color: textColor },
+        ]}
+      >
+        {text}
+      </Text>
     </PressableScale>
   );
 }
@@ -51,26 +70,28 @@ function HeaderButton({
  * Los modales se renderizan como hermanos del header: cubren la pantalla
  * completa del contenedor del juego.
  */
-export function GameHeader({ gameId, onExit, onRestart, center, left }: GameHeaderProps) {
+export function GameHeader({ gameId, onExit, onRestart, center, left, variant = 'horizontal' }: GameHeaderProps) {
   const theme = useTheme();
   const rules = getGameById(gameId)?.rules;
+  const vertical = variant === 'vertical';
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
   return (
     <>
-      <View style={styles.header}>
+      <View style={[styles.header, vertical && styles.headerVertical]}>
         <HeaderButton
           label={`salir-${gameId}`}
-          text="← Salir"
+          text={vertical ? '←' : '← Salir'}
           onPress={onExit}
           borderColor={theme.surfaceBorder}
           textColor={theme.textMuted}
+          vertical={vertical}
         />
 
-        <View style={styles.center}>{center}</View>
+        <View style={[styles.center, vertical && styles.centerVertical]}>{center}</View>
 
-        <View style={[styles.actions, { gap: HEADER_ACTIONS.gap }]}>
+        <View style={[styles.actions, vertical && styles.actionsVertical, { gap: HEADER_ACTIONS.gap }]}>
           {left}
           {onRestart ? (
             <HeaderButton
@@ -79,6 +100,7 @@ export function GameHeader({ gameId, onExit, onRestart, center, left }: GameHead
               onPress={() => setShowRestartConfirm(true)}
               borderColor={theme.surfaceBorder}
               textColor={theme.textMuted}
+              vertical={vertical}
             />
           ) : null}
           {rules ? (
@@ -88,6 +110,7 @@ export function GameHeader({ gameId, onExit, onRestart, center, left }: GameHead
               onPress={() => setShowHelp(true)}
               borderColor={theme.surfaceBorder}
               textColor={theme.textMuted}
+              vertical={vertical}
             />
           ) : null}
         </View>
@@ -141,14 +164,30 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     gap: 8,
   },
+  /** Rail vertical (landscape móvil): columna de botones a la izquierda. */
+  headerVertical: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    width: 64,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
   headerButton: {
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: HEADER_ACTIONS.paddingH,
   },
+  headerButtonVertical: {
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
   headerButtonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  headerButtonTextVertical: {
+    fontSize: 16,
   },
   center: {
     flex: 1,
@@ -158,10 +197,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
+  centerVertical: {
+    flex: 0,
+    flexShrink: 0,
+    alignItems: 'center',
+    marginTop: 4,
+  },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     flexShrink: 0,
+  },
+  actionsVertical: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   overlay: {
     position: 'absolute',

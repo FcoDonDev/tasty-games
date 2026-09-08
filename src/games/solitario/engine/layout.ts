@@ -26,8 +26,8 @@ export interface SolitaireLayout {
   topRowHeight: number;
 }
 
-const PADDING = 8;
-const GAP = 4;
+const PADDING = 4;
+const GAP = 2;
 const COLUMNS = 7;
 /** Mobile-first: en pantallas grandes la carta crece hasta este tope. */
 const MAX_CARD_WIDTH = 128;
