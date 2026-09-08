@@ -68,11 +68,14 @@ restante**. El récord guarda score, duración y resultado.
 
 ## Controles
 
-- **Swipe** sobre el tablero (dirección dominante del gesto).
-- **D-pad** bajo el tablero (accesible, labels `wakwak-arriba/abajo/izquierda/derecha`).
-- **Flechas del teclado** (web).
+- **PC web (teclado):** flechas + WASD.
+- **Táctil (nativo y web móvil):** modo configurable (⚙ en el header):
+  - **Gestos** (default): swipe en cualquier parte de la pantalla; la dirección
+    se emite al cruzar el umbral, sin esperar a levantar el dedo.
+  - **Flotante**: pad invisible que nace donde apoyes el dedo; cada dirección
+    re-centra el origen (histéresis); anillo de feedback opcional.
 - **Pausa** en el header (⏸): congela la simulación; reanudar desde el modal.
-- El swipe opuesto al movimiento actual revierte la marcha de inmediato.
+- El input opuesto al movimiento actual revierte la marcha de inmediato.
 
 ## Seeds E2E (solo con `EXPO_PUBLIC_E2E=1`)
 
