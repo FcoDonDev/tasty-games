@@ -58,6 +58,16 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
       reaparecen directamente
 - [ ] Desmultiplicador de dificultad por nivel (velocidad de drones vs robot)
 
+## Solitario — animaciones fuera de alcance (diferido de PLAN-ESCALA-CONTENIDO)
+
+- [ ] Shake en drop inválido (el snap-back spring + `soundCardInvalid` ya lo
+      comunican; evaluar costo/beneficio antes de sumarlo)
+- [ ] Cascada tipo Windows en victoria (cartas rebotando al ganar — costo alto
+      de maquinaria; el modal de victoria ya entra con `overlayEnter`)
+- [ ] Flip en el draw (cartas que montan ya boca arriba en la waste no animan:
+      requeriría pasar "rode de robo" como fase al flip, mismo patrón del
+      reparto) — solo si se percibe como vacío al robar
+
 ## Deudas técnicas conocidas
 
 - [ ] **Landscape sin adaptar en damas/memorice**: el patrón existe

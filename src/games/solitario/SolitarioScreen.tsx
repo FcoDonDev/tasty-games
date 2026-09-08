@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Profiler } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import Animated, { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { ReduceMotion, cancelAnimation, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameResult, GameScreenProps } from '@/core/types';
 import {
@@ -21,17 +21,18 @@ import { useContainerSize } from '@/core/ui/useContainerSize';
 import { useLandscapeMobile } from '@/core/ui/useLandscapeMobile';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
-import { Pile } from './components/Pile';
+import { Pile, DEAL_ANIM_TOTAL_MS } from './components/Pile';
 import { SettingsModal } from './components/SettingsModal';
 import { SUITS, SUIT_SYMBOLS, parseSeed, type Card } from './engine/deck';
 import { cardPosition, computeLayout, hitTestPile } from './engine/layout';
 import { parseSolitarioState, serializeSolitarioState } from './engine/persistence';
 import { canDropOnFoundation, canDropOnTableau, canPickUp, foundationIndexFor, scoreFor, type PileRef, type TargetRef } from './engine/rules';
-import { useSolitarioStore, type DrawMode } from './engine/state';
+import { useSolitarioStore, CONTENT_SCALE_OPTIONS, type ContentScale, type DrawMode } from './engine/state';
 
 const GAME_ID = 'solitario';
 const PREF_DRAW = 'solitario.drawMode';
 const PREF_UNDO = 'solitario.undo';
+const PREF_SCALE = 'solitario.contentScale';
 /** Debounce del guardado del estado en curso (agrupa ráfagas de movimientos). */
 const SAVE_DEBOUNCE_MS = 300;
 
@@ -91,11 +92,15 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   const setUndoEnabled = useSolitarioStore((s) => s.setUndoEnabled);
 
   const [ready, setReady] = useState(false);
+  /** Reparto animado en curso (D9): solo en deal fresco, nunca con seed E2E
+   * (determinismo de los specs: drag sin ventana de animación). */
+  const [dealing, setDealing] = useState(false);
   const [showWin, setShowWin] = useState(false);
   const [showLose, setShowLose] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [drawPref, setDrawPref] = useState<DrawMode>(1);
   const [undoPref, setUndoPref] = useState(false);
+  const [scalePref, setScalePref] = useState<ContentScale>(1);
   const hasReportedRef = useRef(false);
 
   // Sesión de métricas (no-op con EXPO_PUBLIC_PERF_METRICS off)
@@ -103,6 +108,15 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     beginPerfSession(GAME_ID);
     return () => endPerfSession(GAME_ID);
   }, []);
+
+  // El reparto animado habilita el drag al terminar (listo = jugable). Timer
+  // y no callback del FadeIn: con ReduceMotion el entering salta instantáneo
+  // pero el presupuesto de 550ms sigue siendo válido para el gate.
+  useEffect(() => {
+    if (!dealing) return;
+    const timer = setTimeout(() => setDealing(false), DEAL_ANIM_TOTAL_MS);
+    return () => clearTimeout(timer);
+  }, [dealing]);
 
   // Precalentar players del juego post-primer render: el primer sonido de la
   // sesión no paga la creación del player (fuente de desfase en el 1er movimiento)
@@ -118,6 +132,8 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const dragRef = useRef<PileRef | null>(null);
+  /** id de la carta en vuelo por auto-move (D7); null si no hay vuelo */
+  const flightRef = useRef<string | null>(null);
   const [dragKey, setDragKey] = useState<string | null>(null);
   /** Claves `foundation-<i>` / `tableau-<j>` con drop legal para el drag activo */
   const [validTargets, setValidTargets] = useState<Set<string>>(() => new Set());
@@ -130,16 +146,21 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       // El seed solo llega en builds E2E: exige reparto fresco determinista,
       // sin restaurar ni dejar estado previo guardado.
       const savedRaw = initialSeed ? null : await gameStateRepository.get(GAME_ID);
-      const [drawRaw, undoRaw] = await Promise.all([
+      const [drawRaw, undoRaw, scaleRaw] = await Promise.all([
         preferencesRepository.get(PREF_DRAW),
         preferencesRepository.get(PREF_UNDO),
+        preferencesRepository.get(PREF_SCALE),
       ]);
       if (cancelled) return;
       if (initialSeed) void gameStateRepository.clear(GAME_ID);
       const loadedDraw: DrawMode = drawRaw === '3' ? 3 : 1;
       const loadedUndo = undoRaw === '1';
+      const parsedScale = CONTENT_SCALE_OPTIONS.find((option) => String(option) === scaleRaw);
+      const loadedScale: ContentScale = parsedScale ?? 1;
       setDrawPref(loadedDraw);
       setUndoPref(loadedUndo);
+      setScalePref(loadedScale);
+      useSolitarioStore.getState().setContentScale(loadedScale);
       const saved = savedRaw ? parseSolitarioState(savedRaw) : null;
       if (saved) {
         restore(saved);
@@ -149,6 +170,9 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
           drawMode: loadedDraw,
           undoEnabled: loadedUndo,
         });
+        // Reparto animado solo en deal fresco sin seed E2E: los specs exigen
+        // determinismo (drag inmediato, sin ventana de animación).
+        if (!initialSeed) setDealing(true);
       }
       setReady(true);
     })();
@@ -209,6 +233,15 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     setValidTargets(new Set());
   }, []);
 
+  /** Fin del vuelo de auto-move (D7): solo limpia si sigue siendo ESE vuelo —
+   * un segundo vuelo iniciado durante el primero reescribe dragKey/flightRef
+   * y el callback del spring interrumpido (finished=false) no debe matarlo. */
+  const finishFlight = useCallback((id: string) => {
+    if (flightRef.current !== id) return;
+    flightRef.current = null;
+    setDragKey((current) => (current === id ? null : current));
+  }, []);
+
   /** Doble tap / clic derecho: auto-envío de una carta suelta a su foundation. */
   const handleAutoMove = useCallback((id: string) => {
     const t0 = performance.now();
@@ -250,14 +283,44 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
       soundCardDrop();
       hapticDropCommit();
       perfAudio(GAME_ID, { handlerToPlayMs: performance.now() - t0 });
-      state.autoMoveToFoundation(ref);
+      // Vuelo inverso (D7): origen capturado ANTES del commit; tras él la carta
+      // se re-monta en la foundation y se la ve en su asiento desplazada hacia
+      // el origen, glisando con spring hasta offset 0 (misma maquinaria del
+      // settle del drag: dragKey + tx/ty compartidos).
+      const fromCards = pileCards(ref, state.tableau, state.waste, state.foundations);
+      const originIndex = ref.kind === 'tableau' ? ref.cardIndex : fromCards.length - 1;
+      const origin = layout !== null ? cardPosition(layout, ref, fromCards, originIndex) : null;
+      const destIndex = foundationIndexFor(moving[0]);
+      const committed = state.autoMoveToFoundation(ref);
+      if (committed && origin !== null && layout !== null) {
+        if (flightRef.current !== null) {
+          // Un vuelo activo cede: cancelar springs y tomar el relevo (el
+          // callback del spring interrumpido es no-op por el guard de id)
+          cancelAnimation(tx);
+          cancelAnimation(ty);
+        }
+        const final = layout.foundations[destIndex];
+        const flightId = moving[0].id;
+        flightRef.current = flightId;
+        setDragKey(flightId);
+        tx.set(origin.x - final.x);
+        ty.set(origin.y - final.y);
+        tx.set(
+          withSpring(0, { duration: 400, dampingRatio: 0.8, reduceMotion: ReduceMotion.System }),
+        );
+        ty.set(
+          withSpring(0, { duration: 400, dampingRatio: 0.8, reduceMotion: ReduceMotion.System }, () =>
+            scheduleOnRN(finishFlight, flightId),
+          ),
+        );
+      }
     } else {
       if (__DEV__) {
         // eslint-disable-next-line no-console
         console.debug('[solitario:auto-move] rechazado por el motor');
       }
     }
-  }, []);
+  }, [layout, tx, ty, finishFlight]);
 
   const handleDragStart = useCallback((id: string) => {
     const state = useSolitarioStore.getState();
@@ -413,16 +476,18 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     setShowWin(false);
     setShowLose(false);
     void gameStateRepository.clear(GAME_ID);
+    if (!initialSeed) setDealing(true);
     reset(currentSettings);
-  }, [reset, currentSettings]);
+  }, [reset, currentSettings, initialSeed]);
 
   const handleRestart = useCallback(() => {
     hasReportedRef.current = false;
     setShowWin(false);
     setShowLose(false);
     void gameStateRepository.clear(GAME_ID);
+    if (!initialSeed) setDealing(true);
     reset(currentSettings);
-  }, [reset, currentSettings]);
+  }, [reset, currentSettings, initialSeed]);
 
   const handleChangeDrawMode = useCallback((mode: DrawMode) => {
     setDrawPref(mode);
@@ -437,6 +502,13 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
     },
     [setUndoEnabled],
   );
+
+  const handleChangeScale = useCallback((scale: ContentScale) => {
+    setScalePref(scale);
+    // Aplica al instante (render puro) y persiste; no toca el estado de la partida
+    useSolitarioStore.getState().setContentScale(scale);
+    void preferencesRepository.set(PREF_SCALE, String(scale));
+  }, []);
 
   // El tablero parte desde arriba (como el clásico): todo el espacio sobrante
   // queda debajo para que las columnas crezcan, y una columna que crece no
@@ -515,6 +587,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
               tx={tx}
               ty={ty}
               callbacks={dragCallbacks}
+              contentScale={scalePref}
               onPressStock={handleDrawStock}
             />
             <Pile
@@ -526,6 +599,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
               tx={tx}
               ty={ty}
               callbacks={dragCallbacks}
+              contentScale={scalePref}
               onAutoMove={handleAutoMove}
             />
             {layout.foundations.map((rect, i) => (
@@ -542,6 +616,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
                 tx={tx}
                 ty={ty}
                 callbacks={dragCallbacks}
+                contentScale={scalePref}
                 onAutoMove={handleAutoMove}
               />
             ))}
@@ -558,6 +633,8 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
                 tx={tx}
                 ty={ty}
                 callbacks={dragCallbacks}
+                contentScale={scalePref}
+                dealing={dealing}
                 onAutoMove={handleAutoMove}
               />
             ))}
@@ -571,8 +648,10 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
         onClose={() => setShowSettings(false)}
         drawMode={drawPref}
         undoEnabled={undoPref}
+        contentScale={scalePref}
         onChangeDrawMode={handleChangeDrawMode}
         onChangeUndo={handleChangeUndo}
+        onChangeScale={handleChangeScale}
       />
 
       {showWin ? (

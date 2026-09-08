@@ -1,8 +1,10 @@
-import { Fragment, memo, useEffect, useMemo } from 'react';
+import { Fragment, memo, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  FadeIn,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withTiming,
   type SharedValue,
@@ -17,6 +19,11 @@ import { PlayingCard } from './PlayingCard';
 
 type PileKind = 'stock' | 'waste' | 'foundation' | 'tableau';
 
+/** Reparto animado (plan D9): onda por columna, fade-only, < 550ms total. */
+export const DEAL_FADE_MS = 180;
+export const DEAL_COLUMN_DELAY_MS = 50;
+export const DEAL_ANIM_TOTAL_MS = DEAL_COLUMN_DELAY_MS * 6 + DEAL_FADE_MS + 40;
+
 interface PileProps {
   layout: SolitaireLayout;
   rect: Rect;
@@ -30,6 +37,10 @@ interface PileProps {
   tx: SharedValue<number>;
   ty: SharedValue<number>;
   callbacks: DragCallbacks;
+  /** Escala del contenido de las cartas (setting, ver engine/state ContentScale) */
+  contentScale: number;
+  /** Reparto en curso (solo tableau): entrada escalonada + drag gated (D9) */
+  dealing?: boolean;
   onPressStock?: () => void;
   /** Auto-envío a foundation vía doble tap / clic derecho sobre una carta */
   onAutoMove?: (id: string) => void;
@@ -47,6 +58,12 @@ interface PileCardProps {
   tx: SharedValue<number>;
   ty: SharedValue<number>;
   callbacks: DragCallbacks;
+  /** Escala del contenido de la carta (prop numérica estable para memo) */
+  contentScale: number;
+  /** Fase de reparto: la carta monta con FadeIn escalonado por columna (D9) */
+  dealing: boolean;
+  /** Delay de entrada de la columna de esta carta (ms) */
+  dealDelayMs: number;
   /** Auto-envío a foundation: clic derecho en web (en nativo no ocurre el evento) */
   onAutoMove?: (id: string) => void;
 }
@@ -66,17 +83,32 @@ const PileCard = memo(function PileCard({
   tx,
   ty,
   callbacks,
+  contentScale,
+  dealing,
+  dealDelayMs,
   onAutoMove,
 }: PileCardProps) {
   const gesture = useDragGesture(card.id, callbacks, draggable, { tx, ty });
   const scale = useSharedValue(1);
   const rotate = useSharedValue(0);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     // Lift: feedback en press-in, ~150ms, UI thread (ReduceMotion: salto directo)
     scale.set(withTiming(dragActive ? 1.05 : 1, { duration: 150 }));
     rotate.set(withTiming(dragActive ? 1.5 : 0, { duration: 150 }));
   }, [dragActive, scale, rotate]);
+
+  // Entrada del reparto: `entering` SOLO durante la fase de deal (D9). Un
+  // entering permanente re-animaría en cada montaje (las cartas cambian de
+  // pila al moverse); al apagarse el flag, los montajes posteriores no animan.
+  const dealEntering = useMemo(
+    () =>
+      dealing
+        ? FadeIn.duration(DEAL_FADE_MS).delay(reduced ? 0 : dealDelayMs)
+        : undefined,
+    [dealing, reduced, dealDelayMs],
+  );
 
   const animatedStyle = useAnimatedStyle(
     () => ({
@@ -94,6 +126,7 @@ const PileCard = memo(function PileCard({
     <GestureDetector gesture={gesture}>
       <Animated.View
         accessibilityLabel={`solitario-card-${card.id}`}
+        entering={dealEntering}
         style={[
           styles.cardSlot,
           { left: x, top: y, zIndex: dragActive ? 100 + index : index },
@@ -115,7 +148,7 @@ const PileCard = memo(function PileCard({
             } as unknown as Record<string, never>)
           : null)}
       >
-        <PlayingCard card={card} width={layout.cardWidth} height={layout.cardHeight} />
+        <PlayingCard card={card} width={layout.cardWidth} height={layout.cardHeight} scale={contentScale} />
       </Animated.View>
     </GestureDetector>
   );
@@ -133,6 +166,8 @@ export const Pile = memo(function Pile({
   tx,
   ty,
   callbacks,
+  contentScale,
+  dealing = false,
   onPressStock,
   onAutoMove,
 }: PileProps) {
@@ -154,6 +189,10 @@ export const Pile = memo(function Pile({
   const dragIndex = dragKey ? cards.findIndex((card) => card.id === dragKey) : -1;
 
   const isDraggable = (index: number): boolean => {
+    // Durante el reparto animado el drag queda habilitado solo al terminar
+    // (listo = jugable, plan D5/D9); stock/waste no tienen cartas que arrastrar
+    // en ese momento, el gate solo afecta al tableau.
+    if (dealing) return false;
     if (kind !== 'waste' && kind !== 'foundation' && kind !== 'tableau') return false;
     if (kind !== 'tableau') return index === cards.length - 1;
     return cards[index].faceUp && isValidSequence(cards.slice(index));
@@ -180,7 +219,7 @@ export const Pile = memo(function Pile({
             style={styles.stockCard}
             pointerEvents="none"
           >
-            <PlayingCard card={top} width={layout.cardWidth} height={layout.cardHeight} />
+            <PlayingCard card={top} width={layout.cardWidth} height={layout.cardHeight} scale={contentScale} />
           </View>
         ) : (
           <Text style={[styles.emptySymbol, { fontSize: Math.round(rect.width * 0.4) }]}>↻</Text>
@@ -233,6 +272,9 @@ export const Pile = memo(function Pile({
             tx={tx}
             ty={ty}
             callbacks={callbacks}
+            contentScale={contentScale}
+            dealing={dealing}
+            dealDelayMs={pileIndex * DEAL_COLUMN_DELAY_MS}
             onAutoMove={onAutoMove}
           />
         );

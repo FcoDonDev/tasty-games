@@ -60,6 +60,42 @@ describe('solitario state — reset', () => {
   });
 });
 
+describe('solitario state — contentScale', () => {
+  it('default 1.0 (Normal)', () => {
+    const s = fresh(42);
+    expect(s.contentScale).toBe(1);
+  });
+
+  it('setContentScale cambia la escala sin alterar las pilas', () => {
+    fresh(42);
+    const ids = act().tableau.flat().map((c) => c.id);
+    act().setContentScale(1.2);
+    expect(act().contentScale).toBe(1.2);
+    expect(act().tableau.flat().map((c) => c.id)).toEqual(ids);
+    expect(act().moves).toBe(0);
+  });
+
+  it('sobrevive reset() y restore() (pref de presentación, no de partida)', () => {
+    fresh(42);
+    act().setContentScale(1.2);
+    act().reset({ seed: 7, drawMode: 3, undoEnabled: true });
+    expect(act().contentScale).toBe(1.2);
+    useSolitarioStore.setState({ contentScale: 0.85 });
+    act().restore({
+      tableau: [[{ id: 'S-2', suit: 'S', rank: 2, faceUp: true }], [], [], [], [], [], []],
+      foundations: [[], [], [], []],
+      stock: [],
+      waste: [],
+      drawMode: 1,
+      undoEnabled: false,
+      moves: 0,
+      undos: 0,
+      startedAt: null,
+    });
+    expect(act().contentScale).toBe(0.85);
+  });
+});
+
 describe('solitario state — drawStock', () => {
   it('draw-1 mueve 1 carta faceUp al waste y marca el inicio', () => {
     fresh(42, { drawMode: 1 });

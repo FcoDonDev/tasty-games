@@ -63,6 +63,22 @@ background están en `AGENTS.md`, no acá.
   elemento queda congelado levantado.
 - **Acceso a shared values con `.get()`/`.set()`** (nunca leer/escribir `.value`
   directo durante render) — compiler-safe con el plugin de worklets.
+- **`entering`/layout animations re-disparan en CADA montaje** (por diseño; en
+  web además al re-entrar subárboles, PR #8772): un `entering` permanente en un
+  elemento que cambia de pila/contenedor (cartas de solitario que se mueven,
+  filas de listas) repite la animación en cada movimiento. Acotarlo a una fase
+  con flag local (patrón `dealing` de solitario: `entering={dealing ? FadeIn... :
+  undefined}` — cambiar el prop a `undefined` a mitad de vida no re-animará,
+  que es justo lo que se quiere).
+- **`useSharedValue(init)` inicial + skip del primer effect** para flips/entradas
+  state-driven: si el progreso arranca en 0 y el effect anima hacia el estado
+  actual, todo elemento que MONTA ya en su estado final (restore, seeds,
+  reparto) anima fantasma al cargar. Inicializar el shared value con el estado
+  actual y saltar el primer run con un ref de montaje (patrón corregido sobre
+  el flip de memorice, que no lo necesita porque ahí nada nace volteado).
+- **Los callbacks de animación corren también al cancelar** (`finished=false`):
+  un guard por id/token en el callback (ej. `finishFlight` de solitario) evita
+  que un spring interrumpido limpie el estado de una animación posterior.
 
 ## Jest
 

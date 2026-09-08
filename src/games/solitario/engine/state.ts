@@ -5,6 +5,11 @@ import { canDropOnFoundation, canDropOnTableau, canPickUp, foundationIndexFor, h
 
 export type DrawMode = 1 | 3;
 
+/** Niveles del setting "Tamaño del contenido": multiplicador sobre la caja de
+ * contenido de la carta (ver PLAN-ESCALA-CONTENIDO.md D2/D8). */
+export type ContentScale = 0.85 | 1 | 1.2;
+export const CONTENT_SCALE_OPTIONS: ContentScale[] = [0.85, 1, 1.2];
+
 export interface SolitarioSettings {
   seed?: DealSeed;
   drawMode?: DrawMode;
@@ -22,6 +27,9 @@ interface Snapshot {
 interface SolitarioState extends Deal {
   drawMode: DrawMode;
   undoEnabled: boolean;
+  /** Escala del contenido dibujado dentro de las cartas (pref de presentación;
+   * no participa en reset/restore: sobrevive a ambos). */
+  contentScale: ContentScale;
   moves: number;
   undos: number;
   /** epoch ms del primer movimiento; null hasta empezar */
@@ -36,6 +44,7 @@ interface SolitarioState extends Deal {
   restore: (saved: SolitarioSavedState) => void;
   setDrawMode: (mode: DrawMode) => void;
   setUndoEnabled: (enabled: boolean) => void;
+  setContentScale: (scale: ContentScale) => void;
   /** Roba del stock (drawMode cartas); recicla waste→stock si está vacío */
   drawStock: () => void;
   /** Valida y ejecuta el movimiento; devuelve false si es ilegal */
@@ -120,6 +129,7 @@ export const useSolitarioStore = create<SolitarioState>()((set, get) => ({
   foundations: [],
   drawMode: 1,
   undoEnabled: false,
+  contentScale: 1,
   moves: 0,
   undos: 0,
   startedAt: null,
@@ -164,6 +174,7 @@ export const useSolitarioStore = create<SolitarioState>()((set, get) => ({
 
   setDrawMode: (mode) => set({ drawMode: mode }),
   setUndoEnabled: (enabled) => set({ undoEnabled: enabled, history: enabled ? get().history : [] }),
+  setContentScale: (scale) => set({ contentScale: scale }),
 
   drawStock: () => {
     const s = get();

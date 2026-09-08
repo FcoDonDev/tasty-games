@@ -15,6 +15,9 @@ export const preferencesRepository = {
   },
 
   async set(key: string, value: string): Promise<void> {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
     const preferences = readAll();
     preferences[key] = value;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));

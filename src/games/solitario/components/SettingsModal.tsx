@@ -3,16 +3,25 @@ import Animated from 'react-native-reanimated';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
-import type { DrawMode } from '../engine/state';
+import { CONTENT_SCALE_OPTIONS, type ContentScale, type DrawMode } from '../engine/state';
 
 interface SettingsModalProps {
   visible: boolean;
   onClose: () => void;
   drawMode: DrawMode;
   undoEnabled: boolean;
+  contentScale: ContentScale;
   onChangeDrawMode: (mode: DrawMode) => void;
   onChangeUndo: (enabled: boolean) => void;
+  onChangeScale: (scale: ContentScale) => void;
 }
+
+/** Etiquetas y labels E2E por nivel de escala (orden = CONTENT_SCALE_OPTIONS). */
+const SCALE_OPTIONS: Array<{ label: string; testLabel: string }> = [
+  { label: 'Compacto', testLabel: 'solitario-set-escala-c' },
+  { label: 'Normal', testLabel: 'solitario-set-escala-n' },
+  { label: 'Grande', testLabel: 'solitario-set-escala-g' },
+];
 
 function OptionButton({
   label,
@@ -47,8 +56,10 @@ export function SettingsModal({
   onClose,
   drawMode,
   undoEnabled,
+  contentScale,
   onChangeDrawMode,
   onChangeUndo,
+  onChangeScale,
 }: SettingsModalProps) {
   const theme = useTheme();
   if (!visible) return null;
@@ -73,6 +84,19 @@ export function SettingsModal({
         <View style={styles.row}>
           <OptionButton label="Off" selected={!undoEnabled} onPress={() => onChangeUndo(false)} testLabel="solitario-set-undo-off" />
           <OptionButton label="On" selected={undoEnabled} onPress={() => onChangeUndo(true)} testLabel="solitario-set-undo-on" />
+        </View>
+
+        <Text style={[styles.section, { color: theme.textMuted }]}>Tamaño del contenido (aplica al instante)</Text>
+        <View style={styles.row}>
+          {CONTENT_SCALE_OPTIONS.map((option, i) => (
+            <OptionButton
+              key={option}
+              label={SCALE_OPTIONS[i].label}
+              selected={contentScale === option}
+              onPress={() => onChangeScale(option)}
+              testLabel={SCALE_OPTIONS[i].testLabel}
+            />
+          ))}
         </View>
 
         <PressableScale
