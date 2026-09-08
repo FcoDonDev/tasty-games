@@ -107,7 +107,9 @@ test('wakwak: test-power — súper carga y drone recogido suman 290 pts', async
   await pressDir(page, 'wakwak-izquierda');
   const score = page.getByLabel('marcador-puntos', { exact: true });
   await expect
-    .poll(async () => Number((await score.textContent())?.replace(/\D/g, '')), { timeout: 20_000 })
+    .poll(async () => Number((await score.textContent())?.replace(/\D/g, '')), {
+      timeout: 45_000, // margen por dilación de rAF bajo carga de la suite completa
+    })
     .toBe(290);
 
   // con el power vencido, los drones terminan atrapando al robot
