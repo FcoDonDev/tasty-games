@@ -152,6 +152,11 @@ background están en `AGENTS.md`, no acá.
   default **nativo** es 200 ms y un doble tap humano lento falla (web ya era 500).
   Validado con dblclick de Playwright, pausas de 200–250 ms y jitter de 8 px que
   activa el Pan sin romper el tap.
+- **Callbacks planos en un gesto emiten el warning** "None of the callbacks in
+  the gesture are worklets" (repetido por cada gesto montado/re-montado): no es
+  un error — RNGH ya corre esos callbacks en el JS thread. Si el callback toca
+  estado JS (zustand, haptics, closures) la solución correcta es hacerlo
+  explícito con `.runOnJS(true)` en el gesto, NO marcar `worklet`.
 
 ## Playwright (E2E web)
 
@@ -159,6 +164,17 @@ background están en `AGENTS.md`, no acá.
   `playwright.config.ts` del repo no lo activa y falla con "The page does not
   support tap". En specs web usar `click()` (funciona igual para botones RN
   renderizados como `role="button"`), como hacen damas/solitario/wakwak.
+- **Emulación móvil:** `test.use({ viewport, isMobile: true, hasTouch: true })`
+  hace que `matchMedia('(pointer: coarse)')` reporte `true` (detecta táctil sin
+  flags E2E). Pero **`test.use({ ...devices['Pixel 5'] })` dentro de un
+  `describe` falla** ("defaultBrowserType forces a new worker"): ese spread solo
+  vale a nivel de archivo/config — a nivel describe, especificar las opciones
+  una por una.
+- **Swipe/touch-drag real vía CDP**: Playwright no tiene API de swipe; con una
+  CDP session (`page.context().newCDPSession(page)`) y
+  `Input.dispatchTouchEvent` (touchStart + varios touchMove + touchEnd) RNGH
+  procesa el Pan normalmente. Coordenadas en CSS px del viewport (igual que
+  `boundingBox()`). Ejemplo: `src/games/wakwak/__e2e__/wakwak.web.spec.ts`.
 
 ## Audio (expo-audio)
 

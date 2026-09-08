@@ -31,8 +31,8 @@ original aplicado — verificar al tocar cualquier asset visual/sonoro:
 ```
 src/games/wakwak/
   index.ts                # GameDefinition registrado en src/core/game-registry.ts
-  WakWakScreen.tsx        # orquestador: loop rAF, swipe/teclado, HUD, modales, récord
-  components/             # HUD, DirectionPad, Overlays (UI RN estándar, agnóstica)
+  WakWakScreen.tsx        # orquestador: loop rAF, input por plataforma, HUD, modales, récord
+  components/             # HUD, ControlSettings, Overlays (UI RN estándar, agnóstica)
   engine/                 # NÚCLEO PURO: TS sin RN, determinista, testeado con Jest
     maze.ts               #   laberinto 19×21 propio + vecinos (túnel/corral/puerta)
     rules.ts              #   advance(state, dtMs) por ticks fijos: movimiento,
@@ -40,6 +40,7 @@ src/games/wakwak/
     ai.ts                 #   4 personalidades: Cazador/Emboscador/Caprichoso/Tímido
     seed.ts               #   mulberry32 + seeds sentinelas E2E
     state.ts              #   store zustand (no exportado fuera de la carpeta)
+    controls.ts           #   PURO: gesto → Direction (swipe + flotante re-centrado)
   renderer/
     types.ts              # PUERTO de presentación (createWorld/present/onDirection)
     reanimated/           # ADAPTADOR A (ADR 0010): MazeLayer + EntitiesLayer
@@ -79,9 +80,17 @@ src/games/wakwak/
   entidades = `Animated.View` con shared values escritas por `present()` desde
   el loop rAF; cero `setState` por frame — React re-renderiza solo en eventos
   discretos (pickup, vidas, power).
-- **Input triple:** swipe (Pan sobre el tablero), D-pad accesible (selectores
-  E2E estables `wakwak-arriba`...) y flechas de teclado en web. Haptic de
-  selección en el D-pad; sonidos vía wrapper `core/ui/sound.ts`.
+- **Input por plataforma:** PC web (puntero fino) → teclado, flechas + WASD.
+  Táctil (nativo y web con `pointer: coarse`, vía `useIsTouchDevice`) → modo
+  configurable persistido en `preferencesRepository` (`wakwak.controlMode`):
+  "gestos" (default; swipe en toda la pantalla, una dirección por gesto, emitida
+  al cruzar 24px sin esperar el lift) o "flotante" (pad invisible que nace donde
+  apoya el dedo; cada dirección re-centra el origen —histéresis— y hay anillo de
+  feedback opcional, `wakwak.floatingRing`). La matemática de gestos es pura en
+  `engine/controls.ts`; todo pasa por `setDirection` (buffer del engine). Haptic
+  de selección por dirección; sonidos vía wrapper `core/ui/sound.ts`. El
+  D-pad visible fue eliminado (ganaba espacio al tablero); el E2E input es el
+  teclado en desktop y swipe real (CDP) en el spec táctil con emulación móvil.
 - **Layout responsive (ADR 0004):** celda = `min(ancho/19, alto/21)` medido con
   `useContainerSize`; sin scroll a 360×640 (spec responsive incluido).
 - **E2E gate (ADR 0006):** seeds solo con `EXPO_PUBLIC_E2E=1`. Sentinelas:
