@@ -11,6 +11,7 @@ import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
 import { soundCardDrop, soundCardInvalid, soundCardMove, soundGameWin } from '@/core/ui/sound';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
+import { useLandscapeMobile } from '@/core/ui/useLandscapeMobile';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import type { DragCallbacks } from '@/core/ui/drag/useDraggable';
 import { Pile } from './components/Pile';
@@ -62,6 +63,8 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   // Tamaño real del área de tablero (onLayout): el layout llena el 100% disponible
   const { size, onLayout } = useContainerSize();
   const layout = useMemo(() => (size ? computeLayout(size.width, size.height) : null), [size]);
+  // Landscape móvil: header vertical al costado izquierdo, el tablero gana alto
+  const landscape = useLandscapeMobile();
 
   const tableau = useSolitarioStore((s) => s.tableau);
   const waste = useSolitarioStore((s) => s.waste);
@@ -387,11 +390,18 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View
+      style={[
+        styles.container,
+        landscape && styles.containerLandscape,
+        { backgroundColor: theme.background },
+      ]}
+    >
       <GameHeader
         gameId="solitario"
         onExit={onExit}
         onRestart={handleRestart}
+        variant={landscape ? 'vertical' : 'horizontal'}
         center={
           <Text style={[styles.moves, { color: theme.text, fontVariant: ['tabular-nums'] }]}>
             Movimientos: {moves}
@@ -556,6 +566,9 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  containerLandscape: {
+    flexDirection: 'row',
   },
   centered: {
     alignItems: 'center',

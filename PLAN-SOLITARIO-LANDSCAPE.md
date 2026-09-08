@@ -73,47 +73,56 @@ Búsqueda en el ecosistema de skills (`npx skills find expo orientation`) y en l
   nuevas). `expo-screen-orientation` solo entra si se opta por la **Opción B** de
   orientación nativa (abajo).
 
-### Pendiente de aprobar antes de Fase 3 — orientación nativa
+### Orientación nativa — **APROBADA: Opción B**
 
 - **Opción A (mínima)**: `app.json` → `"orientation": "default"`. Sin dependencias
-  nuevas, verificable con el toolchain actual. Consecuencia: damas/memorice también
-  rotan en nativo sin layout landscape (siguen funcionando: sus layouts derivan del
-  contenedor medido) → deuda a `docs/ROADMAP.md`.
-- **Opción B (por-juego, coherente con `supportsLandscape`)**: `app.json` →
-  `"default"` + `pnpm exec expo install expo-screen-orientation`; el contenedor hace
-  `lockAsync(PORTRAIT_UP)` al montar un juego sin soporte y `unlockAsync()` en
-  solitario (guard `Platform.OS !== 'web'`). Requiere **rebuild del dev build Android**
-  y validación en dispositivo real (toolchain Android no disponible en este entorno).
-- Recomendación: **B**, porque materializa el flag por juego end-to-end; si el rebuild
-  en dispositivo se demora, A es un hito intermedio válido.
+  nuevas. Consecuencia: damas/memorice también rotan en nativo sin layout landscape
+  (siguen funcionando) → deuda a `docs/ROADMAP.md`. Descartada.
+- **Opción B (elegida, por-juego, coherente con `supportsLandscape`)**: `app.json` →
+  `"default"` + `pnpm exec expo install expo-screen-orientation`; el contenedor
+  (`app/juego/[id].tsx`) hace `lockAsync(PORTRAIT_UP)` al montar un juego sin soporte
+  y `unlockAsync()` en solitario (guard `Platform.OS !== 'web'`; el root `_layout`
+  re-locka portrait al salir). Requiere **rebuild del dev build Android** y validación
+  en dispositivo real (toolchain Android no disponible en este entorno).
+- **Detección (ronda 3, confirmada)**: `expo-screen-orientation` sí soporta web
+  (W3C Screen Orientation API, "limited support": en desktop la orientación no es
+  física). En nativo es la API autoritativa del SO → se usa para **controlar** el
+  lock/unlock y la señal física; `useWindowDimensions` queda como base multiplataforma
+  para decidir el modo de layout (señal de espacio disponible, cubre split-screen).
+  El hook `useOrientation` de `@uidotdev/usehooks` se descarta: solo React DOM y
+  dependería de `window.orientation` (deprecado).
+- iPad: el lock nativo exige deshabilitar split view (`requireFullScreen`); fuera de
+  alcance (foco en teléfonos), documentado como limitación.
 
 ## Checklist de tareas (orden de ejecución)
 
-- [ ] **F1** — Cartas más grandes (portrait): `PADDING 8→4`, `GAP 4→2` en
+- [x] **F1** — Cartas más grandes (portrait): `PADDING 8→4`, `GAP 4→2` en
       `src/games/solitario/engine/layout.ts`; ajustar `__tests__/layout.test.ts`
       (fórmula exacta del caso 360×640).
-- [ ] **F2** — Detección (core): nuevo `src/core/ui/useLandscapeMobile.ts` con
+- [x] **F2** — Detección (core): nuevo `src/core/ui/useLandscapeMobile.ts` con
       `useWindowDimensions` + `Platform.OS`, delegando en la función pura
       `isLandscapeMobile(width, height, platform)` (umbral dimensión corta ≤ 480);
       test unitario de la función pura.
-- [ ] **F3** — Config por juego: `supportsLandscape?: boolean` en `GameDefinition`
+- [x] **F3** — Config por juego: `supportsLandscape?: boolean` en `GameDefinition`
       (`src/core/types.ts`) + `true` en el registro de solitario; test de registro.
-- [ ] **F4** — Orientación nativa: Opción A o B según aprobación (ver arriba);
-      documentar la elegida en este plan.
-- [ ] **F5** — `GameHeader` vertical (core): prop `variant?: 'horizontal' | 'vertical'`
+- [x] **F4** — Opción B (aprobada): `pnpm exec expo install expo-screen-orientation`;
+      `app.json` → `"orientation": "default"` + plugin con `initialOrientation`;
+      lock/unlock por juego en `app/juego/[id].tsx` (guard web) y portrait en root.
+- [x] **F5** — `GameHeader` vertical (core): prop `variant?: 'horizontal' | 'vertical'`
       (default horizontal, retrocompatible); columna de botones apilados (~64px de
       ancho), contenido `center` debajo. Los `accessibilityLabel` no cambian
       (selectores E2E intactos).
-- [ ] **F6** — Solitario landscape: `SolitarioScreen` consume `useLandscapeMobile()`;
+- [x] **F6** — Solitario landscape: `SolitarioScreen` consume `useLandscapeMobile()`;
       con variante activa el contenedor pasa a `flexDirection: 'row'` con
       `[GameHeader variant="vertical"] [board flex:1]`. `computeLayout` sin cambios.
       Overlays (victoria/derrota/settings) siguen absolutos sobre el contenedor.
-- [ ] **F7** — E2E: nuevo spec `src/games/solitario/__e2e__/solitario.landscape.web.spec.ts`
+- [x] **F7** — E2E: nuevo spec `src/games/solitario/__e2e__/solitario.landscape.web.spec.ts`
       con `test.use({ viewport: { width: 740, height: 360 } })`: header a la izquierda
       (labels visibles), tablero renderizado, drag legal, sin scroll.
-- [ ] **F8** — Verificación estándar completa: `pnpm typecheck` → `pnpm test` →
-      `node scripts/e2e.mjs` (25/25) + verificación visual manual portrait/landscape
-      (screenshots temporales, borrar al terminar).
+- [x] **F8** — Verificación estándar completa: `pnpm typecheck` → `pnpm test`
+      (18 suites / 189 tests) → `node scripts/e2e.mjs` (27/27 incl. los 2 nuevos
+      de landscape) → verificación visual manual portrait/landscape pendiente de
+      dispositivo (Android sin toolchain en este entorno).
 
 ## Criterios de aceptación
 
@@ -136,7 +145,17 @@ Búsqueda en el ecosistema de skills (`npx skills find expo orientation`) y en l
 
 - (investigación) No hay skill del ecosistema que mejore la detección de landscape;
   `useWindowDimensions` + función pura es la vía correcta y testeable.
-- (research) `expo-screen-orientation` no soporta web: todo uso suyo debe ir tras
-  guard de `Platform.OS !== 'web'` si se elige la Opción B.
+- (research) `expo-screen-orientation` **sí** soporta web (W3C Screen Orientation API,
+  soporte limitado): corrección de la primera impresión. En web igualmente se omite
+  el lock (`core/orientation.ts` es no-op): el lock del navegador puede rechazar en
+  desktop o pedir fullscreen en móvil.
 - (números) Portrait: 45→48px con PADDING/GAP reducidos. Landscape 740×360 con rail:
-  `byHeight = altoTablero/4.6` manda → carta ≈ 69px (+53%).
+  `byHeight = altoTablero/4.6` manda → carta ≈ 71px (+48%).
+- (E2E, lección) El alto del `solitario-tablero` interior es **casi igual** en
+  portrait y landscape: en portrait la carta la limita el ancho y en landscape el
+  alto, con lo que el contenido ocupa un alto similar. La aserción E2E correcta del
+  modo rail es el **tamaño de carta** (48→71px) y la posición del rail (x del botón
+  salir < x del tablero, ancho ≤ 64), no el alto del tablero.
+- (pendiente cierre) Validación en dispositivo Android del lock/unlock nativo
+  (toolchain no disponible en este entorno) — queda para el usuario antes del cierre
+  del PLAN. Deuda damas/memorice sin layout landscape → `docs/ROADMAP.md` al cierre.
