@@ -47,8 +47,13 @@ interface DeathFxProps {
   cellSize: number;
   /** derrota definitiva: más partículas, dim y zoom más intensos */
   final: boolean;
-  /** zoom del tablero: 1 = sin zoom (reduced motion); lo anima el clip */
+  /** zoom del tablero: lo anima el clip (handoff: parte del valor vigente) */
   zoom: SharedValue<number>;
+  /**
+   * Zoom TOTAL del clip (1.6/1.8 ÷ zoom de amenaza vigente al morir): el
+   * close-up continúa el zoom de muerte inminente sin saltar.
+   */
+  zoomTarget: number;
 }
 
 /** Partícula del burst: dirección determinista por índice (sin rng). */
@@ -104,7 +109,7 @@ function Particle({
   );
 }
 
-export function DeathFx({ x, y, cellSize, final, zoom }: DeathFxProps) {
+export function DeathFx({ x, y, cellSize, final, zoom, zoomTarget }: DeathFxProps) {
   const reduced = useReducedMotion();
   const dim = useSharedValue(0);
   const ring = useSharedValue(0);
@@ -113,11 +118,11 @@ export function DeathFx({ x, y, cellSize, final, zoom }: DeathFxProps) {
   const py = y * cellSize;
 
   useEffect(() => {
-    // zoom del tablero (transform vive en el contenedor, hallazgo 2):
-    // entra más lento que el dim — peso de impacto, no teleporte
+    // zoom del tablero (transform vive en el contenedor, hallazgo 2): entra
+    // más lento que el dim — peso de impacto. SIN snap previo: anima DESDE el
+    // zoom de amenaza vigente (handoff v3, el total es continuo).
     if (!reduced) {
-      zoom.set(1);
-      zoom.set(withTiming(final ? 1.8 : 1.6, { duration: IMPACT_ZOOM_MS, easing: Easing.out(Easing.quad) }));
+      zoom.set(withTiming(zoomTarget, { duration: IMPACT_ZOOM_MS, easing: Easing.out(Easing.quad) }));
     }
     // dim: sube rápido en el impacto, sostiene todo el clip, baja al final
     const visual = final ? DEATH_FREEZE_FINAL_MS : DEATH_FREEZE_MS;
@@ -137,7 +142,7 @@ export function DeathFx({ x, y, cellSize, final, zoom }: DeathFxProps) {
         withTiming(1, { duration: 700, easing: Easing.out(Easing.quad) }),
       ),
     );
-  }, [reduced, final, zoom, dim, ring]);
+  }, [reduced, final, zoom, zoomTarget, dim, ring]);
 
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.get() }));
   const ringStyle = useAnimatedStyle(() => {

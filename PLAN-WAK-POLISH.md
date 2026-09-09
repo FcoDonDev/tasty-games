@@ -205,7 +205,7 @@ cambia de expresión.
 - [x] Cuidar que `test-lose` siga verde (tiempos del overlay final).
 - [x] Verificar fase: typecheck → test → e2e.
 
-### Pendiente 3 — Near-death v2: slow-mo continuo + zoom progresivo (PLAN, sin aplicar)
+### Aplicado — Near-death v2: slow-mo continuo + zoom progresivo
 
 Observación del usuario: la muerte se siente muy breve — el tiempo debería
 lentificarse MIENTRAS MÁS CERCA de morir esté el jugador, y debería hacerse
@@ -249,13 +249,17 @@ Diseño propuesto (a aplicar tras aprobación):
    con el usuario sobre la constante RADIUS/MIN_SCALE.
 
 TAREAS (al aprobar):
-- [ ] `feel.ts`: reemplazar `slowMoScale` por versión continua + agregar
+- [x] `feel.ts`: reemplazar `slowMoScale` por versión continua + agregar
       `threatZoomOf(state)` (puro) + constantes.
-- [ ] Tests de curva y bordes.
-- [ ] `WakWakScreen`: shared value `threatZoom` por frame; `boardZoomStyle`
+- [x] Tests de curva y bordes.
+- [x] `WakWakScreen`: shared value `threatZoom` por frame; `boardZoomStyle`
       multiplica zoom de amenaza × zoom de clip.
-- [ ] Verificar: typecheck → test → e2e → visual en dev (amenaza real).
+- [x] Verificar: typecheck → test → e2e → visual en dev (amenaza real).
 
+RESULTADO: aplicado y verificado. Muestreo con Playwright (test-lose, 18s):
+zoom de amenaza progresivo 1.01→~1.09 a distancia de colisión (frames desde
+t≈8.5s, fase chase), handoff al clip CONTINUO (sin salto: clip parte del zoom
+vigente y anima a 1.6), y recover a 1. E2E 41/41; 325 tests.
 ### Cierre
 - [ ] Verificación completa: `pnpm typecheck` → `pnpm test` →
       `node scripts/e2e.mjs` (25/25).

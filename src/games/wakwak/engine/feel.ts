@@ -42,12 +42,29 @@ export const DEATH_FREEZE_MS = 1300;
 export const DEATH_FREEZE_FINAL_MS = 1500;
 export const DEATH_RECOVER_MS = 250;
 
-// --- Slow-mo near-death ----------------------------------------------------
+// --- Near-death: slow-mo continuo + zoom progresivo (v3, aprobado) ----------
 
-/** Radio (en celdas) al que un drone activo dispara el slow-mo (D5). */
-export const SLOWMO_RADIUS = 1.2;
-/** Escala de tiempo bajo amenaza (mitad de velocidad con rampa en el loop). */
-export const SLOWMO_SCALE = 0.5;
+/**
+ * Radio (en celdas) dentro del que un drone activo que se acerca dispara el
+ * slow-mo/zoom de muerte inminente (v3: ampliado 1.2 → 2.6 — el usuario quiere
+ * SENTIR la desaceleración antes).
+ */
+export const SLOWMO_RADIUS = 2.6;
+/**
+ * Distancia (en celdas) a la que el efecto llega a su punto máximo: más cerca
+ * de este valor no desacelera más (la colisión es ≤0.7).
+ */
+export const SLOWMO_PEAK_DISTANCE = 0.7;
+/**
+ * Escala de dt mínima (muy cerca de morir). Antes era un salto binario a 0.5;
+ * ahora la escala es CONTINUA: más cerca = más lento, hasta este mínimo.
+ */
+export const SLOWMO_MIN_SCALE = 0.35;
+/**
+ * Zoom máximo de muerte inminente (lineal en el mismo radio, solo render:
+ * shared value escrita por frame desde el loop, cero setState).
+ */
+export const THREAT_MAX_ZOOM = 1.12;
 /** Rampa de transición del factor de tiempo en el loop (ms de juego real). */
 export const SLOWMO_RAMP_MS = 200;
 
@@ -59,16 +76,47 @@ export interface Threat {
 }
 
 /**
- * Escala objetivo de dt bajo la amenaza más cercana: 0.5 si hay un drone
- * activo dentro del radio, acercándose y fuera de modo power; 1 en otro caso.
+ * Escala objetivo de dt bajo la amenaza más cercana (v3, CONTINUA): mientras
+ * más cerca esté el drone más cercano que se aproxime, más lento el tiempo —
+ * 1.0 en el borde del radio, `SLOWMO_MIN_SCALE` (0.35) a distancia de colisión.
  * El loop suaviza hacia este objetivo con la rampa (lerp temporal).
  */
 export function slowMoScale(threats: readonly Threat[], powered: boolean): number {
   if (powered) return 1;
+  let scale = 1;
   for (const threat of threats) {
-    if (threat.distance <= SLOWMO_RADIUS && threat.closing) return SLOWMO_SCALE;
+    if (!threat.closing) continue;
+    scale = Math.min(scale, scaleForDistance(threat.distance));
   }
-  return 1;
+  return scale;
+}
+
+/** Escala de tiempo para una distancia dada (1 fuera del radio; continua). */
+function scaleForDistance(distance: number): number {
+  if (distance >= SLOWMO_RADIUS) return 1;
+  if (distance <= SLOWMO_PEAK_DISTANCE) return SLOWMO_MIN_SCALE;
+  const t = (SLOWMO_RADIUS - distance) / (SLOWMO_RADIUS - SLOWMO_PEAK_DISTANCE);
+  return 1 - (1 - SLOWMO_MIN_SCALE) * t;
+}
+
+/**
+ * Zoom objetivo del tablero por muerte inminente (v3, puro): 1 fuera del
+ * radio, hasta THREAT_MAX_ZOOM a distancia de colisión — MISMA curva que el
+ * slow-mo (ambos suben juntos). Solo render: el engine no cambia.
+ * Handoff al clip de muerte: el clip anima DESDE el valor vigente.
+ */
+export function threatZoom(threats: readonly Threat[], powered: boolean): number {
+  if (powered) return 1;
+  let zoom = 1;
+  for (const threat of threats) {
+    if (!threat.closing || threat.distance >= SLOWMO_RADIUS) continue;
+    const proximity =
+      threat.distance <= SLOWMO_PEAK_DISTANCE
+        ? 1
+        : (SLOWMO_RADIUS - threat.distance) / (SLOWMO_RADIUS - SLOWMO_PEAK_DISTANCE);
+    zoom = Math.max(zoom, 1 + (THREAT_MAX_ZOOM - 1) * proximity);
+  }
+  return zoom;
 }
 
 // --- Amenazas (entrada de slowMoScale) -------------------------------------

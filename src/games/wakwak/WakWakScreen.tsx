@@ -35,6 +35,7 @@ import {
   SLOWMO_RAMP_MS,
   hitStopMs,
   slowMoScale,
+  threatZoom,
   threatsOf,
 } from './engine/feel';
 import { MAX_LEVEL } from './engine/levels';
@@ -78,6 +79,12 @@ interface DeathClip {
   x: number;
   y: number;
   final: boolean;
+  /**
+   * Zoom TOTAL al que anima el clip (1.6/1.8 dividido por el zoom de amenaza
+   * vigente al morir): el close-up CONTINÚA el zoom de muerte inminente en
+   * vez de saltar desde 1.
+   */
+  zoomTarget: number;
 }
 
 /**
@@ -133,6 +140,10 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   const zoom = useSharedValue(1);
   const deathCx = useSharedValue(0);
   const deathCy = useSharedValue(0);
+  // Muerte inminente (v3): zoom progresivo por amenaza, escrito por frame
+  // desde el loop (patrón powerFraction — cero setState); reduced motion → 1.
+  const threatZoomSV = useSharedValue(1);
+  const threatZoomRef = useRef(1);
 
   // Métricas: FPS UI thread (no-op con gate off) + sesión de resumen
   usePerfFrameMonitor('wakwak');
@@ -149,6 +160,8 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     setDeath(null);
     deathUntilRef.current = 0;
     zoom.value = 1;
+    threatZoomRef.current = 1;
+    threatZoomSV.value = 1;
     useWakWakStore.getState().reset(initialSeed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSeed]);
@@ -299,8 +312,20 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
             // close-up encuadra el SITIO de la colisión (evento `caught` lo lleva)
             deathCx.value = event.x * cellSizeRef.current;
             deathCy.value = event.y * cellSizeRef.current;
+            // Handoff del zoom (v3): congela el zoom de amenaza vigente EN el
+            // clip (threat→1, clip=withThreat → el total queda continuo) y el
+            // clip anima hacia 1.6/1.8 desde ahí — no hay salto ni re-zoom.
+            const withThreat = reduced ? 1 : threatZoomRef.current;
+            threatZoomRef.current = 1;
+            threatZoomSV.value = 1;
+            zoom.value = withThreat;
             deathUntilRef.current = performance.now() + visual + DEATH_RECOVER_MS;
-            setDeath({ x: event.x, y: event.y, final: isFinal });
+            setDeath({
+              x: event.x,
+              y: event.y,
+              final: isFinal,
+              zoomTarget: (isFinal ? 1.8 : 1.6) / withThreat,
+            });
             if (deathTimerRef.current) clearTimeout(deathTimerRef.current);
             deathTimerRef.current = setTimeout(() => {
               setDeath(null); // dim/partículas fuera…
@@ -353,11 +378,17 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
       if (!store.paused && store.game.status === 'playing') {
         // hit-stop activo: el engine no avanza (pausa visual-only, D4)
         if (!deathFrozen && hitStopUntilRef.current - now <= 0) {
-          // slow-mo near-death (D5): factor objetivo con rampa temporal
+          // near-death v3: slow-mo CONTINUO + zoom progresivo por proximidad —
+          // amenazas calculadas UNA vez; ambos objetivos con la misma rampa
           const game = store.game;
-          const target = slowMoScale(threatsOf(game), game.powerUntil !== null);
+          const powered = game.powerUntil !== null;
+          const threats = threatsOf(game);
           const k = Math.min(1, rawDt / SLOWMO_RAMP_MS);
-          slowScaleRef.current += (target - slowScaleRef.current) * k;
+          slowScaleRef.current += (slowMoScale(threats, powered) - slowScaleRef.current) * k;
+          if (!reduced) {
+            threatZoomRef.current += (threatZoom(threats, powered) - threatZoomRef.current) * k;
+            threatZoomSV.value = threatZoomRef.current;
+          }
           handleEvents(store.tick(dt * slowScaleRef.current));
         }
       }
@@ -375,7 +406,7 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [handleEvents, powerFractionSV]);
+  }, [handleEvents, powerFractionSV, reduced]);
 
   // --- teclado (PC web): flechas + WASD
   useEffect(() => {
@@ -462,9 +493,11 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     setDeath(null);
     deathUntilRef.current = 0;
     zoom.value = 1;
+    threatZoomRef.current = 1;
+    threatZoomSV.value = 1;
     setPickerOpen(false);
     useWakWakStore.getState().startRun(level);
-  }, [zoom]);
+  }, [zoom, threatZoomSV]);
 
   const restart = useCallback(() => {
     endedRef.current = false;
@@ -473,19 +506,22 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     setDeath(null);
     deathUntilRef.current = 0;
     zoom.value = 1;
+    threatZoomRef.current = 1;
+    threatZoomSV.value = 1;
     useWakWakStore.getState().reset(initialSeed);
-  }, [initialSeed, zoom]);
+  }, [initialSeed, zoom, threatZoomSV]);
 
   const boardWidth = cellSize * MAZE_COLS;
   const boardHeight = cellSize * MAZE_ROWS;
 
-  // Zoom del tablero centrado en el sitio de la colisión (F5): sin
-  // transformOrigin (soporte desigual) — translate·scale·translate inverso.
+  // Zoom del tablero centrado en el sitio de la colisión (F5) × zoom de
+  // muerte inminente (v3): sin transformOrigin (soporte desigual) —
+  // translate·scale·translate inverso.
   const boardZoomStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: deathCx.value },
       { translateY: deathCy.value },
-      { scale: zoom.value },
+      { scale: zoom.value * threatZoomSV.value },
       { translateX: -deathCx.value },
       { translateY: -deathCy.value },
     ],
@@ -507,7 +543,14 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
           <EntitiesLayer ref={entitiesRef} cellSize={cellSize} />
           <BoardBanner powerFraction={powerFractionSV} />
           {death ? (
-            <DeathFx x={death.x} y={death.y} cellSize={cellSize} final={death.final} zoom={zoom} />
+            <DeathFx
+              x={death.x}
+              y={death.y}
+              cellSize={cellSize}
+              final={death.final}
+              zoom={zoom}
+              zoomTarget={death.zoomTarget}
+            />
           ) : null}
           {popups.map((popup) => (
             <Animated.View
