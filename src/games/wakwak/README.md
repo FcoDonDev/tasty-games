@@ -28,7 +28,9 @@ original aplicado — verificar al tocar cualquier asset visual/sonoro:
 - [ ] Nombre y descripción sin referencia a la marca del original.
 - [ ] Laberinto: layout propio 19×21 (`engine/maze.ts`), validado por tests
       (conectividad, sin callejones, todo alcanzable, **sin áreas abiertas
-      3×3** — solo pasillos, regla del usuario).
+      3×3** — solo pasillos, regla del usuario; el wrap del túnel cuenta como
+      pasillo continuo en la fila 9, el validador no lo marca como falso
+      callejón).
 
 ## Estructura
 
@@ -50,6 +52,9 @@ src/games/wakwak/
   renderer/
     types.ts              # PUERTO de presentación (createWorld/present/onDirection)
     reanimated/           # ADAPTADOR A (ADR 0010): MazeLayer + EntitiesLayer
+  preview/                # SOLO DEV (ruta /wakwak-preview, ADR 0012): iteración
+                          #   de diseño (PersonajesPreview, LaberintoPreview con
+                          #   validador en vivo) sin tocar el juego activo
   __tests__/              # ~100 tests del núcleo (sin RN)
   __e2e__/                # Playwright web (test-win/test-lose/test-power/test-combo/test-level)
 ```
