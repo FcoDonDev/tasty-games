@@ -235,3 +235,16 @@ background están en `AGENTS.md`, no acá.
   análisis de flujo no cruza la closure) y `if (caught && caughtPos)` da
   `never`. Solución: acumular en un objeto mutable (`const caughtAt = {x:0,
   y:0}`) en vez de reasignar la variable.
+
+## Web / PWA (expo-router static)
+
+- **El head default de expo-router se reparte entre el template y el CLI**:
+  `@expo/router-server/build/static/html.js` solo aporta charset,
+  X-UA-Compatible, viewport y `ScrollViewStyleReset`; el `<link rel="icon">`
+  (favicon), el `<title>` y los scripts de entrada los inyecta el CLI/router
+  por fuera del template. Un `app/+html.tsx` propio no los pierde ni los
+  duplica — verificar comparando el head del `dist/index.html` antes/después
+  de agregarlo.
+- **apple-touch-icon sin transparencia**: iOS aplasta los PNG con alpha a
+  negro al usarlo como icono de home. Aplanar sobre el fondo de marca
+  (#0F172A) y exportar en RGB (PIL: `convert('RGB')` tras paste).

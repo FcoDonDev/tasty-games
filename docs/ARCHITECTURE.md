@@ -124,6 +124,10 @@ atrás si hay stack; si la pantalla se abrió directo (deep link/recarga), hace
   recargar `/juego/<id>` da 404), cache inmutable para `/_expo/static/` y
   `/assets/`, gzip. Cloud Build conectado al repo: push → build → Cloud Run.
 - El export productivo **no** define `EXPO_PUBLIC_E2E` (ADR 0006).
+- PWA instalable: `public/` (manifest + iconos) se copia a la raíz de `dist/`
+  por el export; `app/+html.tsx` agrega el `<link rel="manifest">` y metas
+  Apple/Chrome. Sin Service Worker por decisión (ADR 0013); nginx no necesita
+  config extra (los archivos PWA viven en la raíz).
 
 ## Documentación relacionada
 

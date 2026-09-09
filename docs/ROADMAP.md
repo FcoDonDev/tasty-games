@@ -80,6 +80,17 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
 
 ## Deudas técnicas conocidas
 
+- [ ] **Personalizar los iconos PWA**: hoy son escalados de
+      `assets/images/icon.png` ([ADR 0013](adr/0013-pwa-instalable-sin-service-worker.md));
+      diseñar el set propio (192/512, maskable, apple-touch-icon 180×180) y
+      regenerar `public/`.
+- [ ] **Offline vía Service Worker** (solo si aparece el caso de uso real):
+      SW mínimo network-first + skipWaiting + auto-reload, integrado al export
+      de forma deliberada — ver [ADR 0013](adr/0013-pwa-instalable-sin-service-worker.md)
+      por qué se omitió (riesgo de cache-stale contra el flujo e2e).
+- [ ] **`viewport-fit=cover` + safe-areas iOS**: el default (sin safe-areas)
+      funciona; sumarlo solo probándolo con notch real en device (diferido de
+      PLAN-PWA).
 - [ ] **Landscape sin adaptar en damas/memorice**: el patrón existe
       ([ADR 0009](adr/0009-landscape-movil-por-juego.md): `supportsLandscape` +
       `useLandscapeMobile` + `GameHeader variant="vertical"`); ambos juegos
