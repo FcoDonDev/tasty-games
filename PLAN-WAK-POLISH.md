@@ -288,6 +288,9 @@ vigente y anima a 1.6), y recover a 1. E2E 41/41; 325 tests.
    y hexágono "macizo" — top face más bajo (0.15s), franja media más alta
    (0.32s), taper inferior largo (0.30s) + punta redonda, asas más grandes.
    Aspiradora APROBADA por el usuario.
+   Ajuste v3 (feedback usuario): cuerpo de los drones CUADRADO redondeado
+   (rect 0.96×0.70s, radio 0.15s, banda de luz superior recortada) en vez del
+   hexágono — mantiene capucha, asas, visor y expresiones.
 
 NUEVO REQUERIMIENTO del usuario (verificación en dev server):
 

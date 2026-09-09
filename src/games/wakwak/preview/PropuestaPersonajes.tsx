@@ -99,74 +99,49 @@ function Ojos({ variant, s }: { variant: number; s: number }) {
   }
 }
 
-/** Drone hexagonal de la propuesta: cuerpo macizo 3 caras + asas + capucha. */
+/** Drone de la propuesta: cuerpo CUADRADO redondeado + asas + capucha + visor. */
 export function DroneHexFig({ variant, size }: { variant: number; size: number }) {
   const t = TUNE[variant];
   const wobbleStyle = useWobble(variant);
   const s = size;
-  const headW = s * 0.96;
-  const topH = s * 0.15;
-  const midH = s * 0.32;
-  const botH = s * 0.3;
-  const earW = s * 0.14;
+  const bodyW = s * 0.96;
+  const bodyH = s * 0.7;
+  const bodyTop = s * 0.16;
   const earH = s * 0.2;
   return (
-    <View style={{ width: s, height: s, alignItems: 'center' }}>
-      {/* capucha (aleta superior) apoyada en el borde superior del cuerpo */}
-      <View style={{ position: 'absolute', top: 0, width: s * 0.34, height: s * 0.14, alignItems: 'center' }}>
+    <View style={{ width: s, height: s }}>
+      {/* capucha (aleta superior) apoyada en el borde del cuerpo */}
+      <View style={{ position: 'absolute', top: 0, left: (s - s * 0.34) / 2, width: s * 0.34, height: s * 0.16, alignItems: 'center' }}>
         <View
           style={{
             width: 0,
             height: 0,
             borderLeftWidth: s * 0.17,
             borderRightWidth: s * 0.17,
-            borderBottomWidth: s * 0.14,
+            borderBottomWidth: s * 0.15,
             borderLeftColor: 'transparent',
             borderRightColor: 'transparent',
             borderBottomColor: t.dark,
           }}
         />
-        <View style={{ position: 'absolute', top: s * 0.045, width: s * 0.04, height: s * 0.07, borderRadius: s * 0.02, backgroundColor: VISOR, opacity: 0.55 }} />
+        <View style={{ position: 'absolute', top: s * 0.05, width: s * 0.04, height: s * 0.07, borderRadius: s * 0.02, backgroundColor: VISOR, opacity: 0.55 }} />
       </View>
-      <Animated.View style={[{ position: 'absolute', top: s * 0.13, width: headW }, wobbleStyle]}>
-        {/* cara superior (luz): trapecio ancho, base = cuerpo completo */}
-        <View
-          style={{
-            width: headW * 0.6,
-            height: 0,
-            borderLeftWidth: headW * 0.2,
-            borderRightWidth: headW * 0.2,
-            borderBottomWidth: topH,
-            borderLeftColor: 'transparent',
-            borderRightColor: 'transparent',
-            borderBottomColor: t.light,
-          }}
-        />
-        {/* franja media: asas + visor */}
-        <View style={{ width: headW, height: midH, backgroundColor: t.body }}>
-          <View style={{ position: 'absolute', left: -s * 0.06, top: (midH - earH) / 2, width: earW, height: earH, borderRadius: s * 0.06, backgroundColor: t.dark }} />
-          <View style={{ position: 'absolute', right: -s * 0.06, top: (midH - earH) / 2, width: earW, height: earH, borderRadius: s * 0.06, backgroundColor: t.dark }} />
-          <View style={{ position: 'absolute', left: (headW - s * 0.68) / 2, top: (midH - s * 0.26) / 2, width: s * 0.68, height: s * 0.26, borderRadius: s * 0.13, backgroundColor: VISOR, alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.View style={[{ position: 'absolute', top: 0, left: 0, width: s, height: s }, wobbleStyle]}>
+        {/* asas fuera del cuerpo (a la altura media) */}
+        <View style={{ position: 'absolute', left: -s * 0.055, top: bodyTop + (bodyH - earH) / 2, width: s * 0.14, height: earH, borderRadius: s * 0.06, backgroundColor: t.dark }} />
+        <View style={{ position: 'absolute', right: -s * 0.055, top: bodyTop + (bodyH - earH) / 2, width: s * 0.14, height: earH, borderRadius: s * 0.06, backgroundColor: t.dark }} />
+        {/* cuerpo cuadrado redondeado, recortado adentro */}
+        <View style={{ position: 'absolute', top: bodyTop, left: (s - bodyW) / 2, width: bodyW, height: bodyH, borderRadius: s * 0.15, backgroundColor: t.body, overflow: 'hidden' }}>
+          {/* cara superior (luz): banda con borde inferior redondeado */}
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: s * 0.24, backgroundColor: t.light, borderBottomLeftRadius: s * 0.12, borderBottomRightRadius: s * 0.12 }} />
+          {/* visor */}
+          <View style={{ position: 'absolute', left: (bodyW - s * 0.68) / 2, top: s * 0.32, width: s * 0.68, height: s * 0.26, borderRadius: s * 0.13, backgroundColor: VISOR, alignItems: 'center', justifyContent: 'center' }}>
             <Ojos variant={variant} s={s} />
           </View>
         </View>
-        {/* punta inferior: taper largo + punta redondeada */}
-        <View
-          style={{
-            width: 0,
-            height: 0,
-            borderLeftWidth: headW / 2,
-            borderRightWidth: headW / 2,
-            borderTopWidth: botH,
-            borderLeftColor: 'transparent',
-            borderRightColor: 'transparent',
-            borderTopColor: t.body,
-          }}
-        />
-        <View style={{ position: 'absolute', bottom: -s * 0.045, left: (headW - s * 0.16) / 2, width: s * 0.16, height: s * 0.16, borderRadius: s * 0.08, backgroundColor: t.body }} />
         {/* Tímido: marcas de susto arriba a la derecha (fuera del cuerpo) */}
         {variant === 3 ? (
-          <View style={{ position: 'absolute', right: -s * 0.02, top: -s * 0.06, width: s * 0.2, height: s * 0.14 }}>
+          <View style={{ position: 'absolute', right: -s * 0.02, top: s * 0.04, width: s * 0.2, height: s * 0.14 }}>
             <View style={{ position: 'absolute', right: s * 0.06, top: 0, width: s * 0.11, height: s * 0.03, borderRadius: s * 0.015, backgroundColor: t.light, transform: [{ rotate: '-38deg' }] }} />
             <View style={{ position: 'absolute', right: 0, top: s * 0.055, width: s * 0.09, height: s * 0.03, borderRadius: s * 0.015, backgroundColor: t.light, transform: [{ rotate: '-72deg' }] }} />
           </View>
