@@ -137,6 +137,27 @@ describe('maze: pines del layout (sentinels E2E, IA, chip)', () => {
     expect(MAZE.batteryCells).not.toContain(BONUS_CELL);
     expect(MAZE.superCells).not.toContain(BONUS_CELL);
   });
+  it('sin áreas abiertas 3×3 (regla del usuario: solo pasillos)', () => {
+    // cualquier ventana 3×3 debe tener al menos un muro (o celda no robot)
+    const violaciones: string[] = [];
+    for (let row = 0; row + 2 < MAZE_ROWS; row++) {
+      for (let col = 0; col + 2 < MAZE_COLS; col++) {
+        let allPath = true;
+        for (let dr = 0; dr < 3 && allPath; dr++) {
+          for (let dc = 0; dc < 3; dc++) {
+            const index = toIndex(row + dr, col + dc);
+            if (MAZE.grid[index] !== 'path' || isCorralCell(index)) {
+              allPath = false;
+              break;
+            }
+          }
+        }
+        if (allPath) violaciones.push(`(${row},${col})`);
+      }
+    }
+    expect(violaciones).toEqual([]);
+  });
+
 });
 
 describe('maze: utilidades', () => {

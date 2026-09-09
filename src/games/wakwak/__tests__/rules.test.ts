@@ -110,29 +110,29 @@ describe('rules: movimiento del robot', () => {
   });
 
   it('buffer: en la intersección el input MÁS NUEVO tiene prioridad', () => {
-    // (18,2) es cruce de 4: desde (18,1) yendo a la derecha, "down" y "up"
+    // (3,4) es cruce de 4: desde (3,3) yendo a la derecha, "down" y "up"
     // son viables al llegar. FIFO giraría abajo; el nuevo manda → gira arriba.
     const base = playingGame();
     const state: GameState = {
       ...base,
-      robot: { cell: toIndex(18, 1), dir: 'right', progress: 0.95, queued: ['down', 'up'] },
+      robot: { cell: toIndex(3, 3), dir: 'right', progress: 0.95, queued: ['down', 'up'] },
     };
     const { state: after } = run(state, 1);
-    expect(after.robot.cell).toBe(toIndex(18, 2));
+    expect(after.robot.cell).toBe(toIndex(3, 4));
     expect(after.robot.dir).toBe('up');
     expect(after.robot.queued).toEqual([]); // aplicar limpia el buffer completo
   });
 
   it('buffer: el más nuevo NO viable cae al viejo (fallback)', () => {
-    // mismo cruce (18,2), pero el más nuevo ("up") encolado primero y el
+    // mismo cruce (3,4), pero el más nuevo ("up") encolado primero y el
     // viejo ("down") después: el orden del array manda, no la viableidad
     const base = playingGame();
     const state: GameState = {
       ...base,
-      robot: { cell: toIndex(18, 1), dir: 'right', progress: 0.95, queued: ['up', 'down'] },
+      robot: { cell: toIndex(3, 3), dir: 'right', progress: 0.95, queued: ['up', 'down'] },
     };
     const { state: after } = run(state, 1);
-    expect(after.robot.cell).toBe(toIndex(18, 2));
+    expect(after.robot.cell).toBe(toIndex(3, 4));
     expect(after.robot.dir).toBe('down');
   });
 

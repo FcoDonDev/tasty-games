@@ -1,14 +1,9 @@
 /**
- * Layout CANDIDATO para iterar en el preview (PLAN-WAK-POLISH F4-iteración).
- * NO está activo en el juego: `maze.ts` sigue sirviendo el LAYOUT v2. Cuando
- * el diseño cierre con el usuario, este layout reemplaza el LAYOUT, se
- * agregan los tests de invariantes (incluida la regla NO 3×3) y se verifica
- * el E2E completo.
- *
- * Base: layout v1 (pasillos) + sección inferior reconstruida como corredores
- * (el v1 y el v2 tenían 3×3 abiertos en filas 17-19). Pines conservados:
- * fila 15 corredor del spawn, corral 8-10, esquinas scatter, (11,9) chip.
- * Validador: `validateLayout` debe devolver [] para este layout.
+ * Layout v3 "solo pasillos" (PLAN-WAK-POLISH F4-iteración): APROBADO por el
+ * usuario en el preview y APLICADO como LAYOUT activo en `engine/maze.ts`
+ * (con tests de invariantes, incluida la regla NO 3×3). El preview sigue
+ * mostrando esta constante como referencia junto al ACTIVO (ahora idénticos);
+ * sirve como base para futuras iteraciones.
  */
 export const LAB_CANDIDATO: readonly string[] = [
   '###################',

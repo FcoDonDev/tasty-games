@@ -26,7 +26,8 @@ original aplicado — verificar al tocar cualquier asset visual/sonoro:
 - [ ] Audio: blips/golpes sintetizados propios; sin waka-waka, sirena ni jingle.
 - [ ] Nombre y descripción sin referencia a la marca del original.
 - [ ] Laberinto: layout propio 19×21 (`engine/maze.ts`), validado por tests
-      (conectividad, sin callejones, todo alcanzable).
+      (conectividad, sin callejones, todo alcanzable, **sin áreas abiertas
+      3×3** — solo pasillos, regla del usuario).
 
 ## Estructura
 

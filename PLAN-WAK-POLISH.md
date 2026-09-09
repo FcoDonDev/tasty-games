@@ -205,6 +205,57 @@ cambia de expresión.
 - [x] Cuidar que `test-lose` siga verde (tiempos del overlay final).
 - [x] Verificar fase: typecheck → test → e2e.
 
+### Pendiente 3 — Near-death v2: slow-mo continuo + zoom progresivo (PLAN, sin aplicar)
+
+Observación del usuario: la muerte se siente muy breve — el tiempo debería
+lentificarse MIENTRAS MÁS CERCA de morir esté el jugador, y debería hacerse
+un zoom gradual ante muerte inminente. La explosión al morir queda como está.
+
+Estado actual (v2 D5, `engine/feel.ts`):
+- `slowMoScale(threats, powered)`: ESCALONADO — 0.5 si hay drone activo a
+  ≤1.2 celdas acercándose; 1 si no. El salto es breve y vuelve a 1 apenas el
+  drone recula → "muy breve" (diagnóstico correcto).
+- La rampa del loop (SLOWMO_RAMP_MS 200) suaviza el paso, pero el objetivo
+  binario hace el efecto on/off.
+- Sin zoom de amenaza (el zoom solo existe en el clip de muerte).
+
+Diseño propuesto (a aplicar tras aprobación):
+
+1. **Slow-mo CONTINUO por proximidad** (`feel.ts`, puro):
+   - Radio mayor: `SLOWMO_RADIUS` 1.2 → ~2.6 celdas.
+   - Escala continua monótona: `d ≥ R` → 1; `d ≤ 0.7` → `SLOWMO_MIN (0.35)`;
+     entre medio, interpolación lineal (más cerca = más lento). Requiere
+     `closing` como hoy; powered → 1.
+   - La amenaza más cercana manda (min de escalas).
+   - Parámetros tunables: RADIUS, MIN_SCALE, distancia de colisión (0.7).
+2. **Zoom progresivo de amenaza** (solo render, engine intacto):
+   - `threatZoom(distance)` puro: 1.0 (lejos) → ~1.10-1.12 (a punto de morir),
+     lineal en el mismo radio; powered → 1.
+   - Shared value `threatZoom` escrita por frame desde el loop (patrón
+     `powerFractionSV` — cero setState por frame) y multiplicada en
+     `boardZoomStyle` junto al zoom del clip.
+   - **Handoff al clip de muerte**: el clip anima hacia 1.6/1.8 DESDE el zoom
+     vigente (con amenaza cercana ~1.10 — el close-up continúa el zoom, no
+     salta); en el recover el clip devuelve el zoom a 1.
+   - Reduced motion: sin zoom de amenaza (el slow-mo se conserva: es dt, no
+     animación).
+3. **Tests** (`feel.test.ts`): curva monótona (más cerca → menor escala/zoom),
+   bordes (d=R → 1; d≤0.7 → min), closing=false → 1, powered → 1, zoom range.
+4. **E2E**: riesgo bajo — el zoom solo aparece con amenaza activa cercana;
+   los specs miden movimiento con drones aún en corral. Verificación completa
+   de rigor.
+5. **Notas de design**: el slow-mo más frecuente alarga la partida en tiempo
+   REAL (no en tiempo de juego) — desviación ya aceptada en D5. Tuning final
+   con el usuario sobre la constante RADIUS/MIN_SCALE.
+
+TAREAS (al aprobar):
+- [ ] `feel.ts`: reemplazar `slowMoScale` por versión continua + agregar
+      `threatZoomOf(state)` (puro) + constantes.
+- [ ] Tests de curva y bordes.
+- [ ] `WakWakScreen`: shared value `threatZoom` por frame; `boardZoomStyle`
+      multiplica zoom de amenaza × zoom de clip.
+- [ ] Verificar: typecheck → test → e2e → visual en dev (amenaza real).
+
 ### Cierre
 - [ ] Verificación completa: `pnpm typecheck` → `pnpm test` →
       `node scripts/e2e.mjs` (25/25).

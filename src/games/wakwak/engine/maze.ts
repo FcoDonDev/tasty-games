@@ -36,8 +36,10 @@ export function oppositeDirection(dir: Direction): Direction {
 }
 
 /**
- * Layout propio (PLAN-WAK-POLISH F4): topología v2 con más cruces de 4 vías
- * (26 vs 20 del v1) y filas largas de velocidad. Pines conservados a propósito
+ * Layout propio v3 (PLAN-WAK-POLISH F4, aprobado por el usuario en la
+ * iteración del preview): SOLO PASILLOS — sin áreas abiertas 3×3 (regla del
+ * usuario, candada en maze.test.ts). Más íntimo que el v2 (6 cruces de 4 vías
+ * vs 26) y con menos baterías (175 vs 207). Pines conservados a propósito
  * (candeados en maze.test.ts):
  *   - fila 15 = corredor del spawn (c4..c14, topes c3/c15): los seeds
  *     sentinelas E2E (seed.ts) usan esas celdas y NO cambian;
@@ -45,28 +47,28 @@ export function oppositeDirection(dir: Direction): Direction {
  *   - esquinas (1,1),(1,17),(19,1),(19,17) = targets scatter de ai.ts;
  *   - (11,9) = camino SIN batería (' ') = BONUS_CELL (rules.ts).
  * Invariantes estructurales: conectividad total, sin callejones (≥2 salidas),
- * una sola fila de túnel, corral sellado, 4 súper ('o').
+ * una sola fila de túnel, corral sellado, 4 súper ('o'), sin 3×3 abiertos.
  */
 export const LAYOUT: readonly string[] = [
   '###################',
   '#o.......#.......o#',
-  '#.##.##..#..##.##.#',
+  '#.##.###.#.###.##.#',
   '#.................#',
-  '#...##...#...##...#',
+  '#.##.####.####.##.#',
   '#......#...#......#',
-  '#.##.#.##.##.#.##.#',
-  '#.................#',
+  '####.#.#.#.#.#.####',
+  '####.#.......#.####',
   '####.####-####.####',
   '.....##DD DD##.....',
   '####.#########.####',
   '####.#... ...#.####',
   '####.#.#####.#.####',
-  '#.................#',
-  '#.##.#..#.#..#.##.#',
+  '#........#........#',
+  '#.##.###.#.###.##.#',
   '#o.#.....R.....#.o#',
   '##.#.#.#####.#.#.##',
-  '#........#........#',
   '#....#...#...#....#',
+  '#.##.###.#.###.##.#',
   '#.................#',
   '###################',
 ];
