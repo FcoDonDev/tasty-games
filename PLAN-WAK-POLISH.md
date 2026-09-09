@@ -123,15 +123,15 @@ cambia de expresión.
 ## Checklist de tareas (orden de ejecución)
 
 ### Fase 1 — Mensajes de combo/booster sobre el tablero (S, ~0.5h)
-- [ ] Nuevo `components/BoardBanner.tsx`: banner flotante centrado sobre el
+- [x] Nuevo `components/BoardBanner.tsx`: banner flotante centrado sobre el
       tablero (~20% superior) para `⚡ COMBO ×N` (pop con spring por eslabón,
       re-monta por `key={chain}`) y `SÚPER CARGA` con barra de tiempo restante.
-- [ ] La barra usa `powerFraction` vía shared value escrita desde el loop
+- [x] La barra usa `powerFraction` vía shared value escrita desde el loop
       (patrón present, sin setState por frame; hallazgo 8).
-- [ ] `Hud.tsx`: dejar solo score/vidas/nivel (quitar combo y power).
-- [ ] Conservar labels (`wakwak-combo`, etc.) en los nuevos elementos.
-- [ ] Reduced motion: solo FadeIn/FadeOut (sin transforms).
-- [ ] Verificar fase: typecheck → test → e2e.
+- [x] `Hud.tsx`: dejar solo score/vidas/nivel (quitar combo y power).
+- [x] Conservar labels (`wakwak-combo`, etc.) en los nuevos elementos.
+- [x] Reduced motion: solo FadeIn/FadeOut (sin transforms).
+- [x] Verificar fase: typecheck → test → e2e.
 
 ### Fase 2 — Maniobrabilidad (S-M, ~1.5h)
 - [ ] Buffer de 2 direcciones CON PRIORIDAD AL NUEVO (hallazgo 4):

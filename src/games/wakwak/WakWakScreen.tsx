@@ -21,6 +21,7 @@ import { soundCombo, soundGameWin, soundHit, soundPickup, soundPowerUp } from '@
 import { useContainerSize } from '@/core/ui/useContainerSize';
 import type { GameScreenProps } from '@/core/types';
 import { ControlSettingsButton, ControlSettingsModal, type ControlMode } from './components/ControlSettings';
+import { BoardBanner } from './components/BoardBanner';
 import { Hud } from './components/Hud';
 import { LevelInterstitial } from './components/LevelInterstitial';
 import { LevelPicker } from './components/LevelPicker';
@@ -290,6 +291,9 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   );
 
   // --- loop del juego (adaptador A): rAF + tick + present + feel (D4/D5)
+  /** Fracción restante del power (0..1) para la barra del BoardBanner:
+   * escrita por frame desde el loop, sin setState (PLAN-WAK-POLISH F1). */
+  const powerFractionSV = useSharedValue(0);
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
@@ -309,14 +313,16 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
           handleEvents(store.tick(dt * slowScaleRef.current));
         }
       }
-      entitiesRef.current?.present(worldSnapshot(useWakWakStore.getState().game));
+      const snapshot = worldSnapshot(useWakWakStore.getState().game);
+      entitiesRef.current?.present(snapshot);
+      powerFractionSV.value = snapshot.powerFraction;
       // Métrica de jank del loop (JS thread): dt crudo por encima del presupuesto
       if (rawDt > STALL_BUDGET_MS) perfJsStall('wakwak', rawDt);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [handleEvents]);
+  }, [handleEvents, powerFractionSV]);
 
   // --- teclado (PC web): flechas + WASD
   useEffect(() => {
@@ -428,6 +434,7 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
             bonusActive={bonusActive}
           />
           <EntitiesLayer ref={entitiesRef} cellSize={cellSize} />
+          <BoardBanner powerFraction={powerFractionSV} />
           {popups.map((popup) => (
             <Animated.View
               key={popup.id}
