@@ -1,4 +1,7 @@
 import {
+  DEATH_FREEZE_FINAL_MS,
+  DEATH_FREEZE_MS,
+  DEATH_RECOVER_MS,
   HITSTOP_BASE_MS,
   HITSTOP_MAX_MS,
   HITSTOP_STEP_MS,
@@ -25,6 +28,14 @@ describe('feel: hit-stop paramétrico (D4)', () => {
     expect(hitStopMs(0)).toBe(60); // cadena inválida → eslabón 1
     expect(hitStopMs(-4)).toBe(60);
     expect(hitStopMs(2.9)).toBe(85); // floor a eslabón 2
+  });
+});
+
+describe('feel: secuencia de muerte (F5)', () => {
+  it('constantes del clip: visual < visual+recover; derrota final más larga', () => {
+    expect(DEATH_FREEZE_MS).toBeGreaterThan(0);
+    expect(DEATH_FREEZE_FINAL_MS).toBeGreaterThan(DEATH_FREEZE_MS);
+    expect(DEATH_RECOVER_MS).toBeGreaterThan(0);
   });
 });
 

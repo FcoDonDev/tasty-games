@@ -188,22 +188,22 @@ cambia de expresión.
       `test-lose`/`test-power`/`test-combo`).
 
 ### Fase 5 — Muerte dramática: close-up + explosión (M, ~2h)
-- [ ] Extender evento `caught` con posición de colisión `{x, y}` (hallazgo 1)
+- [x] Extender evento `caught` con posición de colisión `{x, y}` (hallazgo 1)
       — puro, determinista, con test.
-- [ ] Nuevo `renderer/reanimated/DeathFx.tsx`: al `caught` → congelar tick
+- [x] Nuevo `renderer/reanimated/DeathFx.tsx`: al `caught` → congelar tick
       ~900ms visual-only (extender patrón hit-stop de `feel.ts`, única
       instancia, respetar guard de pausa) Y congelar present (última pose,
       hallazgo 2); zoom del tablero ~1.6× centrado en la POSICIÓN DE COLISIÓN;
       dim overlay; explosión de ~10 partículas (burst radial, UI thread);
       luego respawn normal.
-- [ ] Secuencia con el overlay final: `endRun` en derrota encadena su timer al
+- [x] Secuencia con el overlay final: `endRun` en derrota encadena su timer al
       fin del clip (hallazgo 3); caught con vidas restantes sigue el flujo
       normal (respawn + releaseAt).
-- [ ] Reduced motion: solo flash + fade (sin zoom ni partículas).
-- [ ] Sonido: `hit` con playback rate ~0.7 (pitch grave) como primer intento;
+- [x] Reduced motion: solo flash + fade (sin zoom ni partículas).
+- [x] Sonido: `hit` con playback rate ~0.7 (pitch grave) como primer intento;
       si no convence, `explosion.wav` sintetizado propio (decisión abierta).
-- [ ] Cuidar que `test-lose` siga verde (tiempos del overlay final).
-- [ ] Verificar fase: typecheck → test → e2e.
+- [x] Cuidar que `test-lose` siga verde (tiempos del overlay final).
+- [x] Verificar fase: typecheck → test → e2e.
 
 ### Cierre
 - [ ] Verificación completa: `pnpm typecheck` → `pnpm test` →
@@ -221,6 +221,24 @@ cambia de expresión.
 - `powerFraction` viaja por `useSharedValue` creada en WakWakScreen y escrita
   en el frame del loop (`snapshot.powerFraction`); BoardBanner la consume con
   `useAnimatedStyle` → cero setState por frame. Verificado E2E test-power.
+
+### F5
+- BUG de origen del zoom encontrado en la verificación visual: RN aplica
+  transforms alrededor del CENTRO del elemento; la compensación manual
+  translate·scale·translate⁻¹ asume origen (0,0) → doble compensación
+  desplazaba el tablero. Fix: `transformOrigin: '0 0'` en styles.board.
+  Candidato a GOTCHAS (lección reproducible RN/RNW).
+- La posición del `caught` se captura en un objeto mutable (caughtAt): TS
+  estrecha un `let` asignado solo dentro de un callback a `never` en el uso.
+  Candidato a GOTCHAS (TypeScript).
+- Sonido: player propio `explosion` reutilizando hit.wav con rate 0.7 (el
+  rate NO debe mutar el player compartido de soundHit). Test de
+  primeAudioPlayers actualizado 7→8 sonidos.
+- Timeline candado: visual (900/1100ms) → desmonte de DeathFx + zoom de
+  vuelta (200ms, present sigue congelado) → unfreeze → (derrota) overlay a
+  visual+recover+300. test-lose verde con los tres tiempos.
+- Verificación visual del clip hecha con seed=test-lose + polling del
+  transform del tablero (espera activa del close-up); screenshots borrados.
 
 ### F4
 - HALLAZGO CLAVE: los sentinelas E2E NO necesitaron cambios — el nuevo layout

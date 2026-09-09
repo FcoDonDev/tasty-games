@@ -272,6 +272,16 @@ describe('rules: colisiones, power y vidas', () => {
     for (const drone of after.drones) expect(drone.mode).toBe('waiting');
   });
 
+  it('evento caught lleva la posición de colisión (close-up F5): coincide con floatPos pre-reset', () => {
+    const crafted = droneOnRobot(false);
+    const expected = floatPos(crafted.robot, false); // robot idle: centro del spawn
+    const { events } = run(crafted, 5);
+    const caught = events.find((e): e is Extract<GameEvent, { type: 'caught' }> => e.type === 'caught');
+    expect(caught).toBeDefined();
+    expect(caught!.x).toBeCloseTo(expected.x, 5);
+    expect(caught!.y).toBeCloseTo(expected.y, 5);
+  });
+
   it('con power: el robot come al drone, suma puntos y este reaparece luego', () => {
     const { state: after, events } = run(droneOnRobot(true), 5);
     expect(typeNames(events)).toContain('droneEaten');

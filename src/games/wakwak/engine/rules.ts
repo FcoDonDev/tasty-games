@@ -130,7 +130,7 @@ export type GameEvent =
   | { type: 'battery' }
   | { type: 'super' }
   | { type: 'droneEaten'; id: number; chain: number; points: number }
-  | { type: 'caught' }
+  | { type: 'caught'; x: number; y: number }
   | { type: 'bonusSpawn' }
   | { type: 'bonusTaken' }
   | { type: 'bonusExpired' }
@@ -524,11 +524,13 @@ function step(state: GameState, dtMs: number): StepResult {
   // --- colisiones (varios drones pueden caer el mismo tick; UN evento por drone)
   let lives = state.lives;
   let caught = false;
+  const caughtAt = { x: 0, y: 0 }; // sitio de la colisión (el close-up encuadra acá)
   let bestChain = state.bestChain;
+  const robotPosNow = floatPos(robot, false);
   const finalDrones = newDrones.map((drone) => {
     if (caught) return drone;
     if (drone.mode !== 'roaming' && drone.mode !== 'exiting') return drone;
-    const robotPos = floatPos(robot, false);
+    const robotPos = robotPosNow;
     const dronePos = floatPos(drone, drone.mode === 'exiting');
     if (wrappedDistance(robotPos, dronePos) > 0.7) return drone;
     if (powerMode) {
@@ -546,10 +548,14 @@ function step(state: GameState, dtMs: number): StepResult {
       };
     }
     caught = true;
+    caughtAt.x = robotPos.x;
+    caughtAt.y = robotPos.y;
     return drone;
   });
   if (caught) {
-    events.push({ type: 'caught' });
+    // posición de colisión en el evento: el engine resetea posiciones al
+    // regresar, el present del close-up necesita el PUNTO exacto (hallazgo 1)
+    events.push({ type: 'caught', x: caughtAt.x, y: caughtAt.y });
     lives -= 1;
     chain = 0; // el combo muere con la vida (D3)
   }

@@ -26,6 +26,21 @@ export function hitStopMs(chain: number): number {
 
 // --- Slow-mo near-death ----------------------------------------------------
 
+// --- Secuencia de muerte (PLAN-WAK-POLISH F5) ------------------------------
+
+/**
+ * Duración del mini-clip de destrucción del robot (visual-only: congela el dt
+ * del loop igual que el hit-stop, única instancia). La derrota definitiva usa
+ * la versión extendida. Tras el clip, RECOVER_MS anima el zoom de vuelta
+ * (present sigue congelado durante el recover para que el respawn no se vea
+ * teletransportar a mitad del zoom).
+ */
+export const DEATH_FREEZE_MS = 900;
+export const DEATH_FREEZE_FINAL_MS = 1100;
+export const DEATH_RECOVER_MS = 200;
+
+// --- Slow-mo near-death ----------------------------------------------------
+
 /** Radio (en celdas) al que un drone activo dispara el slow-mo (D5). */
 export const SLOWMO_RADIUS = 1.2;
 /** Escala de tiempo bajo amenaza (mitad de velocidad con rampa en el loop). */
