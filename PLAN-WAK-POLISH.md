@@ -149,19 +149,19 @@ cambia de expresión.
 - [x] Verificar fase: typecheck → test → e2e.
 
 ### Fase 3 — Personalidad de personajes (M, ~2h)
-- [ ] Pasar `dir` en `EntityFrame` (desde `worldSnapshot`).
-- [ ] Rotación del robot con guard por cambio de dir (hallazgo 9): withTiming
+- [x] Pasar `dir` en `EntityFrame` (desde `worldSnapshot`).
+- [x] Rotación del robot con guard por cambio de dir (hallazgo 9): withTiming
       90° solo al cambiar; franja del cepillo apunta hacia donde va; luz de
       antena que cambia al powered.
-- [ ] Drones: accesorio por personalidad — Cazador (0) = antena spike,
+- [x] Drones: accesorio por personalidad — Cazador (0) = antena spike,
       Emboscador (1) = platillo/radar, Caprichoso (2) = hélice, Tímido (3) =
       domo; wobble con frecuencia/amplitud propia por drone (params del idle
       loop existente); LED con patrón distinto (punto/anillo/estrella/línea).
-- [ ] Tamaños de drone ±10% máx respecto del actual (scale 0.62) — hitbox
+- [x] Tamaños de drone ±10% máx respecto del actual (scale 0.62) — hitbox
       percibida vs colisión por distancia (hallazgo 9).
-- [ ] Actualizar checklist legal del README (si cambia alguna expresión).
-- [ ] Verificación visual 360×640 (screenshots se borran al terminar).
-- [ ] Verificar fase: typecheck → test → e2e.
+- [x] Actualizar checklist legal del README (si cambia alguna expresión).
+- [x] Verificación visual 360×640 (screenshots se borran al terminar).
+- [x] Verificar fase: typecheck → test → e2e.
 
 ### Fase 4 — Laberinto: topología + look + perf (M, ~2-3h)
 - [ ] Nuevo LAYOUT en `engine/maze.ts`: pasillos más variados (cruces en T,
@@ -221,6 +221,16 @@ cambia de expresión.
 - `powerFraction` viaja por `useSharedValue` creada en WakWakScreen y escrita
   en el frame del loop (`snapshot.powerFraction`); BoardBanner la consume con
   `useAnimatedStyle` → cero setState por frame. Verificado E2E test-power.
+
+### F3
+- Rotación del robot verificada en runtime: heading −90° yendo a la derecha
+  (matrix CSS del elemento). Guard lastDir evita withTiming por frame.
+- Los accesorios viven en un wrapper contra-rotado −45° anclado a la esquina
+  sup-izq local (que es el vértice visual del rombo): quedan verticales sobre
+  el drone con el tilt del wobble (±3-9°) como movimiento propio.
+- Verificación visual 360×640 hecha con export+serve+Playwright (pausa por CSS
+  para congelar entidades, zoom CSS scale(4-5) para detalle). Los screenshots
+  se borraron. HUD limpio: score/nivel/vidas sin solapes.
 
 ### F2
 - El pivote visual suavizado de la esquina se DELEGA a F3: la rotación del

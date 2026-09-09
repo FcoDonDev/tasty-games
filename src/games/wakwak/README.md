@@ -13,10 +13,12 @@ Munchkin*, 1982) concluyó que el copyright del original protege la **expresión
 puntos, power-ups, túnel, IA con personalidades, vidas). Checklist de expresión
 original aplicado — verificar al tocar cualquier asset visual/sonoro:
 
-- [ ] Protagonista: robot aspiradora (cuadrado redondeado con franja), NO círculo
-      amarillo con boca en V.
-- [ ] Enemigos: 4 drones rombo con LED central fijo, NO campanas con ojos que
-      siguen la dirección de movimiento. Colores por personalidad
+- [ ] Protagonista: robot aspiradora (cuadrado redondeado con franja que
+      apunta a su dirección + luz de antena), NO círculo amarillo con boca en V.
+- [ ] Enemigos: 4 drones rombo con LED de patrón geométrico por personalidad
+      (barra/anillo/cuadrado/línea) y accesorio propio sobre el vértice
+      (spike/platillo/hélice/domo), NO campanas con ojos que siguen la
+      dirección de movimiento. Colores por personalidad
       (naranja/violeta/celeste/rosa), no el cuarteto rojo/rosa/celeste/naranja
       del original.
 - [ ] Comida: baterías cuadradas doradas y súper batería; chip dorado como bonus.
