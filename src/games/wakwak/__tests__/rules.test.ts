@@ -90,10 +90,10 @@ describe('rules: movimiento del robot', () => {
   });
 
   it('queueDirection contra un muro queda encolada sin mover al robot', () => {
-    // sobre el spawn (f15,c9) hay muro
-    const state = queueDirection(playingGame(), 'up');
+    // bajo el spawn (f15,c9) hay muro (arriba quedó abierto con el layout v2)
+    const state = queueDirection(playingGame(), 'down');
     expect(state.robot.dir).toBeNull();
-    expect(state.robot.queued).toEqual(['up']);
+    expect(state.robot.queued).toEqual(['down']);
     const { state: after } = run(state, 30);
     expect(after.robot.cell).toBe(MAZE.robotSpawn);
   });
@@ -137,10 +137,10 @@ describe('rules: movimiento del robot', () => {
   });
 
   it('robot detenido aplica el primer viable desde el más nuevo y limpia', () => {
-    // spawn (f15,c9): "up" es muro (queda encolado); "left" es viable →
+    // spawn (f15,c9): "down" es muro (queda encolado); "left" es viable →
     // aplicado al momento, con prioridad sobre el viejo
-    const queued = queueDirection(playingGame(), 'up');
-    expect(queued.robot.queued).toEqual(['up']);
+    const queued = queueDirection(playingGame(), 'down');
+    expect(queued.robot.queued).toEqual(['down']);
     const applied = queueDirection(queued, 'left');
     expect(applied.robot.dir).toBe('left');
     expect(applied.robot.queued).toEqual([]);

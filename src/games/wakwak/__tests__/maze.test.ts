@@ -12,6 +12,8 @@ import {
   rowOf,
   toIndex,
 } from '../engine/maze';
+import { HOME_CORNERS } from '../engine/ai';
+import { BONUS_CELL } from '../engine/rules';
 
 /** Celdas transitables por el robot (path, sin corral ni puerta). */
 function robotWalkable(): number[] {
@@ -106,6 +108,34 @@ describe('maze: conectividad y sin callejones', () => {
       const exits = DIRECTIONS.filter((dir) => neighbor(cell, dir, false) >= 0).length;
       expect(exits).toBeGreaterThanOrEqual(2);
     }
+  });
+});
+
+describe('maze: pines del layout (sentinels E2E, IA, chip)', () => {
+  it('fila del spawn: corredor horizontal c4..c14 con topes c3/c15 (seeds E2E)', () => {
+    // test-win (baterías c4..c8), test-power/test-combo (súper c8, drones c4/c6)
+    // dependen de esta fila; c3/c15 son los muros que detienen al robot.
+    for (let col = 4; col <= 14; col++) {
+      expect(MAZE.grid[toIndex(15, col)]).not.toBe('wall');
+    }
+    expect(MAZE.grid[toIndex(15, 3)]).toBe('wall');
+    expect(MAZE.grid[toIndex(15, 15)]).toBe('wall');
+    expect(MAZE.robotSpawn).toBe(toIndex(15, 9));
+  });
+
+  it('esquinas scatter de ai.ts (HOME_CORNERS) transitables y sin callejón', () => {
+    for (const corner of HOME_CORNERS) {
+      expect(MAZE.grid[corner]).toBe('path');
+      const exits = DIRECTIONS.filter((dir) => neighbor(corner, dir, false) >= 0).length;
+      expect(exits).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('BONUS_CELL (11,9): camino sin batería (pickup corre cada tick en la celda)', () => {
+    expect(BONUS_CELL).toBe(toIndex(11, 9));
+    expect(MAZE.grid[BONUS_CELL]).toBe('path');
+    expect(MAZE.batteryCells).not.toContain(BONUS_CELL);
+    expect(MAZE.superCells).not.toContain(BONUS_CELL);
   });
 });
 

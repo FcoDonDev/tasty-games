@@ -164,27 +164,27 @@ cambia de expresión.
 - [x] Verificar fase: typecheck → test → e2e.
 
 ### Fase 4 — Laberinto: topología + look + perf (M, ~2-3h)
-- [ ] Nuevo LAYOUT en `engine/maze.ts`: pasillos más variados (cruces en T,
+- [x] Nuevo LAYOUT en `engine/maze.ts`: pasillos más variados (cruces en T,
       corredores asimétricos) manteniendo TODOS los invariantes de
       `maze.test.ts` (conectividad, sin callejones, túnel con wrap, corral con
       puerta, 4 spawns, borde completo salvo túnel).
-- [ ] Candar invariantes nuevas del layout (hallazgo 6): fila del spawn =
+- [x] Candar invariantes nuevas del layout (hallazgo 6): fila del spawn =
       corredor horizontal ≥6 celdas; esquinas de `HOME_CORNERS` transitables;
       `BONUS_CELL` camino sin batería. Agregar tests que canden estos
       invariantes (evitan regresiones futuras del layout).
-- [ ] Re-derivar sentinelas en `engine/seed.ts` con las celdas nuevas
+- [x] Re-derivar sentinelas en `engine/seed.ts` con las celdas nuevas
       (test-win/test-lose/test-power/test-combo) y re-verificar specs.
-- [ ] Perf: subcapa estática memoizada (muros+corral, deps `[cellSize]`) para
+- [x] Perf: subcapa estática memoizada (muros+corral, deps `[cellSize]`) para
       eliminar el re-dif por pickup (hallazgo 10). Medir con
       `EXPO_PUBLIC_PERF_METRICS=1` antes/después si hay dudas.
-- [ ] Look: muros como segmentos fusionados (runs horizontales/verticales)
+- [x] Look: muros como segmentos fusionados (runs horizontales/verticales)
       con doble borde neón (fill oscuro + edge 1px brillante; sin glow,
       hallazgo 7). Mantener API de `MazeLayer` sin cambios.
-- [ ] NO tocar `pickup()`/`includes` en engine (hallazgo 2 de perf: retorno
+- [x] NO tocar `pickup()`/`includes` en engine (hallazgo 2 de perf: retorno
       bajo, riesgo de determinismo — no-action justificada).
-- [ ] Nota de balance: velocidades (celdas/seg) intactas, pero la topología
+- [x] Nota de balance: velocidades (celdas/seg) intactas, pero la topología
       cambia la dificultad efectiva → playtest manual de niveles 1 y 8.
-- [ ] Verificar fase: typecheck → test → e2e (atención a `test-win`/
+- [x] Verificar fase: typecheck → test → e2e (atención a `test-win`/
       `test-lose`/`test-power`/`test-combo`).
 
 ### Fase 5 — Muerte dramática: close-up + explosión (M, ~2h)
@@ -221,6 +221,27 @@ cambia de expresión.
 - `powerFraction` viaja por `useSharedValue` creada en WakWakScreen y escrita
   en el frame del loop (`snapshot.powerFraction`); BoardBanner la consume con
   `useAnimatedStyle` → cero setState por frame. Verificado E2E test-power.
+
+### F4
+- HALLAZGO CLAVE: los sentinelas E2E NO necesitaron cambios — el nuevo layout
+  conserva la fila 15 (corredor del spawn c4..c14, topes c3/c15), el corral
+  (filas 8-10) y (11,9). seed.ts queda intacto. Los pines están candeados con
+  tests nuevos en maze.test.ts (bloque "pines del layout").
+- El layout se diseñó con un validador externo (réplica de los invariantes del
+  test + pines) iterando en /tmp: candidato B con 26 cruces de 4 vías (baseline
+  20) y 207 baterías (baseline 186). Filas largas abiertas (r3/r7/r13/r19) para
+  velocidad y escapadas.
+- Efecto colateral del nuevo layout: (15,9)-arriba ahora es transitable → los
+  tests que asumían "muro arriba del spawn" pasaron a "down" (state.test,
+  rules.test) y ai.test re-derivó su celda de sondeo a (13,9) (mismo perfil:
+  arriba muro, abajo/left/right abiertos).
+- MazeLayer: merge greedy de muros en rectángulos máximos (~45 Views vs ~180);
+  subcapa estática memoizada (muros+corral, deps [cellSize]) → el re-dif por
+  pickup queda reducido a las edibles. Medición formal de FPS pospuesta (el
+  bail-out de React es estructural; se puede medir con ADR 0011 si aparece
+  queja de perf).
+- Los tests de IA Documentan: con el nuevo maze, las decisiones de scatter
+  siguen válidas (esquinas transitables, candado en maze.test).
 
 ### F3
 - Rotación del robot verificada en runtime: heading −90° yendo a la derecha

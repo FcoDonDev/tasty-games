@@ -9,7 +9,7 @@ import { toIndex, type Direction } from '../engine/maze';
 
 function decision(overrides: Partial<DroneDecision>): DroneDecision {
   return {
-    cell: toIndex(3, 9), // corredor abierto: izquierda/derecha/abajo (arriba es muro)
+    cell: toIndex(13, 9), // corredor abierto: izquierda/derecha/abajo (arriba es muro)
     dir: 'left',
     robotCell: toIndex(3, 15),
     robotDir: 'left',
@@ -43,9 +43,9 @@ describe('ai: chaseTarget por personalidad', () => {
   });
 
   it('Tímido (3): persigue de lejos y huye a su esquina de cerca', () => {
-    const far = chaseTarget(decision({ personality: 3, robotCell: toIndex(15, 9) }));
-    expect(far).toBe(toIndex(15, 9)); // distancia 12 > 6
-    const near = chaseTarget(decision({ personality: 3, robotCell: toIndex(3, 12) }));
+    const far = chaseTarget(decision({ personality: 3, robotCell: toIndex(3, 9) }));
+    expect(far).toBe(toIndex(3, 9)); // distancia 10 > 6
+    const near = chaseTarget(decision({ personality: 3, robotCell: toIndex(13, 12) }));
     expect(near).toBe(HOME_CORNERS[3]);
     expect(SHY_DISTANCE).toBe(6);
   });
@@ -53,15 +53,15 @@ describe('ai: chaseTarget por personalidad', () => {
 
 describe('ai: chooseDroneDirection', () => {
   it('chase: elige el vecino euclidianamente más cercano al robot sin revertir', () => {
-    // opciones left/down (no puede revertir a right): down está diagonalmente
-    // más cerca de (3,15) → hypot(1,6) < 7
+    // opciones left/down (no puede revertir a right): left está diagonalmente
+    // más cerca de (3,15) → hypot(10,7) < hypot(11,6)
     const dir = chooseDroneDirection(decision({}));
-    expect(dir).toBe('down');
+    expect(dir).toBe('left');
   });
 
   it('no revierte aunque el target quede atrás (usa la alternativa más cercana)', () => {
     // robot justo detrás (a la derecha); debe elegir down, no right
-    const dir = chooseDroneDirection(decision({ robotCell: toIndex(3, 12) }));
+    const dir = chooseDroneDirection(decision({ robotCell: toIndex(13, 12) }));
     expect(dir).not.toBe('right');
     expect(dir).toBe('down');
   });
@@ -74,16 +74,18 @@ describe('ai: chooseDroneDirection', () => {
 
   it('power: huye maximizando la distancia al robot', () => {
     // robot a la derecha en la misma fila: left aleja más que down
-    const dir = chooseDroneDirection(decision({ powerMode: true, rng: () => 0 }));
+    const dir = chooseDroneDirection(
+      decision({ powerMode: true, rng: () => 0, robotCell: toIndex(13, 12) }),
+    );
     expect(dir).toBe('left');
   });
 
   it('Caprichoso (2): deambula al azar según el rng', () => {
     const wander = chooseDroneDirection(decision({ personality: 2, rng: () => 0.1 }));
     // rng 0.1 < 0.25 → deambula: options[0] con segundo rng 0.1 → primer candidato
-    expect(wander).toBe('down'); // DIRECTIONS orden up/down/left/right; up es muro
+    expect(wander).toBe('down'); // DIRECTIONS orden up/down/left/right: sin up (muro), sin right (reversa) → options[0]='down'
     const normal = chooseDroneDirection(decision({ personality: 2, rng: () => 0.9 }));
-    expect(normal).toBe('down'); // chase normal (mismo criterio euclidiano)
+    expect(normal).toBe('left'); // chase normal (mismo criterio euclidiano: hypot(10,7) < hypot(11,6))
   });
 
   it('es determinista dado el mismo rng', () => {
