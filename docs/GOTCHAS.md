@@ -219,3 +219,19 @@ background están en `AGENTS.md`, no acá.
   `ps -o cmd -p <pid>` — si el cmd apunta a otro worktree, NO matar el server
   (es de otra sesión): correr con `E2E_PORT=4183 node scripts/e2e.mjs`
   (el orquestador y playwright.config.ts leen la misma variable).
+
+## React Native / Reanimated (wakwak, PLAN-WAK-POLISH)
+
+- **Doble compensación del origen de transforms** — RN aplica transforms
+  alrededor del CENTRO del elemento (`transformOrigin: '50% 50%'` default). Si
+  se compensa el origen a mano (`translate(p)·scale(s)·translate(-p)`) para
+  hacer zoom sobre un punto arbitrario, hay que fijar además
+  `transformOrigin: '0 0'` en el style del elemento — si no, la compensación
+  se aplica DOS veces y el elemento se desplaza. Detectado con screenshot del
+  close-up de muerte de wakwak (el tablero aparecía desplazado a una esquina).
+- **TS estrecha a `never` un `let` asignado solo dentro de un callback** — en
+  `rules.ts`, un `let caughtPos: X | null = null` asignado dentro del callback
+  de `.map()` queda estrechado a `null` en el punto de uso posterior (el
+  análisis de flujo no cruza la closure) y `if (caught && caughtPos)` da
+  `never`. Solución: acumular en un objeto mutable (`const caughtAt = {x:0,
+  y:0}`) en vez de reasignar la variable.

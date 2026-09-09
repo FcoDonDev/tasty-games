@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { MAZE, MAZE_COLS, MAZE_ROWS, colOf, rowOf, toIndex } from '../../engine/maze';
+import { MAZE, MAZE_COLS, MAZE_ROWS, colOf, rowOf, toIndex, type MazeData } from '../../engine/maze';
 import { BONUS_CELL } from '../../engine/rules';
 
 /**
@@ -41,10 +41,10 @@ interface WallRect {
 }
 
 /** Fusión greedy de celdas-muro en rectángulos máximos (por franjas). */
-function mergeWalls(cellSize: number): WallRect[] {
+function mergeWalls(maze: MazeData, cellSize: number): WallRect[] {
   const isWall = (row: number, col: number): boolean =>
     row >= 0 && row < MAZE_ROWS && col >= 0 && col < MAZE_COLS &&
-    MAZE.grid[toIndex(row, col)] === 'wall';
+    maze.grid[toIndex(row, col)] === 'wall';
   const used = new Set<number>();
   const rects: WallRect[] = [];
   for (let row = 0; row < MAZE_ROWS; row++) {
@@ -75,9 +75,19 @@ function mergeWalls(cellSize: number): WallRect[] {
   return rects;
 }
 
-/** Subcapa estática: muros fusionados + fondo del corral. deps [cellSize]. */
-const StaticLayer = memo(function StaticLayer({ cellSize }: { cellSize: number }) {
-  const rects = useMemo(() => mergeWalls(cellSize), [cellSize]);
+/**
+ * Subcapa estática de un laberinto (muros fusionados + fondo del corral).
+ * Exportada también para el preview (`preview/`), que renderiza layouts
+ * candidatos con el MISMO look sin tocar el MAZE del juego.
+ */
+export const MazeStaticLayer = memo(function MazeStaticLayer({
+  maze,
+  cellSize,
+}: {
+  maze: MazeData;
+  cellSize: number;
+}) {
+  const rects = useMemo(() => mergeWalls(maze, cellSize), [maze, cellSize]);
   return (
     <>
       {rects.map((rect) => (
@@ -97,7 +107,7 @@ const StaticLayer = memo(function StaticLayer({ cellSize }: { cellSize: number }
         />
       ))}
       {/* corral: fondo diferenciado bajo las entidades */}
-      {MAZE.corralCells.map((cell) => (
+      {maze.corralCells.map((cell) => (
         <View
           key={`c-${cell}`}
           style={{
@@ -169,7 +179,7 @@ function MazeLayerImpl({ cellSize, batteries, supers, bonusActive }: MazeLayerPr
 
   return (
     <View style={{ width: MAZE_COLS * cellSize, height: MAZE_ROWS * cellSize }}>
-      <StaticLayer cellSize={cellSize} />
+      <MazeStaticLayer maze={MAZE} cellSize={cellSize} />
       {edibles}
       {bonusActive ? (
         <View

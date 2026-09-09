@@ -217,6 +217,30 @@ cambia de expresión.
 
 ## Notas/hallazgos
 
+### Iteración con el usuario (post-implementación de las 5 fases)
+
+NUEVO REQUERIMIENTO del usuario (verificación en dev server):
+
+1. **Diseño de personajes no satisface** → carpeta `preview/` creada:
+   `PersonajesPreview` (galería con los componentes REALES, idle corriendo,
+   estados normal/powered), ruta dev `/wakwak-preview`
+   (`app/wakwak-preview.tsx`). PENDIENTE: el usuario itera el diseño; al
+   cerrar se toca `EntitiesLayer`.
+2. **Regla de laberinto: SOLO pasillos, sin áreas abiertas 3×3** — confirmado
+   que el v1 y el v2 TAMBIÉN las tienen (filas 17-19 desde el MVP; el v2
+   agregó filas 3-5). `LaberintoPreview` muestra ACTIVO vs CANDIDATO con
+   validador en vivo (`validateLayout`: callejones, inaccesibles, corral,
+   pines, y la regla 3×3). Candidato v3 validado (sin 3×3, 6 cuatro-vías,
+   175 baterías) en `preview/LAB_CANDIDATO.ts`. PENDIENTE: aprobación del
+   usuario → reemplazar LAYOUT + tests (incl. regla 3×3) + E2E.
+   NOTA: el validador debe implementar el wrap del túnel (falso positivo
+   en (9,0)/(9,18) corregido).
+3. **Time-stop de la muerte se sentía perdido** — confirmado: zoom 180ms +
+   partículas inmediatas tapaban el stop. Extensión aprobada y aplicada:
+   freeze 1300ms (final 1500) + FRAME DE IMPACTO (dim+zoom solos ~250ms,
+   zoom 280ms) → onda (160ms) → partículas (250ms). `DEATH_RECOVER_MS` 250.
+   PENDIENTE: verificación del usuario en dev.
+
 ### F1
 - `powerFraction` viaja por `useSharedValue` creada en WakWakScreen y escrita
   en el frame del loop (`snapshot.powerFraction`); BoardBanner la consume con

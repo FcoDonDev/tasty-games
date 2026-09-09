@@ -33,11 +33,14 @@ export function hitStopMs(chain: number): number {
  * del loop igual que el hit-stop, única instancia). La derrota definitiva usa
  * la versión extendida. Tras el clip, RECOVER_MS anima el zoom de vuelta
  * (present sigue congelado durante el recover para que el respawn no se vea
- * teletransportar a mitad del zoom).
+ * teletransportar a mitad del zoom). Iteración con el usuario: el freeze se
+ * extendió (900→1300 / 1100→1500) y el clip arranca con un FRAME DE IMPACTO
+ * (dim+zoom solos, ~250ms) antes de la explosión — el "time stop" se sentía
+ * tapado por la animación cuando todo arrancaba junto.
  */
-export const DEATH_FREEZE_MS = 900;
-export const DEATH_FREEZE_FINAL_MS = 1100;
-export const DEATH_RECOVER_MS = 200;
+export const DEATH_FREEZE_MS = 1300;
+export const DEATH_FREEZE_FINAL_MS = 1500;
+export const DEATH_RECOVER_MS = 250;
 
 // --- Slow-mo near-death ----------------------------------------------------
 

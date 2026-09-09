@@ -10,6 +10,10 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import {
+  DEATH_FREEZE_FINAL_MS,
+  DEATH_FREEZE_MS,
+} from '../../engine/feel';
 
 /**
  * Mini-clip de destrucción del robot (PLAN-WAK-POLISH F5): dim + zoom del
@@ -20,7 +24,18 @@ import Animated, {
  * (hallazgos 1 y 2 del PLAN). Todo corre en el UI thread; el desmonte lo hace
  * WakWakScreen al terminar el freeze (feel.ts: DEATH_FREEZE_MS). Reduced
  * motion: solo dim breve (sin zoom, sin partículas).
+ *
+ * Secuencia con FRAME DE IMPACTO (iteración con el usuario: el "time stop"
+ * se sentía tapado cuando explosión y zoom arrancaban juntas):
+ *   0..~250ms   → solo dim + zoom (el mundo se detiene, el punto fija)
+ *   ~200ms      → onda expansiva
+ *   ~250ms      → burst de partículas
+ *   último tramo → dim baja, zoom vuelve (en WakWakScreen, RECOVER_MS)
  */
+
+const IMPACT_ZOOM_MS = 280;
+const RING_DELAY_MS = 160;
+const PARTICLE_DELAY_MS = 250;
 
 const PARTICLES = 10;
 const PARTICLES_FINAL = 14;
@@ -32,7 +47,7 @@ interface DeathFxProps {
   cellSize: number;
   /** derrota definitiva: más partículas, dim y zoom más intensos */
   final: boolean;
-  /** zoom del tablero: 0 = sin zoom (reduced motion); lo anima el clip */
+  /** zoom del tablero: 1 = sin zoom (reduced motion); lo anima el clip */
   zoom: SharedValue<number>;
 }
 
@@ -54,8 +69,8 @@ function Particle({
   useEffect(() => {
     t.set(0);
     t.set(withDelay(
-      (index % 3) * 30,
-      withTiming(1, { duration: 520 + (index % 4) * 60, easing: Easing.out(Easing.quad) }),
+      PARTICLE_DELAY_MS + (index % 3) * 40,
+      withTiming(1, { duration: 560 + (index % 4) * 70, easing: Easing.out(Easing.quad) }),
     ));
   }, [t]);
   const angle = (index / total) * Math.PI * 2 + 0.35;
@@ -98,22 +113,29 @@ export function DeathFx({ x, y, cellSize, final, zoom }: DeathFxProps) {
   const py = y * cellSize;
 
   useEffect(() => {
-    // zoom del tablero (transform vive en el contenedor, hallazgo 2)
+    // zoom del tablero (transform vive en el contenedor, hallazgo 2):
+    // entra más lento que el dim — peso de impacto, no teleporte
     if (!reduced) {
-      zoom.set(0);
-      zoom.set(withTiming(final ? 1.8 : 1.6, { duration: 180, easing: Easing.out(Easing.quad) }));
+      zoom.set(1);
+      zoom.set(withTiming(final ? 1.8 : 1.6, { duration: IMPACT_ZOOM_MS, easing: Easing.out(Easing.quad) }));
     }
+    // dim: sube rápido en el impacto, sostiene todo el clip, baja al final
+    const visual = final ? DEATH_FREEZE_FINAL_MS : DEATH_FREEZE_MS;
+    const hold = Math.max(100, visual - 140 - 260);
     dim.set(0);
     dim.set(
       withSequence(
-        withTiming(reduced ? 0.45 : 0.6, { duration: reduced ? 120 : 160 }),
-        withTiming(reduced ? 0.45 : 0.6, { duration: final ? 500 : 300 }),
-        withTiming(0, { duration: 200 }),
+        withTiming(reduced ? 0.45 : 0.7, { duration: reduced ? 120 : 140 }),
+        withTiming(reduced ? 0.45 : 0.7, { duration: hold }),
+        withTiming(0, { duration: 260 }),
       ),
     );
     ring.set(0);
     ring.set(
-      withTiming(1, { duration: 480, easing: Easing.out(Easing.quad) }),
+      withDelay(
+        RING_DELAY_MS,
+        withTiming(1, { duration: 700, easing: Easing.out(Easing.quad) }),
+      ),
     );
   }, [reduced, final, zoom, dim, ring]);
 
