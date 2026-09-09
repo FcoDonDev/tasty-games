@@ -284,6 +284,10 @@ vigente y anima a 1.6), y recover a 1. E2E 41/41; 325 tests.
    implementado → referencia PNG → componentes a escala del juego → detalle.
    Sin SVG (borders trick) ni dependencias nuevas. PENDIENTE: aprobación del
    diseño → recién ahí tocar EntitiesLayer.
+   Ajuste v2 (feedback usuario): ojitos de la aspiradora más grandes (0.07s)
+   y hexágono "macizo" — top face más bajo (0.15s), franja media más alta
+   (0.32s), taper inferior largo (0.30s) + punta redonda, asas más grandes.
+   Aspiradora APROBADA por el usuario.
 
 NUEVO REQUERIMIENTO del usuario (verificación en dev server):
 

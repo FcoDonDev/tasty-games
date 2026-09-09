@@ -99,37 +99,37 @@ function Ojos({ variant, s }: { variant: number; s: number }) {
   }
 }
 
-/** Drone hexagonal de la propuesta: cuerpo 3 caras + asas + capucha + visor. */
+/** Drone hexagonal de la propuesta: cuerpo macizo 3 caras + asas + capucha. */
 export function DroneHexFig({ variant, size }: { variant: number; size: number }) {
   const t = TUNE[variant];
   const wobbleStyle = useWobble(variant);
   const s = size;
   const headW = s * 0.96;
-  const topH = s * 0.22;
-  const midH = s * 0.28;
-  const botH = s * 0.26;
-  const earW = s * 0.13;
-  const earH = s * 0.18;
+  const topH = s * 0.15;
+  const midH = s * 0.32;
+  const botH = s * 0.3;
+  const earW = s * 0.14;
+  const earH = s * 0.2;
   return (
     <View style={{ width: s, height: s, alignItems: 'center' }}>
-      {/* capucha (aleta superior) con ranura */}
-      <View style={{ position: 'absolute', top: 0, width: s * 0.32, height: s * 0.15, alignItems: 'center' }}>
+      {/* capucha (aleta superior) apoyada en el borde superior del cuerpo */}
+      <View style={{ position: 'absolute', top: 0, width: s * 0.34, height: s * 0.14, alignItems: 'center' }}>
         <View
           style={{
             width: 0,
             height: 0,
-            borderLeftWidth: s * 0.16,
-            borderRightWidth: s * 0.16,
-            borderBottomWidth: s * 0.15,
+            borderLeftWidth: s * 0.17,
+            borderRightWidth: s * 0.17,
+            borderBottomWidth: s * 0.14,
             borderLeftColor: 'transparent',
             borderRightColor: 'transparent',
             borderBottomColor: t.dark,
           }}
         />
-        <View style={{ position: 'absolute', top: s * 0.05, width: s * 0.04, height: s * 0.07, borderRadius: s * 0.02, backgroundColor: VISOR, opacity: 0.55 }} />
+        <View style={{ position: 'absolute', top: s * 0.045, width: s * 0.04, height: s * 0.07, borderRadius: s * 0.02, backgroundColor: VISOR, opacity: 0.55 }} />
       </View>
-      <Animated.View style={[{ position: 'absolute', top: s * 0.14, width: headW }, wobbleStyle]}>
-        {/* cara superior (luz): trapecio */}
+      <Animated.View style={[{ position: 'absolute', top: s * 0.13, width: headW }, wobbleStyle]}>
+        {/* cara superior (luz): trapecio ancho, base = cuerpo completo */}
         <View
           style={{
             width: headW * 0.6,
@@ -144,13 +144,13 @@ export function DroneHexFig({ variant, size }: { variant: number; size: number }
         />
         {/* franja media: asas + visor */}
         <View style={{ width: headW, height: midH, backgroundColor: t.body }}>
-          <View style={{ position: 'absolute', left: -s * 0.055, top: (midH - earH) / 2, width: earW, height: earH, borderRadius: s * 0.055, backgroundColor: t.dark }} />
-          <View style={{ position: 'absolute', right: -s * 0.055, top: (midH - earH) / 2, width: earW, height: earH, borderRadius: s * 0.055, backgroundColor: t.dark }} />
-          <View style={{ position: 'absolute', left: (headW - s * 0.66) / 2, top: (midH - s * 0.26) / 2, width: s * 0.66, height: s * 0.26, borderRadius: s * 0.13, backgroundColor: VISOR, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ position: 'absolute', left: -s * 0.06, top: (midH - earH) / 2, width: earW, height: earH, borderRadius: s * 0.06, backgroundColor: t.dark }} />
+          <View style={{ position: 'absolute', right: -s * 0.06, top: (midH - earH) / 2, width: earW, height: earH, borderRadius: s * 0.06, backgroundColor: t.dark }} />
+          <View style={{ position: 'absolute', left: (headW - s * 0.68) / 2, top: (midH - s * 0.26) / 2, width: s * 0.68, height: s * 0.26, borderRadius: s * 0.13, backgroundColor: VISOR, alignItems: 'center', justifyContent: 'center' }}>
             <Ojos variant={variant} s={s} />
           </View>
         </View>
-        {/* punta inferior */}
+        {/* punta inferior: taper largo + punta redondeada */}
         <View
           style={{
             width: 0,
@@ -163,7 +163,7 @@ export function DroneHexFig({ variant, size }: { variant: number; size: number }
             borderTopColor: t.body,
           }}
         />
-        <View style={{ position: 'absolute', bottom: -s * 0.055, left: (headW - s * 0.15) / 2, width: s * 0.15, height: s * 0.15, borderRadius: s * 0.075, backgroundColor: t.body }} />
+        <View style={{ position: 'absolute', bottom: -s * 0.045, left: (headW - s * 0.16) / 2, width: s * 0.16, height: s * 0.16, borderRadius: s * 0.08, backgroundColor: t.body }} />
         {/* Tímido: marcas de susto arriba a la derecha (fuera del cuerpo) */}
         {variant === 3 ? (
           <View style={{ position: 'absolute', right: -s * 0.02, top: -s * 0.06, width: s * 0.2, height: s * 0.14 }}>
@@ -192,9 +192,9 @@ export function AspiradoraFig({ size }: { size: number }) {
         <View style={{ position: 'absolute', left: s * 0.012, top: s * 0.3, width: s * 0.028, height: s * 0.07, borderRadius: s * 0.014, backgroundColor: '#9AA7B8' }} />
         {/* banda frontal con ojitos */}
         <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: s * 0.21, backgroundColor: '#141E2E' }} />
-        <View style={{ position: 'absolute', bottom: s * 0.075, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: s * 0.075 }}>
-          <View style={{ width: s * 0.05, height: s * 0.05, borderRadius: s * 0.025, backgroundColor: '#F8FAFC' }} />
-          <View style={{ width: s * 0.05, height: s * 0.05, borderRadius: s * 0.025, backgroundColor: '#F8FAFC' }} />
+        <View style={{ position: 'absolute', bottom: s * 0.06, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: s * 0.06 }}>
+          <View style={{ width: s * 0.07, height: s * 0.07, borderRadius: s * 0.035, backgroundColor: '#F8FAFC' }} />
+          <View style={{ width: s * 0.07, height: s * 0.07, borderRadius: s * 0.035, backgroundColor: '#F8FAFC' }} />
         </View>
       </View>
     </View>
