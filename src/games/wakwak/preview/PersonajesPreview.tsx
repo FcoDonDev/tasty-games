@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { EntitiesLayer, type EntitiesHandle } from '../renderer/reanimated/EntitiesLayer';
 import type { WorldSnapshot } from '../renderer/types';
+import { PropuestaComponentesRow } from './PropuestaPersonajes';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PROPUESTA_SPRITES = {
@@ -12,9 +13,7 @@ const PROPUESTA_SPRITES = {
   timido: require('./assets/propuesta/timido.png'),
 } as const;
 
-/** Fila de la propuesta del usuario (borrame/): sprites de referencia con
- * fondo recortado. Son la META del diseño — aún no implementados en el
- * render del juego; se comparan contra la fila "Normal". */
+/** Referencia original de la propuesta del usuario (borrame/), en PNG. */
 const PROPUESTA: Array<{ nombre: string; sprite: number; alto: number }> = [
   { nombre: 'Aspiradora', sprite: PROPUESTA_SPRITES.aspiradora, alto: 78 },
   { nombre: 'Cazador', sprite: PROPUESTA_SPRITES.cazador, alto: 90 },
@@ -26,7 +25,7 @@ const PROPUESTA: Array<{ nombre: string; sprite: number; alto: number }> = [
 function PropuestaRow() {
   return (
     <View style={styles.fila}>
-      <Text style={styles.titulo}>Propuesta (borrame) — meta del diseño</Text>
+      <Text style={styles.titulo}>Propuesta (borrame) — referencia original (PNG)</Text>
       <View style={styles.propuestaRow}>
         {PROPUESTA.map(({ nombre, sprite, alto }) => (
           <View key={nombre} style={styles.propuestaItem}>
@@ -94,6 +93,14 @@ export function PersonajesPreview() {
       <Text style={styles.seccion}>Personajes (iteración de diseño)</Text>
       <Fila powered={false} titulo="Implementado hoy" />
       <PropuestaRow />
+      <PropuestaComponentesRow
+        cellSize={CELL}
+        titulo="Propuesta (componentes) — a escala del juego"
+      />
+      <PropuestaComponentesRow
+        cellSize={112}
+        titulo="Propuesta (componentes) — detalle"
+      />
       <Fila powered titulo="Súper carga (implementado)" />
     </View>
   );

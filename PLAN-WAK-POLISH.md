@@ -274,6 +274,17 @@ vigente y anima a 1.6), y recover a 1. E2E 41/41; 325 tests.
 
 ### Iteración con el usuario (post-implementación de las 5 fases)
 
+4. **Propuesta de personajes convertida en COMPONENTES** (`preview/
+   PropuestaPersonajes.tsx`): `DroneHexFig` (hexágono 3 caras: trapecio luz
+   + franja media con asas/visor + punta redondeada, capucha con ranura,
+   expresiones fijas por variante: cejas enojadas Cazador, lente Emboscador,
+   ojo lateral Caprichoso, sonrisa+marcas de susto Tímido) y `AspiradoraFig`
+   (elipse 3/4 con banda frontal + ojitos + botón). Paleta = DRONE_COLORS y
+   wobble = DRONE_TUNE del render activo. `PersonajesPreview` ahora muestra:
+   implementado → referencia PNG → componentes a escala del juego → detalle.
+   Sin SVG (borders trick) ni dependencias nuevas. PENDIENTE: aprobación del
+   diseño → recién ahí tocar EntitiesLayer.
+
 NUEVO REQUERIMIENTO del usuario (verificación en dev server):
 
 1. **Diseño de personajes no satisface** → carpeta `preview/` creada:
