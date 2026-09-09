@@ -3,8 +3,8 @@ import { beginFloatingDrag, directionFromSwipe, SWIPE_THRESHOLD, updateFloatingD
 describe('directionFromSwipe', () => {
   it('null debajo del umbral (muerto para micromovimientos)', () => {
     expect(directionFromSwipe(10, 10)).toBeNull();
-    expect(directionFromSwipe(23, 0)).toBeNull();
-    expect(directionFromSwipe(0, 23)).toBeNull();
+    expect(directionFromSwipe(17, 0)).toBeNull(); // umbral 18 (PLAN-WAK-POLISH F2)
+    expect(directionFromSwipe(0, 17)).toBeNull();
     expect(directionFromSwipe(0, 0)).toBeNull();
   });
 

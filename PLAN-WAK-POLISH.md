@@ -134,19 +134,19 @@ cambia de expresión.
 - [x] Verificar fase: typecheck → test → e2e.
 
 ### Fase 2 — Maniobrabilidad (S-M, ~1.5h)
-- [ ] Buffer de 2 direcciones CON PRIORIDAD AL NUEVO (hallazgo 4):
+- [x] Buffer de 2 direcciones CON PRIORIDAD AL NUEVO (hallazgo 4):
       `Robot.queued` → cola de 2; `robotArrive` prueba primero el input más
       nuevo y cae al anterior si el nuevo no es viable. Reversa inmediata sin
       cambios.
-- [ ] Giro en el primer instante válido (llegada al centro + robot detenido
+- [x] Giro en el primer instante válido (llegada al centro + robot detenido
       tras muro) + pivote visual suavizado (cosmético; hallazgo 5).
-- [ ] `SWIPE_THRESHOLD` 24→18px; evaluar mantener 24px en modo flotante
+- [x] `SWIPE_THRESHOLD` 24→18px; evaluar mantener 24px en modo flotante
       (histéresis de re-centrado: 18px puede emitir giros perpendiculares
       accidentales en diagonales) — decidir con prueba táctil, ambos valores
       pasan el spec (swipes de 8→64px).
-- [ ] Tests: `rules.test.ts` (buffer 2, prioridad al nuevo), `controls.test.ts`
+- [x] Tests: `rules.test.ts` (buffer 2, prioridad al nuevo), `controls.test.ts`
       (threshold). Verificar regresión del determinismo (seed).
-- [ ] Verificar fase: typecheck → test → e2e.
+- [x] Verificar fase: typecheck → test → e2e.
 
 ### Fase 3 — Personalidad de personajes (M, ~2h)
 - [ ] Pasar `dir` en `EntityFrame` (desde `worldSnapshot`).
@@ -217,4 +217,20 @@ cambia de expresión.
 
 ## Notas/hallazgos
 
-(a completar durante la implementación)
+### F1
+- `powerFraction` viaja por `useSharedValue` creada en WakWakScreen y escrita
+  en el frame del loop (`snapshot.powerFraction`); BoardBanner la consume con
+  `useAnimatedStyle` → cero setState por frame. Verificado E2E test-power.
+
+### F2
+- El pivote visual suavizado de la esquina se DELEGA a F3: la rotación del
+  robot hacia `dir` (withTiming 90° en el cambio) produce ese efecto sin
+  tocar el renderer dos veces.
+- Modo flotante conservó su umbral de 24px (`FLOAT_THRESHOLD`): con 18px la
+  histéresis de re-centrado emitiría giros perpendiculares accidentales en
+  diagonales. El spec táctil (pasos 8→64px) sigue pasando con ambos valores.
+- La reversa ahora limpia el buffer (el último input prevalece, coherente con
+  prioridad-al-nuevo). Testeado en rules.test.
+- Semántica candada con tests: aplicar CUALQUIERA de los encolados limpia el
+  buffer completo; el viejo solo sirve como fallback si el nuevo no es viable
+  en esa intersección.

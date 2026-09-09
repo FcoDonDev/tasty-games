@@ -70,7 +70,7 @@ describe('state: store zustand', () => {
     useWakWakStore.getState().setDirection('up');
     const { game } = useWakWakStore.getState();
     expect(game.robot.dir).toBeNull();
-    expect(game.robot.queued).toBe('up');
+    expect(game.robot.queued).toEqual(['up']);
   });
 
   it('el robot del store arranca en el spawn y los drones en el corral', () => {

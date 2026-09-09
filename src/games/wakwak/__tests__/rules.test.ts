@@ -93,9 +93,66 @@ describe('rules: movimiento del robot', () => {
     // sobre el spawn (f15,c9) hay muro
     const state = queueDirection(playingGame(), 'up');
     expect(state.robot.dir).toBeNull();
-    expect(state.robot.queued).toBe('up');
+    expect(state.robot.queued).toEqual(['up']);
     const { state: after } = run(state, 30);
     expect(after.robot.cell).toBe(MAZE.robotSpawn);
+  });
+
+  it('buffer de 2: retiene el más reciente y descarta el excedente', () => {
+    // robot avanzando a la izquierda por la fila 15: nada de lo encolado
+    // se aplica de inmediato (up/abajo son muros en el corredor)
+    const mid = run(queueDirection(playingGame(), 'left'), 3).state;
+    expect(mid.robot.dir).toBe('left');
+    const two = queueDirection(queueDirection(mid, 'up'), 'left');
+    expect(two.robot.queued).toEqual(['up', 'left']);
+    const capped = queueDirection(two, 'down');
+    expect(capped.robot.queued).toEqual(['left', 'down']); // el más viejo (up) cae
+  });
+
+  it('buffer: en la intersección el input MÁS NUEVO tiene prioridad', () => {
+    // (18,2) es cruce de 4: desde (18,1) yendo a la derecha, "down" y "up"
+    // son viables al llegar. FIFO giraría abajo; el nuevo manda → gira arriba.
+    const base = playingGame();
+    const state: GameState = {
+      ...base,
+      robot: { cell: toIndex(18, 1), dir: 'right', progress: 0.95, queued: ['down', 'up'] },
+    };
+    const { state: after } = run(state, 1);
+    expect(after.robot.cell).toBe(toIndex(18, 2));
+    expect(after.robot.dir).toBe('up');
+    expect(after.robot.queued).toEqual([]); // aplicar limpia el buffer completo
+  });
+
+  it('buffer: el más nuevo NO viable cae al viejo (fallback)', () => {
+    // mismo cruce (18,2), pero el más nuevo ("up") encolado primero y el
+    // viejo ("down") después: el orden del array manda, no la viableidad
+    const base = playingGame();
+    const state: GameState = {
+      ...base,
+      robot: { cell: toIndex(18, 1), dir: 'right', progress: 0.95, queued: ['up', 'down'] },
+    };
+    const { state: after } = run(state, 1);
+    expect(after.robot.cell).toBe(toIndex(18, 2));
+    expect(after.robot.dir).toBe('down');
+  });
+
+  it('robot detenido aplica el primer viable desde el más nuevo y limpia', () => {
+    // spawn (f15,c9): "up" es muro (queda encolado); "left" es viable →
+    // aplicado al momento, con prioridad sobre el viejo
+    const queued = queueDirection(playingGame(), 'up');
+    expect(queued.robot.queued).toEqual(['up']);
+    const applied = queueDirection(queued, 'left');
+    expect(applied.robot.dir).toBe('left');
+    expect(applied.robot.queued).toEqual([]);
+  });
+
+  it('reversa limpia el buffer (el último input prevalece)', () => {
+    const mid = run(queueDirection(playingGame(), 'left'), 3).state;
+    const queued = queueDirection(queueDirection(mid, 'up'), 'down');
+    expect(queued.robot.queued.length).toBe(2);
+    const reversed = queueDirection(queued, 'right');
+    expect(reversed.robot.dir).toBe('right');
+    expect(reversed.robot.queued).toEqual([]);
   });
 
   it('reversa inmediata en medio del movimiento, sin teletransporte', () => {
@@ -170,7 +227,7 @@ describe('rules: recolección y victoria', () => {
     const base = createGameState(seedConfig());
     const state: GameState = {
       ...base,
-      robot: { cell: toIndex(11, 8), dir: 'right', progress: 0, queued: null },
+      robot: { cell: toIndex(11, 8), dir: 'right', progress: 0, queued: [] },
       bonus: { expiresAt: 100_000 },
       bonusTaken: false,
     };
