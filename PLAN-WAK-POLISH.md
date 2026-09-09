@@ -288,6 +288,17 @@ vigente y anima a 1.6), y recover a 1. E2E 41/41; 325 tests.
    y hexágono "macizo" — top face más bajo (0.15s), franja media más alta
    (0.32s), taper inferior largo (0.30s) + punta redonda, asas más grandes.
    Aspiradora APROBADA por el usuario.
+   Ajuste v4 (feedback usuario): drones con cuerpo CUADRADO redondeado —
+   APROBADO junto con la aspiradora → IMPLEMENTADO en EntitiesLayer (commit
+   del diseño aprobado): drones = cuerpo rect 0.96×0.70s (banda de luz
+   rgba-blanca que se adapta a powered/hurt, visor + DroneFace con expresión
+   fija, capucha/asas con DRONE_DARKS → POWERED_DRONE_DARK, wobble sin base
+   45°); robot = aspiradora círculo top-down (placa rgba, botón-beacon dorado
+   en powered, banda frontal con ojitos, puerto lateral) con heading igual
+   que antes. ROBOT_COLOR '#E7ECF2', POWERED_ROBOT_COLOR '#FDE047'
+   (encendido = dorado súper); drones powered '#475569' (apagados, igual).
+   DroneAccessory/DroneLed eliminados. El front local del robot es ABAJO
+   (headingAngle 0 = down).
    Ajuste v3 (feedback usuario): cuerpo de los drones CUADRADO redondeado
    (rect 0.96×0.70s, radio 0.15s, banda de luz superior recortada) en vez del
    hexágono — mantiene capucha, asas, visor y expresiones.

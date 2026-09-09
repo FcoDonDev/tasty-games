@@ -13,12 +13,13 @@ Munchkin*, 1982) concluyó que el copyright del original protege la **expresión
 puntos, power-ups, túnel, IA con personalidades, vidas). Checklist de expresión
 original aplicado — verificar al tocar cualquier asset visual/sonoro:
 
-- [ ] Protagonista: robot aspiradora (cuadrado redondeado con franja que
-      apunta a su dirección + luz de antena), NO círculo amarillo con boca en V.
-- [ ] Enemigos: 4 drones rombo con LED de patrón geométrico por personalidad
-      (barra/anillo/cuadrado/línea) y accesorio propio sobre el vértice
-      (spike/platillo/hélice/domo), NO campanas con ojos que siguen la
-      dirección de movimiento. Colores por personalidad
+- [x] Protagonista: aspiradora top-down aprobada (círculo blanco con placa,
+      botón-beacon y banda frontal con ojitos; rota hacia su dirección),
+      NO círculo amarillo con boca en V.
+- [x] Enemigos: 4 drones con cuerpo cuadrado redondeado (capucha + asas) y
+      visor negro con expresión FIJA por personalidad (cejas enojadas/
+      ojo-lente/ojo lateral/sonrisa cerrada), NO campanas con ojos que siguen
+      la dirección de movimiento. Colores por personalidad
       (naranja/violeta/celeste/rosa), no el cuarteto rojo/rosa/celeste/naranja
       del original.
 - [ ] Comida: baterías cuadradas doradas y súper batería; chip dorado como bonus.
@@ -71,8 +72,8 @@ src/games/wakwak/
   drones (velocidad 3.2 vs 4.6 en chase; el robot es más rápido: 5.5).
 - **IA sin ojos perseguidores:** los drones deciden por distancia euclidiana al
   objetivo en cada intersección, sin revertir salvo obligación (regla clásica,
-  mecánica no protegida); el LED del drone NO indica dirección (diferenciador
-  expresivo deliberado).
+  mecánica no protegida); la expresión del visor es FIJA y NO indica dirección
+  (diferenciador expresivo deliberado).
 - **Corral con puerta:** la puerta (`-`) es transitable solo para drones;
   salida escalonada (`releaseBase` + stagger), drone comido reaparece tras 6s.
 - **Chip dorado:** aparece al 50% de comestibles, ventana de 10s, celda

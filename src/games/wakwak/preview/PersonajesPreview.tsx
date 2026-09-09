@@ -91,7 +91,7 @@ export function PersonajesPreview() {
   return (
     <View style={styles.wrap}>
       <Text style={styles.seccion}>Personajes (iteración de diseño)</Text>
-      <Fila powered={false} titulo="Implementado hoy" />
+      <Fila powered={false} titulo="Implementado (diseño aprobado)" />
       <PropuestaRow />
       <PropuestaComponentesRow
         cellSize={CELL}

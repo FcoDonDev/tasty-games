@@ -23,25 +23,29 @@ import type { WorldSnapshot } from '../types';
  * el translate (pose) lo escribe `present()` por frame. Efectos one-shot (pop,
  * shake) llegan por `onEvent` desde los eventos discretos del tick.
  *
- * Personalidad (PLAN-WAK-POLISH F3, sin ojos que sigan dirección — resguardo
- * legal): cada drone tiene accesorio propio sobre el vértice superior
- * (Cazador=antena spike, Emboscador=platillo radar, Caprichoso=hélice,
- * Tímido=domo), LED con patrón geométrico distinto (barra/anillo/cuadrado/
- * línea) y wobble con frecuencia/amplitud propias. El robot rota hacia su
- * dirección (conTiming 90° solo al CAMBIAR, guard lastDir — nunca por frame)
- * y su luz de antena cambia al modo powered.
+ * Personalidad (PLAN-WAK-POLISH F3, diseño APROBADO con el usuario en
+ * /wakwak-preview — propuesta borrame convertida en componentes): cada drone
+ * es un cuerpo CUADRADO redondeado con banda de luz superior, capucha con
+ * ranura, asas laterales oscuras y visor negro con expresión FIJA propia
+ * (Cazador=cejas enojadas, Emboscador=ojo-lente, Caprichoso=ojo lateral,
+ * Tímido=sonrisa cerrada + marcas de susto). Los ojos NO siguen la dirección
+ * (resguardo legal). El robot es la aspiradora (círculo top-down con placa,
+ * botón-beacon, banda frontal con ojitos) y rota hacia su dirección
+ * (withTiming 120° solo al CAMBIAR, guard lastDir — nunca por frame).
  *
- * Siluetas propias: robot = cuadrado redondeado (aspiradora); drones = rombos
- * con LED central — no círculo con boca en V ni campanas con ojos perseguidores.
- * En modo power todos se apagan y el robot se enciende.
+ * Power (lenguaje del juego): los drones se APAGAN (cuerpo slate + detalles
+ * oscuros) y parpadean al expirar; el robot se ENCIENDE (cuerpo dorado como
+ * las súper baterías + botón brillante).
  */
 
-export const ROBOT_COLOR = '#34D399';
-export const POWERED_ROBOT_COLOR = '#E0F2FE';
-const POWERED_DRONE_COLOR = '#475569';
+export const ROBOT_COLOR = '#E7ECF2'; // aspiradora aprobada (borrame)
+export const POWERED_ROBOT_COLOR = '#FDE047'; // encendido: dorado súper
+const POWERED_DRONE_COLOR = '#475569'; // apagados en modo power
+const POWERED_DRONE_DARK = '#334155'; // capucha/asas de drones apagados
 const HURT_COLOR = '#FB7185';
-const DARK = '#0B1220';
+const DARK = '#0B1220'; // visor + banda frontal
 const DRONE_COLORS = ['#F97316', '#A78BFA', '#38BDF8', '#FB7185'] as const;
+const DRONE_DARKS = ['#9A3412', '#6D28D9', '#0369A1', '#BE123C'] as const;
 
 /** Wobble y tamaño por personalidad (±10% máx en scale: hitbox percibida). */
 const DRONE_TUNE = [
@@ -103,106 +107,36 @@ interface EntityProps {
   accessibilityLabel?: string;
 }
 
-/** Accesorio del drone sobre el vértice superior del rombo (silueta oscura). */
-function DroneAccessory({ variant, size }: { variant: number; size: number }) {
+/** Expresión fija del drone dentro del visor (los ojos NO siguen dirección). */
+function DroneFace({ variant, size }: { variant: number; size: number }) {
+  const s = size;
   switch (variant) {
-    case 0: // Cazador: antena spike
+    case 0: // Cazador: dos cejas enojadas (barras blancas en V invertida)
       return (
-        <View
-          style={{
-            width: size * 0.07,
-            height: size * 0.24,
-            borderRadius: size * 0.035,
-            backgroundColor: DARK,
-          }}
-        />
+        <View style={{ flexDirection: 'row', gap: s * 0.055 }}>
+          <View style={{ width: s * 0.15, height: s * 0.07, borderRadius: s * 0.035, backgroundColor: '#F8FAFC', transform: [{ rotate: '22deg' }] }} />
+          <View style={{ width: s * 0.15, height: s * 0.07, borderRadius: s * 0.035, backgroundColor: '#F8FAFC', transform: [{ rotate: '-22deg' }] }} />
+        </View>
       );
-    case 1: // Emboscador: platillo radar
+    case 1: // Emboscador: ojo-lente grande (blanco + pupila + brillo central)
       return (
-        <View
-          style={{
-            width: size * 0.28,
-            height: size * 0.14,
-            borderTopLeftRadius: size * 0.14,
-            borderTopRightRadius: size * 0.14,
-            backgroundColor: DARK,
-          }}
-        />
+        <View style={{ width: s * 0.17, height: s * 0.17, borderRadius: s * 0.085, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: s * 0.095, height: s * 0.095, borderRadius: s * 0.047, backgroundColor: DARK, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: s * 0.03, height: s * 0.03, borderRadius: s * 0.015, backgroundColor: '#F8FAFC' }} />
+          </View>
+        </View>
       );
-    case 2: // Caprichoso: hélice (barra de dos palas)
+    case 2: // Caprichoso: ojo único mirando de costado (iris + pupila excéntricos)
       return (
-        <View
-          style={{
-            width: size * 0.36,
-            height: size * 0.07,
-            borderRadius: size * 0.035,
-            backgroundColor: DARK,
-          }}
-        />
+        <View style={{ width: s * 0.2, height: s * 0.14, borderRadius: s * 0.07, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: s * 0.1, height: s * 0.1, borderRadius: s * 0.05, backgroundColor: DRONE_COLORS[2], alignItems: 'center', justifyContent: 'center', transform: [{ translateX: s * 0.03 }] }}>
+            <View style={{ width: s * 0.05, height: s * 0.05, borderRadius: s * 0.025, backgroundColor: DARK, transform: [{ translateX: s * 0.016 }] }} />
+          </View>
+        </View>
       );
-    default: // Tímido: domo
+    default: // Tímido: sonrisa cerrada (semicírculo blanco) — ojos apretados
       return (
-        <View
-          style={{
-            width: size * 0.3,
-            height: size * 0.15,
-            borderTopLeftRadius: size * 0.15,
-            borderTopRightRadius: size * 0.15,
-            backgroundColor: DARK,
-            opacity: 0.85,
-          }}
-        />
-      );
-  }
-}
-
-/** LED central del drone: patrón geométrico por personalidad (no son "ojos"). */
-function DroneLed({ variant, size }: { variant: number; size: number }) {
-  switch (variant) {
-    case 0: // barra vertical
-      return (
-        <View
-          style={{
-            width: size * 0.1,
-            height: size * 0.3,
-            borderRadius: size * 0.05,
-            backgroundColor: DARK,
-          }}
-        />
-      );
-    case 1: // anillo
-      return (
-        <View
-          style={{
-            width: size * 0.3,
-            height: size * 0.3,
-            borderRadius: size * 0.15,
-            borderWidth: Math.max(2, size * 0.07),
-            borderColor: DARK,
-          }}
-        />
-      );
-    case 2: // cuadrado
-      return (
-        <View
-          style={{
-            width: size * 0.26,
-            height: size * 0.26,
-            borderRadius: 2,
-            backgroundColor: DARK,
-          }}
-        />
-      );
-    default: // línea horizontal
-      return (
-        <View
-          style={{
-            width: size * 0.3,
-            height: size * 0.1,
-            borderRadius: size * 0.05,
-            backgroundColor: DARK,
-          }}
-        />
+        <View style={{ width: s * 0.2, height: s * 0.1, borderBottomLeftRadius: s * 0.1, borderBottomRightRadius: s * 0.1, backgroundColor: '#F8FAFC' }} />
       );
   }
 }
@@ -310,22 +244,36 @@ const EntityImpl = forwardRef<EntityHandle, EntityProps>(function EntityImpl(
   }));
 
   const lightStyle = useAnimatedStyle(() => ({
-    // luz de antena del robot: tenue normal, dorada en modo powered
+    // botón-beacon del robot: tenue normal, dorado en modo powered
     backgroundColor: interpolateColor(powered.get(), [0, 1], ['#334155', '#FDE047']),
+  }));
+
+  // CUERPO: color personalidad → powered (robot encendido / drones apagados)
+  // → hurt (flash rosa). El robot SIEMPRE tiene hiddenColor; drones también.
+  const bodyColor = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      hurt.get(),
+      [0, 1],
+      [interpolateColor(powered.get(), [0, 1], [color, hiddenColor ?? color]), HURT_COLOR],
+    ),
+  }));
+
+  // Capucha/asas del drone: variante oscura → apagado (no flashean con hurt,
+  // precedente de los accesorios).
+  const shadeColor = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(powered.get(), [0, 1], [DRONE_DARKS[variant], POWERED_DRONE_DARK]),
+    borderBottomColor: interpolateColor(powered.get(), [0, 1], [DRONE_DARKS[variant], POWERED_DRONE_DARK]),
   }));
 
   const animatedStyle = useAnimatedStyle(() => {
     const hiddenOpacity = opacity.get();
     // el pop mantiene visible al drone un instante después del `hidden`
     const visibleOpacity = Math.max(hiddenOpacity, popT.get());
-    const baseColor = hiddenColor
-      ? interpolateColor(powered.get(), [0, 1], [color, hiddenColor])
-      : color;
-    const finalColor = interpolateColor(hurt.get(), [0, 1], [baseColor, HURT_COLOR]);
     // bob del robot al avanzar; wobble propio de cada drone (loops UI thread)
     const bob = idle.get() * moving.get() * cellSize * 0.05;
+    // drones: wobble alrededor de 0 (cuerpo cuadrado, sin base 45° del rombo)
     const rotation = rotated
-      ? `${45 + idle.get() * wobble.wobbleDeg}deg`
+      ? `${idle.get() * wobble.wobbleDeg}deg`
       : `${heading.get()}deg`;
     const popScale = 1 - 0.5 * popT.get();
     const robotPop = rotated ? 1 : 1 + 0.3 * popT.get();
@@ -337,7 +285,6 @@ const EntityImpl = forwardRef<EntityHandle, EntityProps>(function EntityImpl(
         { scale: popScale * robotPop },
       ],
       opacity: visibleOpacity * blink.get(),
-      backgroundColor: finalColor,
     };
   });
 
@@ -351,77 +298,203 @@ const EntityImpl = forwardRef<EntityHandle, EntityProps>(function EntityImpl(
           top: 0,
           width: size,
           height: size,
-          borderRadius,
         },
         animatedStyle,
       ]}
     >
       {rotated ? (
         <>
-          {/* accesorio sobre el vértice superior: wrapper contra-rotado −45°
-              (la esquina sup-izq local es el vértice visual del rombo) y con
-              centro sobre la diagonal que apunta straight-up en pantalla */}
+          {/* capucha con ranura, apoyada en el borde del cuerpo */}
           <View
             style={{
               position: 'absolute',
-              left: -size * 0.46,
-              top: -size * 0.46,
-              width: size * 0.36,
-              height: size * 0.36,
+              top: 0,
+              left: (size - size * 0.34) / 2,
+              width: size * 0.34,
+              height: size * 0.16,
               alignItems: 'center',
-              justifyContent: 'center',
-              transform: [{ rotate: '-45deg' }],
             }}
           >
-            <DroneAccessory variant={variant} size={size} />
+            <Animated.View
+              style={[
+                {
+                  width: 0,
+                  height: 0,
+                  borderLeftWidth: size * 0.17,
+                  borderRightWidth: size * 0.17,
+                  borderBottomWidth: size * 0.15,
+                  borderLeftColor: 'transparent',
+                  borderRightColor: 'transparent',
+                },
+                shadeColor,
+              ]}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                top: size * 0.05,
+                width: size * 0.04,
+                height: size * 0.07,
+                borderRadius: size * 0.02,
+                backgroundColor: DARK,
+                opacity: 0.55,
+              }}
+            />
           </View>
-          <View style={ledWrap}>
-            <DroneLed variant={variant} size={size} />
-          </View>
-        </>
-      ) : (
-        <>
-          {/* luz de antena del robot (beacon): dorada en modo powered */}
+          {/* asas laterales (a la altura media del cuerpo) */}
           <Animated.View
             style={[
               {
                 position: 'absolute',
-                left: size * 0.42,
-                top: size * 0.07,
-                width: size * 0.16,
-                height: size * 0.16,
-                borderRadius: size * 0.08,
+                left: -size * 0.055,
+                top: size * 0.41,
+                width: size * 0.14,
+                height: size * 0.2,
+                borderRadius: size * 0.06,
               },
-              lightStyle,
+              shadeColor,
             ]}
           />
-          {/* franja del robot aspiradora (cepillo frontal) */}
-          <View
-            style={{
-              position: 'absolute',
-              left: size * 0.18,
-              top: size * 0.7,
-              width: size * 0.64,
-              height: size * 0.14,
-              borderRadius: size * 0.07,
-              backgroundColor: DARK,
-            }}
+          <Animated.View
+            style={[
+              {
+                position: 'absolute',
+                right: -size * 0.055,
+                top: size * 0.41,
+                width: size * 0.14,
+                height: size * 0.2,
+                borderRadius: size * 0.06,
+              },
+              shadeColor,
+            ]}
           />
+          {/* cuerpo cuadrado redondeado: banda de luz + visor con expresión */}
+          <Animated.View
+            style={[
+              {
+                position: 'absolute',
+                top: size * 0.16,
+                left: (size - size * 0.96) / 2,
+                width: size * 0.96,
+                height: size * 0.7,
+                borderRadius: size * 0.15,
+                overflow: 'hidden',
+              },
+              bodyColor,
+            ]}
+          >
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: size * 0.24,
+                backgroundColor: 'rgba(255,255,255,0.32)',
+                borderBottomLeftRadius: size * 0.12,
+                borderBottomRightRadius: size * 0.12,
+              }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                left: (size * 0.96 - size * 0.68) / 2,
+                top: size * 0.32,
+                width: size * 0.68,
+                height: size * 0.26,
+                borderRadius: size * 0.13,
+                backgroundColor: DARK,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <DroneFace variant={variant} size={size} />
+            </View>
+          </Animated.View>
+          {/* Tímido: marcas de susto arriba a la derecha (fuera del cuerpo) */}
+          {variant === 3 ? (
+            <View style={{ position: 'absolute', right: -size * 0.02, top: size * 0.04, width: size * 0.2, height: size * 0.14 }}>
+              <View style={{ position: 'absolute', right: size * 0.06, top: 0, width: size * 0.11, height: size * 0.03, borderRadius: size * 0.015, backgroundColor: '#FDA4AF', transform: [{ rotate: '-38deg' }] }} />
+              <View style={{ position: 'absolute', right: 0, top: size * 0.055, width: size * 0.09, height: size * 0.03, borderRadius: size * 0.015, backgroundColor: '#FDA4AF', transform: [{ rotate: '-72deg' }] }} />
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <>
+          {/* cuerpo: círculo top-down de la aspiradora (recorta la banda) */}
+          <Animated.View
+            style={[
+              {
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: size,
+                height: size,
+                borderRadius,
+                overflow: 'hidden',
+              },
+              bodyColor,
+            ]}
+          >
+            {/* placa superior */}
+            <View
+              style={{
+                position: 'absolute',
+                left: size * 0.09,
+                top: size * 0.09,
+                width: size * 0.82,
+                height: size * 0.82,
+                borderRadius: size * 0.41,
+                backgroundColor: 'rgba(255,255,255,0.5)',
+              }}
+            />
+            {/* botón-beacon: dorado en modo powered */}
+            <Animated.View
+              style={[
+                {
+                  position: 'absolute',
+                  left: size * 0.43,
+                  top: size * 0.43,
+                  width: size * 0.14,
+                  height: size * 0.14,
+                  borderRadius: size * 0.07,
+                },
+                lightStyle,
+              ]}
+            />
+            {/* puerto lateral */}
+            <View
+              style={{
+                position: 'absolute',
+                left: size * 0.012,
+                top: size * 0.46,
+                width: size * 0.028,
+                height: size * 0.07,
+                borderRadius: size * 0.014,
+                backgroundColor: 'rgba(0,0,0,0.25)',
+              }}
+            />
+            {/* banda frontal con ojitos (el frente local es ABAJO) */}
+            <View
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: size * 0.21,
+                backgroundColor: '#141E2E',
+              }}
+            />
+            <View style={{ position: 'absolute', bottom: size * 0.06, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: size * 0.06 }}>
+              <View style={{ width: size * 0.07, height: size * 0.07, borderRadius: size * 0.035, backgroundColor: '#F8FAFC' }} />
+              <View style={{ width: size * 0.07, height: size * 0.07, borderRadius: size * 0.035, backgroundColor: '#F8FAFC' }} />
+            </View>
+          </Animated.View>
         </>
       )}
     </Animated.View>
   );
 });
-
-const ledWrap = {
-  position: 'absolute' as const,
-  left: 0,
-  top: 0,
-  right: 0,
-  bottom: 0,
-  alignItems: 'center' as const,
-  justifyContent: 'center' as const,
-};
 
 export interface EntitiesHandle {
   present(snapshot: WorldSnapshot): void;
@@ -501,7 +574,7 @@ export const EntitiesLayer = forwardRef<EntitiesHandle, EntitiesLayerProps>(
           cellSize={cellSize}
           color={ROBOT_COLOR}
           hiddenColor={POWERED_ROBOT_COLOR}
-          borderRadius={cellSize * 0.24}
+          borderRadius={cellSize * 0.39} // círculo de la aspiradora (0.78/2)
           scale={0.78}
           accessibilityLabel="wakwak-robot"
         />
