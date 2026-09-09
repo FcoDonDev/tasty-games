@@ -35,7 +35,21 @@ export function oppositeDirection(dir: Direction): Direction {
   return dir === 'up' ? 'down' : dir === 'down' ? 'up' : dir === 'left' ? 'right' : 'left';
 }
 
-const LAYOUT: readonly string[] = [
+/**
+ * Layout propio v3 (PLAN-WAK-POLISH F4, aprobado por el usuario en la
+ * iteración del preview): SOLO PASILLOS — sin áreas abiertas 3×3 (regla del
+ * usuario, candada en maze.test.ts). Más íntimo que el v2 (6 cruces de 4 vías
+ * vs 26) y con menos baterías (175 vs 207). Pines conservados a propósito
+ * (candeados en maze.test.ts):
+ *   - fila 15 = corredor del spawn (c4..c14, topes c3/c15): los seeds
+ *     sentinelas E2E (seed.ts) usan esas celdas y NO cambian;
+ *   - corral/túnel filas 8-10 y puerta (8,9);
+ *   - esquinas (1,1),(1,17),(19,1),(19,17) = targets scatter de ai.ts;
+ *   - (11,9) = camino SIN batería (' ') = BONUS_CELL (rules.ts).
+ * Invariantes estructurales: conectividad total, sin callejones (≥2 salidas),
+ * una sola fila de túnel, corral sellado, 4 súper ('o'), sin 3×3 abiertos.
+ */
+export const LAYOUT: readonly string[] = [
   '###################',
   '#o.......#.......o#',
   '#.##.###.#.###.##.#',
@@ -53,8 +67,8 @@ const LAYOUT: readonly string[] = [
   '#.##.###.#.###.##.#',
   '#o.#.....R.....#.o#',
   '##.#.#.#####.#.#.##',
-  '#........#........#',
-  '#....#.......#....#',
+  '#....#...#...#....#',
+  '#.##.###.#.###.##.#',
   '#.................#',
   '###################',
 ];
@@ -91,7 +105,18 @@ export function toIndex(row: number, col: number): number {
 }
 
 function buildMaze(): MazeData {
-  if (LAYOUT.length !== MAZE_ROWS) throw new Error('layout: filas != MAZE_ROWS');
+  return parseLayout(LAYOUT);
+}
+
+/**
+ * Parseo puro de un layout de strings → MazeData (PLAN-WAK-POLISH: extraído
+ * para el preview del laberinto, que itera layouts candidatos sin tocar el
+ * LAYOUT del juego). Lanza Error ante layout inválido (filas/anchos, carácter
+ * desconocido, falta de puerta/spawn/túnel/4 drones).
+ */
+export function parseLayout(layout: readonly string[]): MazeData {
+  const rows = layout.length;
+  if (rows !== MAZE_ROWS) throw new Error('layout: filas != MAZE_ROWS');
   const grid: Cell[] = [];
   const corralCells: number[] = [];
   const droneSpawns: number[] = [];
@@ -101,8 +126,8 @@ function buildMaze(): MazeData {
   let robotSpawn = -1;
   let tunnelRow = -1;
 
-  for (let row = 0; row < MAZE_ROWS; row++) {
-    const line = LAYOUT[row];
+  for (let row = 0; row < rows; row++) {
+    const line = layout[row];
     if (line.length !== MAZE_COLS) throw new Error(`layout: fila ${row} con ancho != MAZE_COLS`);
     // Túnel: fila cuyos extremos (col 0 y última) son transitables
     if (line[0] !== '#' && line[MAZE_COLS - 1] !== '#') tunnelRow = row;

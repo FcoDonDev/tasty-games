@@ -12,6 +12,8 @@ import {
   rowOf,
   toIndex,
 } from '../engine/maze';
+import { HOME_CORNERS } from '../engine/ai';
+import { BONUS_CELL } from '../engine/rules';
 
 /** Celdas transitables por el robot (path, sin corral ni puerta). */
 function robotWalkable(): number[] {
@@ -107,6 +109,55 @@ describe('maze: conectividad y sin callejones', () => {
       expect(exits).toBeGreaterThanOrEqual(2);
     }
   });
+});
+
+describe('maze: pines del layout (sentinels E2E, IA, chip)', () => {
+  it('fila del spawn: corredor horizontal c4..c14 con topes c3/c15 (seeds E2E)', () => {
+    // test-win (baterías c4..c8), test-power/test-combo (súper c8, drones c4/c6)
+    // dependen de esta fila; c3/c15 son los muros que detienen al robot.
+    for (let col = 4; col <= 14; col++) {
+      expect(MAZE.grid[toIndex(15, col)]).not.toBe('wall');
+    }
+    expect(MAZE.grid[toIndex(15, 3)]).toBe('wall');
+    expect(MAZE.grid[toIndex(15, 15)]).toBe('wall');
+    expect(MAZE.robotSpawn).toBe(toIndex(15, 9));
+  });
+
+  it('esquinas scatter de ai.ts (HOME_CORNERS) transitables y sin callejón', () => {
+    for (const corner of HOME_CORNERS) {
+      expect(MAZE.grid[corner]).toBe('path');
+      const exits = DIRECTIONS.filter((dir) => neighbor(corner, dir, false) >= 0).length;
+      expect(exits).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('BONUS_CELL (11,9): camino sin batería (pickup corre cada tick en la celda)', () => {
+    expect(BONUS_CELL).toBe(toIndex(11, 9));
+    expect(MAZE.grid[BONUS_CELL]).toBe('path');
+    expect(MAZE.batteryCells).not.toContain(BONUS_CELL);
+    expect(MAZE.superCells).not.toContain(BONUS_CELL);
+  });
+  it('sin áreas abiertas 3×3 (regla del usuario: solo pasillos)', () => {
+    // cualquier ventana 3×3 debe tener al menos un muro (o celda no robot)
+    const violaciones: string[] = [];
+    for (let row = 0; row + 2 < MAZE_ROWS; row++) {
+      for (let col = 0; col + 2 < MAZE_COLS; col++) {
+        let allPath = true;
+        for (let dr = 0; dr < 3 && allPath; dr++) {
+          for (let dc = 0; dc < 3; dc++) {
+            const index = toIndex(row + dr, col + dc);
+            if (MAZE.grid[index] !== 'path' || isCorralCell(index)) {
+              allPath = false;
+              break;
+            }
+          }
+        }
+        if (allPath) violaciones.push(`(${row},${col})`);
+      }
+    }
+    expect(violaciones).toEqual([]);
+  });
+
 });
 
 describe('maze: utilidades', () => {

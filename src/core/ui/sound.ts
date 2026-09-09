@@ -1,7 +1,15 @@
 import { useAppStore } from '@/core/stores/useAppStore';
 
 // Assets: require() se resuelve a número de módulo Metro; wav es asset nativo.
-type SoundId = 'cardMove' | 'cardDrop' | 'cardInvalid' | 'gameWin' | 'pickup' | 'powerUp' | 'hit';
+type SoundId =
+  | 'cardMove'
+  | 'cardDrop'
+  | 'cardInvalid'
+  | 'gameWin'
+  | 'pickup'
+  | 'powerUp'
+  | 'hit'
+  | 'explosion';
 
 const SOURCES: Record<SoundId, number> = {
   cardMove: require('./assets/audio/card-move.wav'),
@@ -11,6 +19,9 @@ const SOURCES: Record<SoundId, number> = {
   pickup: require('./assets/audio/pickup.wav'),
   powerUp: require('./assets/audio/power-up.wav'),
   hit: require('./assets/audio/hit.wav'),
+  // reutiliza el asset del hit con playback rate grave (PLAN-WAK-POLISH F5):
+  // player PROPIO, así el rate 0.7 no contamina a soundHit
+  explosion: require('./assets/audio/hit.wav'),
 };
 
 // expo-audio hace monkey-patching de prototipos en su import (necesita el módulo
@@ -108,6 +119,24 @@ export function soundPowerUp(): void {
 /** Golpe grave: robot atrapado o drone recogido (wakwak). */
 export function soundHit(): void {
   play('hit');
+}
+
+/**
+ * Explosión de la destrucción del robot (wakwak, PLAN-WAK-POLISH F5): el hit
+ * con playback rate grave en un player propio (pitch abajo sin asset nuevo;
+ * si no convence en playtest, sintetizar explosion.wav propio).
+ */
+export function soundExplosion(): void {
+  if (!useAppStore.getState().soundOn) return;
+  const player = ensurePlayer('explosion');
+  if (!player) return;
+  try {
+    (player as unknown as { setPlaybackRate?: (rate: number) => void }).setPlaybackRate?.(0.7);
+  } catch {
+    // rate no soportado: pitch por defecto
+  }
+  player.seekTo(0);
+  player.play();
 }
 
 /**

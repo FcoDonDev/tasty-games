@@ -61,8 +61,12 @@ export interface Robot {
   dir: Direction | null;
   /** 0..1 hacia la celda vecina en `dir` */
   progress: number;
-  /** dirección deseada; se aplica al llegar al centro de la celda */
-  queued: Direction | null;
+  /**
+   * Buffer de hasta 2 direcciones deseadas; la MÁS RECIENTE al final
+   * (PLAN-WAK-POLISH F2, Pac-Man Dossier: el último input es el que cuenta —
+   * el viejo queda como fallback si el nuevo no es viable en la intersección).
+   */
+  queued: Direction[];
 }
 
 export type DroneMode = 'waiting' | 'exiting' | 'roaming' | 'eaten';
@@ -126,7 +130,7 @@ export type GameEvent =
   | { type: 'battery' }
   | { type: 'super' }
   | { type: 'droneEaten'; id: number; chain: number; points: number }
-  | { type: 'caught' }
+  | { type: 'caught'; x: number; y: number }
   | { type: 'bonusSpawn' }
   | { type: 'bonusTaken' }
   | { type: 'bonusExpired' }
@@ -286,7 +290,7 @@ export function createGameState(config: SeedConfig): GameState {
     }
   }
   return {
-    robot: { cell: MAZE.robotSpawn, dir: null, progress: 0, queued: null },
+    robot: { cell: MAZE.robotSpawn, dir: null, progress: 0, queued: [] },
     drones,
     batteries: [...config.batteryCells].sort((a, b) => a - b),
     supers: [...config.superCells].sort((a, b) => a - b),
@@ -318,17 +322,23 @@ export function createGameState(config: SeedConfig): GameState {
 export function queueDirection(state: GameState, dir: Direction): GameState {
   const robot = state.robot;
   if (robot.dir && dir === oppositeDirection(robot.dir)) {
+    // reversa inmediata: el último input prevalece (descarta lo encolado viejo)
     const reversed = { ...robot };
     reverseEntity(reversed, false);
-    return { ...state, robot: reversed };
+    return { ...state, robot: { ...reversed, queued: [] } };
   }
+  // buffer de 2 con prioridad al nuevo: el más reciente queda al final
+  const queued = [...robot.queued, dir].slice(-2);
   if (!robot.dir) {
-    if (neighbor(robot.cell, dir, false) >= 0) {
-      return { ...state, robot: { ...robot, dir, progress: 0, queued: null } };
+    // robot detenido: aplica el primer viable desde el MÁS NUEVO
+    for (let i = queued.length - 1; i >= 0; i--) {
+      if (neighbor(robot.cell, queued[i], false) >= 0) {
+        return { ...state, robot: { ...robot, dir: queued[i], progress: 0, queued: [] } };
+      }
     }
-    return { ...state, robot: { ...robot, queued: dir } };
+    return { ...state, robot: { ...robot, queued } };
   }
-  return { ...state, robot: { ...robot, queued: dir } };
+  return { ...state, robot: { ...robot, queued } };
 }
 
 // --- tick ----------------------------------------------------------------
@@ -380,16 +390,26 @@ function step(state: GameState, dtMs: number): StepResult {
 
   // --- robot
   const robot: Robot = { ...state.robot };
-  if (!robot.dir && robot.queued && neighbor(robot.cell, robot.queued, false) >= 0) {
-    robot.dir = robot.queued;
-    robot.queued = null;
-    robot.progress = 0;
+  if (!robot.dir && robot.queued.length > 0) {
+    // detenido tras muro: primer viable desde el MÁS NUEVO (prioridad al nuevo)
+    for (let i = robot.queued.length - 1; i >= 0; i--) {
+      if (neighbor(robot.cell, robot.queued[i], false) >= 0) {
+        robot.dir = robot.queued[i];
+        robot.queued = [];
+        robot.progress = 0;
+        break;
+      }
+    }
   }
   const robotArrive = (cell: number): Direction | null => {
-    const queued = robot.queued;
-    if (queued && neighbor(cell, queued, false) >= 0) {
-      robot.queued = null;
-      return queued;
+    const queue = robot.queued;
+    // en la intersección: el input más nuevo tiene prioridad; si se aplica
+    // CUALQUIERA, el buffer se limpia (la última instrucción prevalece)
+    for (let i = queue.length - 1; i >= 0; i--) {
+      if (neighbor(cell, queue[i], false) >= 0) {
+        robot.queued = [];
+        return queue[i];
+      }
     }
     if (robot.dir && neighbor(cell, robot.dir, false) >= 0) return robot.dir;
     return null;
@@ -504,11 +524,13 @@ function step(state: GameState, dtMs: number): StepResult {
   // --- colisiones (varios drones pueden caer el mismo tick; UN evento por drone)
   let lives = state.lives;
   let caught = false;
+  const caughtAt = { x: 0, y: 0 }; // sitio de la colisión (el close-up encuadra acá)
   let bestChain = state.bestChain;
+  const robotPosNow = floatPos(robot, false);
   const finalDrones = newDrones.map((drone) => {
     if (caught) return drone;
     if (drone.mode !== 'roaming' && drone.mode !== 'exiting') return drone;
-    const robotPos = floatPos(robot, false);
+    const robotPos = robotPosNow;
     const dronePos = floatPos(drone, drone.mode === 'exiting');
     if (wrappedDistance(robotPos, dronePos) > 0.7) return drone;
     if (powerMode) {
@@ -526,10 +548,14 @@ function step(state: GameState, dtMs: number): StepResult {
       };
     }
     caught = true;
+    caughtAt.x = robotPos.x;
+    caughtAt.y = robotPos.y;
     return drone;
   });
   if (caught) {
-    events.push({ type: 'caught' });
+    // posición de colisión en el evento: el engine resetea posiciones al
+    // regresar, el present del close-up necesita el PUNTO exacto (hallazgo 1)
+    events.push({ type: 'caught', x: caughtAt.x, y: caughtAt.y });
     lives -= 1;
     chain = 0; // el combo muere con la vida (D3)
   }
@@ -554,7 +580,7 @@ function step(state: GameState, dtMs: number): StepResult {
 
   const next: GameState = {
     ...state,
-    robot: resetPositions ? { cell: MAZE.robotSpawn, dir: null, progress: 0, queued: null } : robot,
+    robot: resetPositions ? { cell: MAZE.robotSpawn, dir: null, progress: 0, queued: [] } : robot,
     drones: resetPositions
       ? finalDrones.map((d, i) => ({
           ...d,

@@ -60,13 +60,13 @@ describe('sound', () => {
     expect(audio.__created[1].played).toBe(1);
   });
 
-  it('primeAudioPlayers() es idempotente (crea los 7 sonidos definidos)', () => {
+  it('primeAudioPlayers() es idempotente (crea los 8 sonidos definidos)', () => {
     const { sound, audio } = loadFresh();
     sound.primeAudioPlayers();
     sound.primeAudioPlayers();
-    expect(audio.createAudioPlayer).toHaveBeenCalledTimes(7);
+    expect(audio.createAudioPlayer).toHaveBeenCalledTimes(8);
     sound.soundCardInvalid();
-    expect(audio.createAudioPlayer).toHaveBeenCalledTimes(7);
+    expect(audio.createAudioPlayer).toHaveBeenCalledTimes(8);
   });
 
   it('play fire-and-forget: play() corre síncronamente tras seekTo (sin .then)', () => {

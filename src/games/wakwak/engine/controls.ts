@@ -6,8 +6,16 @@ import type { Direction } from './maze';
  * recibe `setDirection` (buffer) y no sabe de dónde vino el input.
  */
 
-/** Umbral (px de desplazamiento) para emitir una dirección. */
-export const SWIPE_THRESHOLD = 24;
+/**
+ * Umbral (px de desplazamiento) para emitir una dirección en el swipe clásico
+ * (una dirección por gesto). Bajado 24→18px (PLAN-WAK-POLISH F2): el gesto
+ * responde antes; el modo flotante conserva su propio umbral (histéresis de
+ * re-centrado: 18px emitiría giros perpendiculares accidentales en diagonales).
+ */
+export const SWIPE_THRESHOLD = 18;
+
+/** Umbral del gesto flotante (re-centrado por commit; ver updateFloatingDrag). */
+export const FLOAT_THRESHOLD = 24;
 
 /** Eje dominante del delta: horizontal si `|dx| > |dy|` (empate → vertical). */
 function dominantDirection(dx: number, dy: number): Direction {
@@ -53,7 +61,7 @@ export function updateFloatingDrag(
   drag: FloatingDrag,
   x: number,
   y: number,
-  threshold: number = SWIPE_THRESHOLD,
+  threshold: number = FLOAT_THRESHOLD,
 ): FloatingDrag {
   const dx = x - drag.ox;
   const dy = y - drag.oy;

@@ -62,6 +62,11 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
 - [x] **Desmultiplicador de dificultad por nivel** — hecho en v2: velocidades,
       power y timers por nivel (`engine/levels.ts`) + modo Elroy (el Cazador
       acelera al final del nivel).
+- [ ] Medición formal de perf del laberinto (muros fusionados + subcapa
+      estática memoizada, PLAN-WAK-POLISH F4) — el bail-out de React es
+      estructural; medir con el protocolo de ADR 0011 solo si aparece queja.
+- [ ] Asset de explosión propio (`explosion.wav` sintetizado) si se quiere más
+      dramatismo en la muerte (hoy: `hit.wav` con rate 0.7, verificado).
 
 ## Solitario — animaciones fuera de alcance (diferido de PLAN-ESCALA-CONTENIDO)
 

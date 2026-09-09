@@ -8,6 +8,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
@@ -17,21 +18,32 @@ import { beginPerfSession, endPerfSession, perfJsStall } from '@/core/perf';
 import { usePerfFrameMonitor } from '@/core/perf/usePerfFrameMonitor';
 import { useIsTouchDevice } from '@/core/ui/useIsTouchDevice';
 import { hapticCombo, hapticGameWin, hapticSelection } from '@/core/ui/haptics';
-import { soundCombo, soundGameWin, soundHit, soundPickup, soundPowerUp } from '@/core/ui/sound';
+import { soundCombo, soundExplosion, soundGameWin, soundHit, soundPickup, soundPowerUp } from '@/core/ui/sound';
 import { useContainerSize } from '@/core/ui/useContainerSize';
 import type { GameScreenProps } from '@/core/types';
 import { ControlSettingsButton, ControlSettingsModal, type ControlMode } from './components/ControlSettings';
+import { BoardBanner } from './components/BoardBanner';
 import { Hud } from './components/Hud';
 import { LevelInterstitial } from './components/LevelInterstitial';
 import { LevelPicker } from './components/LevelPicker';
 import { EndOverlay, PauseOverlay } from './components/Overlays';
 import { beginFloatingDrag, directionFromSwipe, updateFloatingDrag } from './engine/controls';
-import { SLOWMO_RAMP_MS, hitStopMs, slowMoScale, threatsOf } from './engine/feel';
+import {
+  DEATH_FREEZE_FINAL_MS,
+  DEATH_FREEZE_MS,
+  DEATH_RECOVER_MS,
+  SLOWMO_RAMP_MS,
+  hitStopMs,
+  slowMoScale,
+  threatZoom,
+  threatsOf,
+} from './engine/feel';
 import { MAX_LEVEL } from './engine/levels';
 import { MAZE_COLS, MAZE_ROWS, type Direction } from './engine/maze';
 import { worldSnapshot, type GameEvent } from './engine/rules';
 import { useWakWakStore } from './engine/state';
 import { EntitiesLayer, type EntitiesHandle } from './renderer/reanimated/EntitiesLayer';
+import { DeathFx } from './renderer/reanimated/DeathFx';
 import { MazeLayer } from './renderer/reanimated/MazeLayer';
 
 const BOARD_BG = '#0B1220';
@@ -60,6 +72,19 @@ interface ScorePopup {
   y: number;
   text: string;
   color: string;
+}
+
+/** Mini-clip de destrucción (F5): punto de colisión en unidades de celda. */
+interface DeathClip {
+  x: number;
+  y: number;
+  final: boolean;
+  /**
+   * Zoom TOTAL al que anima el clip (1.6/1.8 dividido por el zoom de amenaza
+   * vigente al morir): el close-up CONTINÚA el zoom de muerte inminente en
+   * vez de saltar desde 1.
+   */
+  zoomTarget: number;
 }
 
 /**
@@ -92,9 +117,12 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   const [interstitial, setInterstitial] = useState<number | null>(null);
   const [endShown, setEndShown] = useState(false);
   const [popups, setPopups] = useState<ScorePopup[]>([]);
+  const [death, setDeath] = useState<DeathClip | null>(null);
   const cellSizeRef = useRef(0);
   const popupIdRef = useRef(0);
   const hitStopUntilRef = useRef(0);
+  const deathUntilRef = useRef(0);
+  const deathTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const slowScaleRef = useRef(1);
   const nextLevelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,6 +136,15 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   const score = useWakWakStore((s) => s.game.score);
   const bestChain = useWakWakStore((s) => s.game.bestChain);
 
+  // Close-up de muerte (F5): zoom del tablero + centro de la colisión (px).
+  const zoom = useSharedValue(1);
+  const deathCx = useSharedValue(0);
+  const deathCy = useSharedValue(0);
+  // Muerte inminente (v3): zoom progresivo por amenaza, escrito por frame
+  // desde el loop (patrón powerFraction — cero setState); reduced motion → 1.
+  const threatZoomSV = useSharedValue(1);
+  const threatZoomRef = useRef(1);
+
   // Métricas: FPS UI thread (no-op con gate off) + sesión de resumen
   usePerfFrameMonitor('wakwak');
   useEffect(() => {
@@ -120,7 +157,13 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     endedRef.current = false;
     setEndShown(false);
     setInterstitial(null);
+    setDeath(null);
+    deathUntilRef.current = 0;
+    zoom.value = 1;
+    threatZoomRef.current = 1;
+    threatZoomSV.value = 1;
     useWakWakStore.getState().reset(initialSeed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSeed]);
 
   // --- limpieza de timers al desmontar
@@ -128,6 +171,7 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     () => () => {
       if (nextLevelTimerRef.current) clearTimeout(nextLevelTimerRef.current);
       if (endTimerRef.current) clearTimeout(endTimerRef.current);
+      if (deathTimerRef.current) clearTimeout(deathTimerRef.current);
     },
     [],
   );
@@ -208,9 +252,13 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
         finishedAt: new Date().toISOString(),
       });
     }
-    // secuencia antes del overlay: victoria ~1s, derrota ~0.8s (D6)
+    // secuencia antes del overlay: victoria ~1s; derrota tras el clip de
+    // muerte (clip + recover + margen, F5)
     if (endTimerRef.current) clearTimeout(endTimerRef.current);
-    endTimerRef.current = setTimeout(() => setEndShown(true), won ? 1000 : 800);
+    endTimerRef.current = setTimeout(
+      () => setEndShown(true),
+      won ? 1000 : DEATH_FREEZE_FINAL_MS + DEATH_RECOVER_MS + 300,
+    );
   }, []);
 
   // --- interstitial de nivel (D8): congela el juego (status won) y avanza solo
@@ -256,10 +304,35 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
               Math.max(now, hitStopUntilRef.current) + hitStopMs(event.chain);
             break;
           }
-          case 'caught':
-            soundHit();
+          case 'caught': {
+            soundExplosion();
             entitiesRef.current?.onEvent({ kind: 'robotCaught' });
+            const isFinal = useWakWakStore.getState().game.lives <= 0;
+            const visual = isFinal ? DEATH_FREEZE_FINAL_MS : DEATH_FREEZE_MS;
+            // close-up encuadra el SITIO de la colisión (evento `caught` lo lleva)
+            deathCx.value = event.x * cellSizeRef.current;
+            deathCy.value = event.y * cellSizeRef.current;
+            // Handoff del zoom (v3): congela el zoom de amenaza vigente EN el
+            // clip (threat→1, clip=withThreat → el total queda continuo) y el
+            // clip anima hacia 1.6/1.8 desde ahí — no hay salto ni re-zoom.
+            const withThreat = reduced ? 1 : threatZoomRef.current;
+            threatZoomRef.current = 1;
+            threatZoomSV.value = 1;
+            zoom.value = withThreat;
+            deathUntilRef.current = performance.now() + visual + DEATH_RECOVER_MS;
+            setDeath({
+              x: event.x,
+              y: event.y,
+              final: isFinal,
+              zoomTarget: (isFinal ? 1.8 : 1.6) / withThreat,
+            });
+            if (deathTimerRef.current) clearTimeout(deathTimerRef.current);
+            deathTimerRef.current = setTimeout(() => {
+              setDeath(null); // dim/partículas fuera…
+              zoom.value = withTiming(1, { duration: DEATH_RECOVER_MS }); // …zoom vuelve; present sigue congelado hasta el fin del recover
+            }, visual);
             break;
+          }
           case 'bonusTaken':
             spawnPopup('+100', '#4ADE80');
             break;
@@ -286,10 +359,13 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
         }
       }
     },
-    [endRun, scheduleNextLevel, spawnPopup],
+    [endRun, scheduleNextLevel, spawnPopup, zoom, deathCx, deathCy],
   );
 
   // --- loop del juego (adaptador A): rAF + tick + present + feel (D4/D5)
+  /** Fracción restante del power (0..1) para la barra del BoardBanner:
+   * escrita por frame desde el loop, sin setState (PLAN-WAK-POLISH F1). */
+  const powerFractionSV = useSharedValue(0);
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
@@ -298,25 +374,39 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
       const dt = Math.min(100, rawDt);
       last = now;
       const store = useWakWakStore.getState();
+      const deathFrozen = now < deathUntilRef.current;
       if (!store.paused && store.game.status === 'playing') {
         // hit-stop activo: el engine no avanza (pausa visual-only, D4)
-        if (hitStopUntilRef.current - now <= 0) {
-          // slow-mo near-death (D5): factor objetivo con rampa temporal
+        if (!deathFrozen && hitStopUntilRef.current - now <= 0) {
+          // near-death v3: slow-mo CONTINUO + zoom progresivo por proximidad —
+          // amenazas calculadas UNA vez; ambos objetivos con la misma rampa
           const game = store.game;
-          const target = slowMoScale(threatsOf(game), game.powerUntil !== null);
+          const powered = game.powerUntil !== null;
+          const threats = threatsOf(game);
           const k = Math.min(1, rawDt / SLOWMO_RAMP_MS);
-          slowScaleRef.current += (target - slowScaleRef.current) * k;
+          slowScaleRef.current += (slowMoScale(threats, powered) - slowScaleRef.current) * k;
+          if (!reduced) {
+            threatZoomRef.current += (threatZoom(threats, powered) - threatZoomRef.current) * k;
+            threatZoomSV.value = threatZoomRef.current;
+          }
           handleEvents(store.tick(dt * slowScaleRef.current));
         }
       }
-      entitiesRef.current?.present(worldSnapshot(useWakWakStore.getState().game));
+      // Durante el clip de muerte present TAMBIÉN se congela: el engine ya
+      // reseteó posiciones y las entidades teleportarían a los spawns
+      // (hallazgo 2: última pose fija hasta que el zoom vuelve a 1).
+      if (!deathFrozen) {
+        const snapshot = worldSnapshot(useWakWakStore.getState().game);
+        entitiesRef.current?.present(snapshot);
+        powerFractionSV.value = snapshot.powerFraction;
+      }
       // Métrica de jank del loop (JS thread): dt crudo por encima del presupuesto
       if (rawDt > STALL_BUDGET_MS) perfJsStall('wakwak', rawDt);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [handleEvents]);
+  }, [handleEvents, powerFractionSV, reduced]);
 
   // --- teclado (PC web): flechas + WASD
   useEffect(() => {
@@ -400,25 +490,48 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     endedRef.current = false;
     setEndShown(false);
     setInterstitial(null);
+    setDeath(null);
+    deathUntilRef.current = 0;
+    zoom.value = 1;
+    threatZoomRef.current = 1;
+    threatZoomSV.value = 1;
     setPickerOpen(false);
     useWakWakStore.getState().startRun(level);
-  }, []);
+  }, [zoom, threatZoomSV]);
 
   const restart = useCallback(() => {
     endedRef.current = false;
     setEndShown(false);
     setInterstitial(null);
+    setDeath(null);
+    deathUntilRef.current = 0;
+    zoom.value = 1;
+    threatZoomRef.current = 1;
+    threatZoomSV.value = 1;
     useWakWakStore.getState().reset(initialSeed);
-  }, [initialSeed]);
+  }, [initialSeed, zoom, threatZoomSV]);
 
   const boardWidth = cellSize * MAZE_COLS;
   const boardHeight = cellSize * MAZE_ROWS;
 
+  // Zoom del tablero centrado en el sitio de la colisión (F5) × zoom de
+  // muerte inminente (v3): sin transformOrigin (soporte desigual) —
+  // translate·scale·translate inverso.
+  const boardZoomStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: deathCx.value },
+      { translateY: deathCy.value },
+      { scale: zoom.value * threatZoomSV.value },
+      { translateX: -deathCx.value },
+      { translateY: -deathCy.value },
+    ],
+  }));
+
   const board = (
     <View style={styles.boardArea} onLayout={onLayout}>
       {cellSize > 0 ? (
-        <View
-          style={[styles.board, { width: boardWidth, height: boardHeight }]}
+        <Animated.View
+          style={[styles.board, { width: boardWidth, height: boardHeight }, boardZoomStyle]}
           accessibilityLabel="tablero-wakwak"
         >
           <MazeLayer
@@ -428,6 +541,17 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
             bonusActive={bonusActive}
           />
           <EntitiesLayer ref={entitiesRef} cellSize={cellSize} />
+          <BoardBanner powerFraction={powerFractionSV} />
+          {death ? (
+            <DeathFx
+              x={death.x}
+              y={death.y}
+              cellSize={cellSize}
+              final={death.final}
+              zoom={zoom}
+              zoomTarget={death.zoomTarget}
+            />
+          ) : null}
           {popups.map((popup) => (
             <Animated.View
               key={popup.id}
@@ -439,7 +563,7 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
               <Text style={[styles.popupText, { color: popup.color }]}>{popup.text}</Text>
             </Animated.View>
           ))}
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -584,6 +708,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#33415C',
     overflow: 'hidden',
+    // el zoom del close-up compensa el origen a mano (translate·scale·translate⁻¹):
+    // el origin nativo debe ser (0,0) para que la compensación sea exacta
+    transformOrigin: '0 0',
   },
   popup: {
     position: 'absolute',

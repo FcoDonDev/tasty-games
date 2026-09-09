@@ -13,10 +13,13 @@ Munchkin*, 1982) concluyó que el copyright del original protege la **expresión
 puntos, power-ups, túnel, IA con personalidades, vidas). Checklist de expresión
 original aplicado — verificar al tocar cualquier asset visual/sonoro:
 
-- [ ] Protagonista: robot aspiradora (cuadrado redondeado con franja), NO círculo
-      amarillo con boca en V.
-- [ ] Enemigos: 4 drones rombo con LED central fijo, NO campanas con ojos que
-      siguen la dirección de movimiento. Colores por personalidad
+- [x] Protagonista: aspiradora top-down aprobada (círculo blanco con placa,
+      botón-beacon y banda frontal con ojitos; rota hacia su dirección),
+      NO círculo amarillo con boca en V.
+- [x] Enemigos: 4 drones con cuerpo cuadrado redondeado (capucha + asas) y
+      visor negro con expresión FIJA por personalidad (cejas enojadas/
+      ojo-lente/ojo lateral/sonrisa cerrada), NO campanas con ojos que siguen
+      la dirección de movimiento. Colores por personalidad
       (naranja/violeta/celeste/rosa), no el cuarteto rojo/rosa/celeste/naranja
       del original.
 - [ ] Comida: baterías cuadradas doradas y súper batería; chip dorado como bonus.
@@ -24,7 +27,10 @@ original aplicado — verificar al tocar cualquier asset visual/sonoro:
 - [ ] Audio: blips/golpes sintetizados propios; sin waka-waka, sirena ni jingle.
 - [ ] Nombre y descripción sin referencia a la marca del original.
 - [ ] Laberinto: layout propio 19×21 (`engine/maze.ts`), validado por tests
-      (conectividad, sin callejones, todo alcanzable).
+      (conectividad, sin callejones, todo alcanzable, **sin áreas abiertas
+      3×3** — solo pasillos, regla del usuario; el wrap del túnel cuenta como
+      pasillo continuo en la fila 9, el validador no lo marca como falso
+      callejón).
 
 ## Estructura
 
@@ -46,6 +52,9 @@ src/games/wakwak/
   renderer/
     types.ts              # PUERTO de presentación (createWorld/present/onDirection)
     reanimated/           # ADAPTADOR A (ADR 0010): MazeLayer + EntitiesLayer
+  preview/                # SOLO DEV (ruta /wakwak-preview, ADR 0012): iteración
+                          #   de diseño (PersonajesPreview, LaberintoPreview con
+                          #   validador en vivo) sin tocar el juego activo
   __tests__/              # ~100 tests del núcleo (sin RN)
   __e2e__/                # Playwright web (test-win/test-lose/test-power/test-combo/test-level)
 ```
@@ -68,8 +77,8 @@ src/games/wakwak/
   drones (velocidad 3.2 vs 4.6 en chase; el robot es más rápido: 5.5).
 - **IA sin ojos perseguidores:** los drones deciden por distancia euclidiana al
   objetivo en cada intersección, sin revertir salvo obligación (regla clásica,
-  mecánica no protegida); el LED del drone NO indica dirección (diferenciador
-  expresivo deliberado).
+  mecánica no protegida); la expresión del visor es FIJA y NO indica dirección
+  (diferenciador expresivo deliberado).
 - **Corral con puerta:** la puerta (`-`) es transitable solo para drones;
   salida escalonada (`releaseBase` + stagger), drone comido reaparece tras 6s.
 - **Chip dorado:** aparece al 50% de comestibles, ventana de 10s, celda

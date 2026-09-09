@@ -66,11 +66,11 @@ describe('state: store zustand', () => {
     expect(useWakWakStore.getState().game.robot.dir).toBe('right');
   });
 
-  it('setDirection sobre el spawn con muro arriba queda encolada', () => {
-    useWakWakStore.getState().setDirection('up');
+  it('setDirection sobre el spawn con muro abajo queda encolada', () => {
+    useWakWakStore.getState().setDirection('down');
     const { game } = useWakWakStore.getState();
     expect(game.robot.dir).toBeNull();
-    expect(game.robot.queued).toBe('up');
+    expect(game.robot.queued).toEqual(['down']);
   });
 
   it('el robot del store arranca en el spawn y los drones en el corral', () => {
