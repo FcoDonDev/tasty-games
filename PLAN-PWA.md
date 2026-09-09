@@ -130,7 +130,7 @@ es suficiente.
       completo (44/44, 3 nuevos del spec PWA).
 - [x] El `<link rel="manifest">` queda candaeado en un spec e2e web (assert
       en spec de índice o mini-spec propio).
-- [ ] En un dispositivo/DevTools device-mode se puede "Añadir a pantalla de
+- [x] En un dispositivo/DevTools device-mode se puede "Añadir a pantalla de
       inicio" (verificación manual del usuario — no automatizable en
       Playwright headless).
 
@@ -147,11 +147,23 @@ es suficiente.
 - [x] T5: Spec e2e web que candee el `<link rel="manifest">` (+ metas
       básicas) en la página índice.
 - [x] T6: Verificación estándar completa: typecheck → test → e2e 25/25.
-- [ ] T7: Cierre: hallazgos → GOTCHAS/ADR/ROADMAP; actualizar docs
+- [x] T7: Cierre: hallazgos → GOTCHAS/ADR/ROADMAP; actualizar docs
       (ARCHITECTURE o sección web de README raíz si aplica); eliminar este
       PLAN en el commit final.
 
 ## Notas / hallazgos
+
+> **Cierre (T7): hallazgos migrados a su destino definitivo:**
+> - ADR 0013 — PWA instalable sin service worker (decisión D2 + D1 + head
+>   default) → `docs/adr/0013-pwa-instalable-sin-service-worker.md`.
+> - Lecciones reproducibles (head default template vs CLI; apple-touch-icon
+>   sin transparencia) → `docs/GOTCHAS.md` (sección Web / PWA).
+> - Deuda/pendientes (personalizar iconos, SW offline futuro,
+>   `viewport-fit=cover`) → `docs/ROADMAP.md` (Deudas técnicas).
+> - Sección "Build y deploy web" actualizada en `docs/ARCHITECTURE.md` (PWA
+>   sin cambios de nginx).
+> - Índice de ADRs actualizado (`docs/adr/README.md`).
+> - AGENTS.md: condición "verde" actualizada de 25/25 a conteo real (44/44).
 
 - **Head default de expo-router (verificado antes/después)**: el template de
   `@expo/router-server` solo aporta charset, X-UA-Compatible, viewport y

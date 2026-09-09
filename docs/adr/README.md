@@ -25,3 +25,4 @@ Para proponer un cambio que contradiga un ADR: crear un nuevo ADR que lo reempla
 | [0010](0010-wakwak-motor-agnostico.md) | Aceptada | Wak Wak: núcleo lógico agnóstico al motor + adaptador Views/Reanimated |
 | [0011](0011-metricas-performance.md) | Aceptada | Métricas de performance gated por `EXPO_PUBLIC_PERF_METRICS` |
 | [0012](0012-previews-diseno-dev-only.md) | Aceptada | Previews de diseño dev-only dentro del módulo del juego (ruta dev-only, componentes reales, aprobación antes de tocar el render) |
+| [0013](0013-pwa-instalable-sin-service-worker.md) | Aceptada | PWA instalable (manifest standalone + metas Apple) sin Service Worker |
