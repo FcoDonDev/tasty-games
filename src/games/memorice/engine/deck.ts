@@ -56,3 +56,19 @@ export function buildDeck(pairCount: number, seed?: number): CardModel[] {
     symbol: pair.symbol,
   }));
 }
+
+/**
+ * Seeds sentinelas de performance (PLAN-PERFORMANCE §7): fijan el reparto del
+ * mazo para que los escenarios E2E (par que coincide / que no coincide) sean
+ * reproducibles. Ambos usan un seed NUMÉRICO fijo: el escenario elige qué
+ * cartas voltear sabiendo el layout determinista.
+ */
+export const PERF_MATCH_SEED = 20260901;
+export const PERF_MISMATCH_SEED = 20260902;
+
+/** Mapea el `initialSeed` que llega por query param (solo builds E2E) a seed numérico. */
+export function parseSeed(initialSeed?: string): number | undefined {
+  if (initialSeed === 'perf-match') return PERF_MATCH_SEED;
+  if (initialSeed === 'perf-mismatch') return PERF_MISMATCH_SEED;
+  return undefined;
+}

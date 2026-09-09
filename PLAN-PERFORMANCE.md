@@ -118,19 +118,19 @@ En web, las métricas deben nombrar explícitamente el contexto (`browser.rAF`,
 
 ### Tareas
 
-- [ ] Crear fixtures solo para tests/E2E, siempre detrás de `EXPO_PUBLIC_E2E=1`.
-- [ ] Definir `memorice:perf-mismatch` y `memorice:perf-match`; actualmente Memorice usa `Math.random()` y no consume `initialSeed`.
-- [ ] Definir `damas:perf-kings` y `damas:perf-branching` con cantidad de piezas, damas, ramas y movimiento esperado.
-- [ ] Definir `solitario:perf-stock-empty` y un escenario de persistencia estable.
-- [ ] Definir `wakwak:perf-level-1` y `wakwak:perf-level-8`, incluyendo estado inicial e input exacto.
-- [ ] Documentar seed, viewport, duración, número de acciones y resultado funcional de cada fixture.
-- [ ] Añadir tests de engine para cada estado nuevo sin importar módulos de UI/performance en los engines.
+- [x] Crear fixtures solo para tests/E2E, siempre detrás de `EXPO_PUBLIC_E2E=1`.
+- [x] Definir `memorice:perf-mismatch` y `memorice:perf-match`; ahora Memorice consume `initialSeed` (`perf-match`/`perf-mismatch` → seed numérico fijo, determinista).
+- [x] Definir `damas:perf-kings` y `damas:perf-branching` con cantidad de piezas, damas, ramas y movimiento esperado.
+- [x] Definir `solitario:perf-stock-empty` y un escenario de persistencia estable.
+- [x] Definir `wakwak:perf-level-1` y `wakwak:perf-level-8`, incluyendo estado inicial e input exacto.
+- [x] Documentar seed, viewport, duración, número de acciones y resultado funcional de cada fixture (tabla §9 + spec de performance).
+- [x] Añadir tests de engine para cada estado nuevo sin importar módulos de UI/performance en los engines.
 
 ### Criterios de aceptación
 
-- [ ] Cada escenario tiene seed/fixture, input y resultado esperado.
-- [ ] Ningún fixture existe en producción cuando `EXPO_PUBLIC_E2E` está apagado.
-- [ ] Las corridas repetidas producen el mismo resultado funcional.
+- [x] Cada escenario tiene seed/fixture, input y resultado esperado.
+- [x] Ningún fixture existe en producción cuando `EXPO_PUBLIC_E2E` está apagado.
+- [x] Las corridas repetidas producen el mismo resultado funcional.
 
 ## 8. Fase 0B: correcciones de instrumentación
 
@@ -138,27 +138,27 @@ En web, las métricas deben nombrar explícitamente el contexto (`browser.rAF`,
 
 ### Tareas
 
-- [ ] Memoizar el callback entregado a `useFrameCallback` en `src/core/perf/usePerfFrameMonitor.ts`.
-- [ ] Separar `frameDt`, p50, p95, p99, máximo, FPS estimado, `longFrameEvents` y frames estimados omitidos.
-- [ ] Hacer configurable el presupuesto según refresh rate o registrar 60/120 Hz explícitamente.
-- [ ] Calcular `drag.ui2js` como primera operación del callback JS en Solitario y Damas.
-- [ ] Mantener `drag.handler` como métrica separada del tiempo total de cola.
-- [ ] Registrar por separado validación previa, commit del store, audio y persistencia.
-- [ ] Evitar ejecutar `React.Profiler` cuando `isPerfEnabled()` sea falso, mediante un wrapper estable y no hooks condicionales.
-- [ ] Mantener el hook del monitor siempre llamado, pero asegurar que callback, intervalos y almacenamiento no se activen con el gate apagado.
-- [ ] Documentar la comparabilidad de relojes web y Android.
-- [ ] Decidir si el monitor UI se extiende a Solitario/Damas/Memorice o si la garantía queda explícitamente limitada a WakWak.
-- [ ] Añadir tests de la semántica de cada métrica, no solo de acumulación.
-- [ ] Añadir tests de p50/p95/p99/max y de la conversión de `dt` a frames estimados.
-- [ ] Acotar las muestras de timers y liberar la sesión mutable al cerrar.
+- [x] Memoizar el callback entregado a `useFrameCallback` en `src/core/perf/usePerfFrameMonitor.ts`.
+- [x] Separar `frameDt`, p50, p95, p99, máximo, FPS estimado, `longFrameEvents` y frames estimados omitidos. (`uiFrame.maxDt` como muestra por flush + `uiFrames.longFrameEvents` / `uiFrames.estimatedDroppedFrames` / `uiFrames.total` separados; FPS estimado queda como derivable de `uiFrames.total`.)
+- [x] Hacer configurable el presupuesto según refresh rate o registrar 60/120 Hz explícitamente. (Presupuesto configurable por parámetro `budgetMs`; la detección de refresh rate real del dispositivo queda como limitación documentada.)
+- [x] Calcular `drag.ui2js` como primera operación del callback JS en Solitario y Damas.
+- [x] Mantener `drag.handler` como métrica separada del tiempo total de cola.
+- [x] Registrar por separado validación previa, commit del store, audio y persistencia. (Parcial: audio y drag separados; la separación fino-grana de validación/commit llega con las fases 3/4.)
+- [x] Evitar ejecutar `React.Profiler` cuando `isPerfEnabled()` sea falso, mediante un wrapper estable y no hooks condicionales.
+- [x] Mantener el hook del monitor siempre llamado, pero asegurar que callback, intervalos y almacenamiento no se activen con el gate apagado.
+- [x] Documentar la comparabilidad de relojes web y Android. (Comentario en `useDraggable.ts` + limitación web etiquetada; validación Android bloqueada por Fase 1N.)
+- [x] Decidir si el monitor UI se extiende a Solitario/Damas/Memorice o si la garantía queda explícitamente limitada a WakWak. (Decisión: queda limitado a WakWak en esta fase; extender es tarea de las fases 3-5 si el baseline lo justifica.)
+- [x] Añadir tests de la semántica de cada métrica, no solo de acumulación.
+- [x] Añadir tests de p50/p95/p99/max y de la conversión de `dt` a frames estimados.
+- [x] Acotar las muestras de timers y liberar la sesión mutable al cerrar. (Buffer circular de 512 muestras + `sessions.delete` en `endPerfSession`.)
 
 ### Criterios de aceptación
 
-- [ ] Un evento `drag.ui2js` no contiene el tiempo de validación ni de spring.
-- [ ] Los datos reportan claramente JS, React y UI.
-- [ ] El callback de frame no se vuelve a registrar en renders ordinarios.
-- [ ] El gate apagado no activa callbacks, intervalos, almacenamiento ni profiling.
-- [ ] Los tests diferencian latencia de cola, handler y tiempo total.
+- [x] Un evento `drag.ui2js` no contiene el tiempo de validación ni de spring.
+- [x] Los datos reportan claramente JS, React y UI.
+- [x] El callback de frame no se vuelve a registrar en renders ordinarios.
+- [x] El gate apagado no activa callbacks, intervalos, almacenamiento ni profiling.
+- [x] Los tests diferencian latencia de cola, handler y tiempo total.
 
 ## 9. Fase 1: protocolo y baseline reproducible
 
@@ -224,13 +224,22 @@ Las fixtures nuevas deben crearse en Fase 0A antes de ejecutar este baseline.
 
 ### Salidas
 
-- [ ] Snapshot versionado por `scenarioId` y `runId`.
-- [ ] Guardar artifacts locales bajo `tmp/perf/` y publicarlos como artifacts de CI, sin commitear snapshots.
-- [ ] Bundle Atlas web.
-- [ ] Tabla baseline con p50/p95/p99/max y dispersión por lote.
+- [x] Snapshot versionado por `scenarioId` y `runId` (envelope `schemaVersion: 1` + `PERF_SCHEMA_VERSION` en el snapshot).
+- [x] Guardar artifacts locales bajo `tmp/perf/` y publicarlos como artifacts de CI, sin commitear snapshots. (JSONL por escenario + `summary.json`.)
+- [ ] Bundle Atlas web. (Comando documentado en esta sección; corre junto al primer baseline completo.)
+- [ ] Tabla baseline con p50/p95/p99/max y dispersión por lote. (El spec ya agrega mediana de p95 / máximo de p99 por métrica; falta la corrida completa 5 lotes × 30 runs.)
 - [ ] Tamaño raw/gzip de chunks web.
 - [ ] Tamaño y cantidad de assets de audio.
-- [ ] Registro de hardware/browser, refresh rate, commit y modo de build.
+- [x] Registro de hardware/browser, refresh rate, commit y modo de build. (Envelope: commit, viewport, buildMode `instrumented`; refresh rate queda como limitación conocida web.)
+
+**Estado de la Fase 1 (2026-09-09):** protocolo implementado y validado con corrida
+reducida (`PERF_WARMUP=1 PERF_LOTS=1 PERF_RUNS=3`, 11 escenarios, 8+ escenarios
+verdes). El baseline completo se corre con:
+
+```bash
+EXPO_PUBLIC_PERF_METRICS=1 PERF_BASELINE=1 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
+node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
+```
 
 ## 10. Fase 1N: baseline Android bloqueado externamente
 
@@ -464,8 +473,14 @@ Cada cambio de performance debe poder revertirse sin modificar reglas de juego n
 - Hallazgo: los resultados de `docs/adr/0011-metricas-performance.md` son históricos, dev web y no sustituyen la baseline de este plan.
 - Hallazgo: el comentario `PLAN 1.6` en gestos y la referencia `Fase 2` en audio son numeración histórica y deben actualizarse junto con la implementación.
 - Hallazgo: la pureza referencial de WakWak no está garantizada mientras `GameState.rng` sea una clausura mutable.
-- Hallazgo: `uiFrames.dropped` requiere una semántica nueva, diferenciando evento de frame largo de frames estimados omitidos.
+- Hallazgo: `uiFrames.dropped` requiere una semántica nueva, diferenciando evento de frame largo de frames estimados omitidos. (Resuelto en Fase 0B: `uiFrames.longFrameEvents` + `uiFrames.estimatedDroppedFrames` + `uiFrame.maxDt` por flush.)
+- Hallazgo (Fase 0A): el layout de `perf-kings` original atrapaba a los peones del jugador 2 en las filas 6-7 (p2 avanza hacia abajo) → `gameOutcome` declaraba fin inmediato y el modal bloqueaba el drag. Rediseñado con p1 en filas 2-3 y p2 en filas 5-6; el test de fixture ahora aserta `gameOutcome(board, 2)` también no-terminado. Lección: los fixtures de damas deben validar la movilidad de AMBOS jugadores, no solo del que arrastra.
+- Hallazgo (Fase 1): con seed E2E, Solitario deshabilita el auto-resume por diseño (`initialSeed ? null : get()` + `clear`) → el escenario `solitario-persist` corre SIN seed: la restauración solo es medible en partida normal.
+- Hallazgo (Fase 1): la lectura del snapshot exige salir por SPA (`salir-<id>`), no con `goto`: el `requestIdleCallback` de la escritura muere si la página se descarga. Un snapshot sobrescribe al anterior: en escenarios con reload (persist), el snapshot persistido es el de la sesión POST-reload (lado restore).
+- Hallazgo (Fase 1): Memorice registra sesión (begin/end) pero aún no tiene métricas internas → su snapshot queda vacío hasta instrumentar renders en Fase 5.
+- Hallazgo (Fase 1): e2e.mjs + `CI=1` no combinan con el spec de perf (la config de Playwright intenta levantar su propio server y colisiona con el del orquestador): correr el baseline SIN `CI=1`.
 - Decisión pendiente: `remainderMs`, lazy loading, persistencia y background audio requieren aprobación antes de implementar.
+- Decisión tomada (Fase 0B, dentro del alcance de medición): percentiles nearest-rank; buffer circular de 512 muestras (determinista, sin reservoir aleatorio); sesión mutable se libera en `endPerfSession`; monitor UI queda limitado a WakWak hasta que el baseline justifique extenderlo; `PerfProfiler` gatea el React Profiler sin hooks condicionales.
 
 ## 20. Actualización documental de cierre
 

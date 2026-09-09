@@ -3,17 +3,35 @@
  * build; default OFF → cero overhead: toda la API es no-op). Ver
  * PLAN-PERFORMANCE.md / ADR de métricas.
  *
- * Dos ejes de jank, deliberadamente separados (miden threads distintos):
+ * Ejes de jank, deliberadamente separados (miden threads/contextos distintos):
  *  - `perfJsStall`: stalls del loop rAF del juego (JS thread).
- *  - `perfUiFrame`: frames perdidos de render (UI thread, usePerfFrameMonitor).
+ *  - `perfUiFrame`: frames de la UI thread (usePerfFrameMonitor) con semántica
+ *    separada de frame largo vs frame omitido estimado.
+ *  - `perfDragEvent`: latencia UI→JS y handler JS, mediciones separadas.
+ *
+ * Los percentiles usan nearest-rank sobre las últimas MAX_SAMPLES_PER_TIMER
+ * muestras (buffer circular; PLAN-PERFORMANCE §6/§8).
  */
 
 type GameId = string;
+
+/** Versión del schema de snapshot (PLAN-PERFORMANCE §6): cambiar si el formato
+ * de PerfSnapshot/PerfTimerSummary se vuelve incompatible. */
+export const PERF_SCHEMA_VERSION = 1;
+
+/**
+ * Acotación de muestras por timer (PLAN-PERFORMANCE §6): buffer circular con
+ * las últimas N muestras. Determinista (sin reservoir aleatorio); una sesión
+ * larga no puede crecer en memoria indefinidamente.
+ */
+const MAX_SAMPLES_PER_TIMER = 512;
 
 interface TimerStats {
   count: number;
   sum: number;
   min: number;
+  max: number;
+  /** Últimas MAX_SAMPLES_PER_TIMER muestras, orden de llegada. */
   samples: number[];
 }
 
@@ -27,10 +45,14 @@ export interface PerfTimerSummary {
   count: number;
   avg: number;
   min: number;
+  p50: number;
   p95: number;
+  p99: number;
+  max: number;
 }
 
 export interface PerfSnapshot {
+  schemaVersion: number;
   startedAt: number;
   endedAt: number;
   timers: Record<string, PerfTimerSummary>;
@@ -78,10 +100,13 @@ function getSession(gameId: GameId): Session | null {
 }
 
 function recordTimer(session: Session, key: string, ms: number): void {
-  const stats = session.timers.get(key) ?? { count: 0, sum: 0, min: Infinity, samples: [] };
+  const stats = session.timers.get(key) ?? { count: 0, sum: 0, min: Infinity, max: 0, samples: [] };
   stats.count += 1;
   stats.sum += ms;
   stats.min = Math.min(stats.min, ms);
+  stats.max = Math.max(stats.max, ms);
+  // Buffer circular: si excede el tope, descarta la más vieja.
+  if (stats.samples.length >= MAX_SAMPLES_PER_TIMER) stats.samples.shift();
   stats.samples.push(ms);
   session.timers.set(key, stats);
 }
@@ -96,15 +121,19 @@ export function beginPerfSession(gameId: GameId): void {
   sessions.set(gameId, { startedAt: Date.now(), timers: new Map(), counters: new Map() });
 }
 
-/** Cierra la sesión: imprime resumen (count/avg/min/p95) y persiste snapshot
- * (solo web, escritura en idle, sobrescrita por sesión). La sesión queda en
- * memoria hasta el próximo begin. */
+/** Cierra la sesión: imprime resumen y persiste snapshot (solo web, escritura
+ * en idle, sobrescrita por sesión). La sesión mutable se libera; el último
+ * snapshot queda en memoria hasta el próximo begin. */
 export function endPerfSession(gameId: GameId): void {
   const session = getSession(gameId);
   if (!session) return;
   latestSnapshots.set(gameId, snapshotOf(gameId, session));
   printSummary(gameId, session);
   persistSnapshot(gameId, session);
+  // Liberar la sesión mutable: samples/timers no deben sobrevivir al cierre
+  // (PLAN-PERFORMANCE §6: al cerrar se conserva el snapshot y se libera la
+  // sesión para medir memoria de la app, no del harness).
+  sessions.delete(gameId);
 }
 
 export function perfDragEvent(
@@ -152,25 +181,57 @@ export function perfJsStall(gameId: GameId, dtMs: number): void {
   bumpCounter(session, 'jsStall.count');
 }
 
-/** Frames de la UI thread (usePerfFrameMonitor): acumulado periódico. */
-export function perfUiFrame(gameId: GameId, dropped: number, total: number): void {
+/** Frames de la UI thread (usePerfFrameMonitor), semántica separada
+ * (PLAN-PERFORMANCE §8): `longFrameEvents` = frames con dt por encima del
+ * presupuesto; `estimatedDroppedFrames` = estimación de frames omitidos
+ * (floor(dt/budget)); `total` = frames medidos; `maxDtMs` = peor dt del
+ * intervalo de flush (se guarda como muestra de `uiFrame.maxDt`).
+ * `dt > budget` NO equivale a frame perdido: por eso ambos contadores viven
+ * separados y la conversión a frames omitidos queda explícita. */
+export function perfUiFrame(
+  gameId: GameId,
+  data: {
+    longFrameEvents: number;
+    estimatedDroppedFrames: number;
+    total: number;
+    maxDtMs: number;
+  },
+): void {
   const session = getSession(gameId);
   if (!session) return;
-  bumpCounter(session, 'uiFrames.dropped', dropped);
-  bumpCounter(session, 'uiFrames.total', total);
+  bumpCounter(session, 'uiFrames.longFrameEvents', data.longFrameEvents);
+  bumpCounter(session, 'uiFrames.estimatedDroppedFrames', data.estimatedDroppedFrames);
+  bumpCounter(session, 'uiFrames.total', data.total);
+  if (data.maxDtMs > 0) recordTimer(session, 'uiFrame.maxDt', data.maxDtMs);
+}
+
+/** Percentil nearest-rank sobre muestras ordenadas: `ceil(p * n) - 1`.
+ * Para muestras pequeñas coincide con el min/max según p. */
+function percentile(sorted: readonly number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  return sorted[Math.max(0, Math.ceil(p * sorted.length) - 1)];
 }
 
 function summarize(stats: TimerStats): PerfTimerSummary {
   const sorted = [...stats.samples].sort((a, b) => a - b);
-  const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
-  return { count: stats.count, avg: round(stats.sum / stats.count), min: round(stats.min), p95: round(p95) };
+  return {
+    count: stats.count,
+    avg: round(stats.sum / stats.count),
+    min: round(stats.min),
+    p50: round(percentile(sorted, 0.5)),
+    p95: round(percentile(sorted, 0.95)),
+    p99: round(percentile(sorted, 0.99)),
+    max: round(stats.max),
+  };
 }
 
 function printSummary(gameId: GameId, session: Session): void {
   const lines: string[] = [];
   for (const [key, stats] of session.timers) {
     const s = summarize(stats);
-    lines.push(`${key}: count=${s.count} avg=${s.avg}ms min=${s.min}ms p95=${s.p95}ms`);
+    lines.push(
+      `${key}: count=${s.count} avg=${s.avg}ms min=${s.min}ms p50=${s.p50}ms p95=${s.p95}ms p99=${s.p99}ms max=${s.max}ms`,
+    );
   }
   for (const [key, value] of session.counters) {
     lines.push(`${key}: ${value}`);
@@ -184,7 +245,7 @@ function snapshotOf(gameId: GameId, session: Session): PerfSnapshot {
   for (const [key, stats] of session.timers) timers[key] = summarize(stats);
   const counters: Record<string, number> = {};
   for (const [key, value] of session.counters) counters[key] = value;
-  return { startedAt: session.startedAt, endedAt: Date.now(), timers, counters };
+  return { schemaVersion: PERF_SCHEMA_VERSION, startedAt: session.startedAt, endedAt: Date.now(), timers, counters };
 }
 
 function persistSnapshot(gameId: GameId, session: Session): void {

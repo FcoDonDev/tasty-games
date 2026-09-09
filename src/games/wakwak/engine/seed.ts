@@ -61,13 +61,19 @@ const TEST_LOSE_SEED = '__test_lose__';
 const TEST_POWER_SEED = '__test_power__';
 const TEST_COMBO_SEED = '__test_combo__';
 const TEST_LEVEL_SEED = '__test_level__';
+/** Fixtures de performance (PLAN-PERFORMANCE §7): partida normal determinista
+ * (mismo defaultConfig que una run sin seed) fijada al nivel 1 u 8. */
+const PERF_LEVEL_1_SEED = '__perf_level_1__';
+const PERF_LEVEL_8_SEED = '__perf_level_8__';
 
 export type SeedSentinel =
   | typeof TEST_WIN_SEED
   | typeof TEST_LOSE_SEED
   | typeof TEST_POWER_SEED
   | typeof TEST_COMBO_SEED
-  | typeof TEST_LEVEL_SEED;
+  | typeof TEST_LEVEL_SEED
+  | typeof PERF_LEVEL_1_SEED
+  | typeof PERF_LEVEL_8_SEED;
 
 /** Mapea el `initialSeed` del query param al sentinel; undefined = partida normal. */
 export function parseGameSeed(initialSeed?: string): SeedSentinel | undefined {
@@ -76,6 +82,8 @@ export function parseGameSeed(initialSeed?: string): SeedSentinel | undefined {
   if (initialSeed === 'test-power') return TEST_POWER_SEED;
   if (initialSeed === 'test-combo') return TEST_COMBO_SEED;
   if (initialSeed === 'test-level') return TEST_LEVEL_SEED;
+  if (initialSeed === 'perf-level-1') return PERF_LEVEL_1_SEED;
+  if (initialSeed === 'perf-level-8') return PERF_LEVEL_8_SEED;
   return undefined;
 }
 
@@ -203,5 +211,8 @@ export function seedConfig(sentinel?: SeedSentinel, level = 1): SeedConfig {
   if (sentinel === TEST_LOSE_SEED) return testLoseConfig();
   if (sentinel === TEST_POWER_SEED) return testPowerConfig();
   if (sentinel === TEST_COMBO_SEED) return testComboConfig();
+  // Fixtures de performance: partida NORMAL determinista al nivel fijado.
+  if (sentinel === PERF_LEVEL_1_SEED) return { ...defaultConfig(1), label: PERF_LEVEL_1_SEED };
+  if (sentinel === PERF_LEVEL_8_SEED) return { ...defaultConfig(8), label: PERF_LEVEL_8_SEED };
   return defaultConfig(level);
 }
