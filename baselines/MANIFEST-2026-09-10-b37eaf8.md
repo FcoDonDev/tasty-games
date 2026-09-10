@@ -28,14 +28,14 @@ validan contra esta corrida, siempre instrumentado-vs-instrumentado.
 
 ## Archivos
 
-- `<scenarioId>.jsonl.xz` — corridas medidas comprimidas con `xz -9e` (1 línea
-  JSON = 1 corrida: envelope + snapshot p50/p95/p99/max).
-- `summary.json.xz` — agregado del harness: por escenario, timers (mediana de
-  p95, máximo de p99 entre corridas) y contadores (mediana por corrida).
+- `2026-09-10-b37eaf8.tar.xz` (24.5KB) — corridas medidas comprimidas con
+  `xz -9e` en un único archivo tar: `summary.json` + 11 `<scenarioId>.jsonl`
+  (1 línea JSON = 1 corrida: envelope + snapshot p50/p95/p99/max).
 
 ```bash
-# Descomprimir (ejemplo)
-xz -dk solitario-drag.jsonl.xz
+# Descomprimir (crea 2026-09-10-b37eaf8/ con summary.json + los 11 .jsonl)
+mkdir -p /tmp/baseline-v1 && tar -xJf 2026-09-10-b37eaf8.tar.xz -C /tmp/baseline-v1
+cd /tmp/baseline-v1/2026-09-10-b37eaf8
 
 # Re-agregar (mediana de p95 por escenario)
 node -e '

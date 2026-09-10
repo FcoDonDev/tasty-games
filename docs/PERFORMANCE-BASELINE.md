@@ -35,6 +35,57 @@ node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
 - Siempre comparar profiling-vs-profiling; el build instrumentado estándar
   solo tiene la señal de frecuencia (`renderFreq:*`).
 
+## Baseline nativo (Android — Fase 1N)
+
+Estado: **canal de recolección implementado** (snapshotSink.ts); falta toolchain
+(Java 17 + Android SDK/ADB en la máquina del operador) y proyecto nativo
+(`expo prebuild` → `android/`). Nota clave: en builds **release** la app no es
+debuggable y `adb pull` del storage interno NO funciona — por eso el canal
+primario es el **logcat** (chunks re-ensamblables), implementado justamente para
+el release.
+
+### Ejecución de la prueba nativa (runbook)
+
+```bash
+# 0. Prerequisito (una vez): Java 17 + Android SDK/ADB + dispositivo/emulador
+#    conectado y visible con `adb devices`.
+# 1. Build release instrumentado (env inline; los seeds E2E exigen
+#    EXPO_PUBLIC_E2E=1 al compilar):
+EXPO_PUBLIC_PERF_METRICS=1 EXPO_PUBLIC_E2E=1 pnpm exec expo run:android --variant release
+# 2. Antes de cada escenario, limpiar el buffer de logcat:
+adb logcat -c
+# 3. En el dispositivo: abrir el juego, correr el escenario determinista
+#    (seed, ver tabla de escenarios web; usar el mismo orden y duración) y
+#    salir con el botón Salir (dispara endPerfSession → escribe el snapshot).
+# 4. Rescatar el snapshot del logcat:
+adb logcat -d | grep "PERF_SNAPSHOT " > tmp/perf-native-<scenario>.log
+# 5. Re-ensamblar a JSON (concatenar chunks ordenados por <i>/<n>):
+node -e '
+const fs=require("fs");
+const lines=fs.readFileSync(process.argv[1],"utf8").split("\n").filter(l=>l.includes("PERF_SNAPSHOT "));
+const byGame={};
+for(const l of lines){const m=l.match(/PERF_SNAPSHOT (\S+) (\d+)\/(\d+) (.*)$/);if(!m)continue;(byGame[m[1]]??=[]).push(m);}
+for(const[game,chunks]of Object.entries(byGame)){
+  const full=chunks.sort((a,b)=>+a[2]-+b[2]).map(m=>m[4]).join("");
+  const meta=chunks[0][0];
+  console.log(game,"chunks=",chunks.length,"startedAt=",JSON.parse(full).startedAt);
+  fs.writeFileSync(`tmp/perf-${game}-${JSON.parse(full).startedAt}.json`,full);
+}' tmp/perf-native-<scenario>.log
+# 6. Envolver en envelope (el operador agrega metadatos manualmente) y
+#    comprimir con la corrida: mismo formato JSONL que la web
+#    (platform:'android', viewport del dispositivo, commit, seed).
+```
+
+- El canal primario también escribe el archivo en
+  `Documents/perf-snapshots/<gameId>-<startedAt>.json` — rescatable con
+  `adb pull` solo en builds debuggable (dev build), no en release.
+- **Profiling nativo** (`render.board`): React RN tiene variante profiling
+  (`ReactFabric-profiling.js`, presente en RN 0.86.3) pero el swap manual del
+  shim está roto en RN reciente (facebook/react-native#52675). Candidato a
+  validar: `@callstack/inspector` (`withInspector(config, enabled)` en
+  metro.config.js) — habilita `React.Profiler`/`onRender` en release. Pendiente
+  de investigación y validación en Fase 1N (overhead = variante de medición).
+
 ## Variables del protocolo
 
 | Variable | Default | Significado |

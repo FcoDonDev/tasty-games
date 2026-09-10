@@ -15,6 +15,8 @@
 
 type GameId = string;
 
+import { persistNativeSnapshot } from './snapshotSink';
+
 /** Versión del schema de snapshot (PLAN-PERFORMANCE §6): cambiar si el formato
  * de PerfSnapshot/PerfTimerSummary se vuelve incompatible. */
 export const PERF_SCHEMA_VERSION = 1;
@@ -263,9 +265,14 @@ function snapshotOf(gameId: GameId, session: Session): PerfSnapshot {
 }
 
 function persistSnapshot(gameId: GameId, session: Session): void {
-  const target = storage();
-  if (!target) return;
   const snapshot = snapshotOf(gameId, session);
+  const target = storage();
+  if (!target) {
+    // Nativo: archivo en Documents + fallback logcat (snapshotSink.ts;
+    // Metro resuelve snapshotSink.web.ts — no-op — en web).
+    persistNativeSnapshot(gameId, JSON.stringify(snapshot), snapshot.startedAt);
+    return;
+  }
   const write = () => {
     try {
       target.setItem(`perf-metrics-${gameId}`, JSON.stringify(snapshot));
