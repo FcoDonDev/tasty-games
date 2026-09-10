@@ -22,6 +22,10 @@ import { buildDeck, PERF_MATCH_SEED, PERF_MISMATCH_SEED } from '../../games/memo
  */
 
 const PERF_BASELINE = process.env.PERF_BASELINE === '1';
+// Variante profiling (PLAN §19): el export debe correrse con
+// EXPO_PUBLIC_PERF_PROFILING=1 (alias react-dom → react-dom/profiling en
+// metro.config.js) para que el timer `render.board` (duración) exista.
+const PROFILING_BUILD = process.env.EXPO_PUBLIC_PERF_PROFILING === '1';
 const WARMUP = Number(process.env.PERF_WARMUP ?? 1);
 const LOTS = Number(process.env.PERF_LOTS ?? 1);
 const RUNS = Number(process.env.PERF_RUNS ?? 3);
@@ -65,7 +69,7 @@ interface RunEnvelope {
   warmup: boolean;
   seed: string | null;
   platform: 'web';
-  buildMode: 'instrumented';
+  buildMode: 'instrumented' | 'instrumented-profiling';
   commit: string;
   viewport: string;
   wallMs: number;
@@ -396,7 +400,7 @@ for (const scenario of SCENARIOS) {
         warmup,
         seed: scenario.seed,
         platform: 'web',
-        buildMode: 'instrumented',
+        buildMode: PROFILING_BUILD ? 'instrumented-profiling' : 'instrumented',
         commit: COMMIT,
         viewport: `${VIEWPORT[0]}x${VIEWPORT[1]}`,
         wallMs: Date.now() - started,
@@ -413,6 +417,15 @@ for (const scenario of SCENARIOS) {
     expect(lines.length).toBeGreaterThanOrEqual(LOTS * RUNS);
   });
 }
+
+test.beforeAll(() => {
+  console.log(
+    `[perf-harness] build=${PROFILING_BUILD ? 'instrumented-profiling (render.board activo)' : 'instrumented (renderFreq:*; sin render.board)'}`,
+  );
+  if (PROFILING_BUILD && process.env.EXPO_PUBLIC_PERF_METRICS !== '1') {
+    throw new Error('EXPO_PUBLIC_PERF_PROFILING=1 exige EXPO_PUBLIC_PERF_METRICS=1 (sin gate el Profiler no registra)');
+  }
+});
 
 test.afterAll(async () => {
   // Tabla resumen: por escenario, timers (mediana de p95 / máximo de p99) y

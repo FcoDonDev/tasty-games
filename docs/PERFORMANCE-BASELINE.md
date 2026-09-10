@@ -15,6 +15,26 @@ node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
 - **No combinar con `CI=1`**: la config de Playwright levantaría su propio server y colisionaría con el del orquestador.
 - Duración con los defaults: ~15-25 min por escenario (155 corridas) → **3-4 h en total**. Correr en máquina idle.
 
+## Variante profiling build (`render.board`)
+
+Para obtener la **duración** de renders (`render.board`), React exige un build
+con profiling: `EXPO_PUBLIC_PERF_PROFILING=1` activa en `metro.config.js` el
+alias `react-dom` → `react-dom/profiling`. Introduce overhead (variante de
+medición, NO build de producción representativo — PLAN §2/§3/§9):
+
+```bash
+EXPO_PUBLIC_PERF_METRICS=1 EXPO_PUBLIC_PERF_PROFILING=1 PERF_BASELINE=1 \
+PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
+node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
+```
+
+- El envelope registra `buildMode: 'instrumented-profiling'` (trazabilidad en
+  cada línea del `.jsonl`): nunca mezclar corridas de perfiles distintos.
+- Con profiling, además de los timers estándar aparece `render.board`
+  (duración p50/p95/p99/max del subtree del board por render).
+- Siempre comparar profiling-vs-profiling; el build instrumentado estándar
+  solo tiene la señal de frecuencia (`renderFreq:*`).
+
 ## Variables del protocolo
 
 | Variable | Default | Significado |
@@ -39,11 +59,9 @@ Ambos directorios son gitignored (artifacts locales, nunca commitearlos).
 ### Limpieza entre corridas
 
 - **Corrida completa (los 11 escenarios): no hay que borrar nada manualmente.**
-  Al iniciar cada escenario, el harness trunca su propio `tmp/perf/<scenarioId>.jsonl`
-  y `summary.json` se sobrescribe al final de la corrida.
+  Al iniciar cada escenario, el harness trunca su propio `tmp/perf/<scenarioId>.jsonl` y `summary.json` se sobrescribe al final de la corrida.
 - **Corrida parcial (filtro `-g`): sí conviene borrar antes** (`rm -rf tmp/perf`):
-  los `.jsonl` de los escenarios que NO corrieron quedan con datos de corridas
-  anteriores y el `summary.json` los mezclaría con los frescos (contaminación).
+  los `.jsonl` de los escenarios que NO corrieron quedan con datos de corridas anteriores y el `summary.json` los mezclaría con los frescos (contaminación).
 
 ## Métricas
 
