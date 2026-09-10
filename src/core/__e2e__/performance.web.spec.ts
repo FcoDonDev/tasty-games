@@ -82,6 +82,22 @@ function centerOf(box: { x: number; y: number; width: number; height: number } |
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+/**
+ * boundingBox blindado: después de un commit (captura en damas, settle de
+ * spring en solitario) la ficha puede estar desmontada un instante mientras
+ * RNW reconcilia el DOM; boundingBox() devuelve null sin reintentar. Espera
+ * visibilidad y reintenta antes de rendirse (hallazgo PLAN §19).
+ */
+async function stableBox(page: Page, locator: Locator): Promise<Point> {
+  await locator.waitFor({ state: 'visible', timeout: 5_000 });
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const box = await locator.boundingBox();
+    if (box) return centerOf(box);
+    await page.waitForTimeout(200);
+  }
+  throw new Error(`sin bounding box tras reintentos: ${locator}`);
+}
+
 /** Drag escalonado (PLAN §9: ~25-30ms por paso activa el Pan de forma determinista). */
 async function dragStepped(page: Page, from: Point, to: Point): Promise<void> {
   const steps = 8;
@@ -97,8 +113,8 @@ async function dragStepped(page: Page, from: Point, to: Point): Promise<void> {
 }
 
 async function dragByLabel(page: Page, sourceLabel: string, targetLabel: string): Promise<void> {
-  const from = centerOf(await page.getByLabel(sourceLabel, { exact: true }).boundingBox());
-  const to = centerOf(await page.getByLabel(targetLabel, { exact: true }).boundingBox());
+  const from = await stableBox(page, page.getByLabel(sourceLabel, { exact: true }));
+  const to = await stableBox(page, page.getByLabel(targetLabel, { exact: true }));
   await dragStepped(page, from, to);
 }
 
@@ -342,7 +358,11 @@ async function readSnapshot(page: Page, gameId: string): Promise<PerfSnapshot> {
 
 for (const scenario of SCENARIOS) {
   test(`perf: ${scenario.id}`, async ({ page }) => {
-    test.setTimeout(300_000);
+    // Timeout dinámico: el protocolo completo (155 corridas × ~6-20s/run) no
+    // cabe en un timeout fijo; se dimensiona por corrida con margen. La falla
+    // anterior fue exactamente esto: el timeout fijo de 300s cortaba el loop
+    // a mitad de las corridas válidas (hallazgo PLAN §19).
+    test.setTimeout((WARMUP + LOTS * RUNS) * 30_000 + 60_000);
     mkdirSync(ARTIFACT_DIR, { recursive: true });
     const file = path.join(ARTIFACT_DIR, `${scenario.id}.jsonl`);
     // Baseline fresco por invocación: el JSONL se truncó al iniciar el escenario
