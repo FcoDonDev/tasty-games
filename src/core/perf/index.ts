@@ -156,18 +156,32 @@ export function perfAudio(gameId: GameId, data: { handlerToPlayMs: number }): vo
   console.log(`[perf][${gameId}] audio handlerToPlay=${data.handlerToPlayMs.toFixed(2)}ms`);
 }
 
-/** Duración de un render (React Profiler onRender). Solo acumula; el log va en el resumen. */
+/**
+ * Duración de un render (React Profiler onRender). ATENCIÓN (PLAN-PERFORMANCE
+ * §19): React desactiva la instrumentación de Profiler en el build de
+ * producción ESTÁNDAR — en ese perfil este timer no aparece. Existe solo en
+ * builds con profiling (variante de medición con overhead, no representativa
+ * del UX real). En el build instrumentado estándar la métrica de render es la
+ * FRECUENCIA (perfRenderCount → `renderFreq:*`).
+ */
 export function perfRenderReport(gameId: GameId, actualDurationMs: number): void {
   const session = getSession(gameId);
   if (!session) return;
   recordTimer(session, 'render.board', actualDurationMs);
 }
 
-/** Contador de renders por clave (pila/componente): verifica CA3. */
+/**
+ * Frecuencia de renders por clave (ej: `renderFreq:piece:1-1`): CUÁNTAS veces
+ * se renderizó el componente por sesión — NO su duración. El llamante aporta
+ * el key completo. `render.board` (duración, via perfRenderReport/React
+ * Profiler) solo existe en builds con profiling de React; en el build
+ * instrumentado estándar esta es la métrica de render disponible.
+ * (PLAN-PERFORMANCE §19: semántica de frecuencia ≠ performance de render.)
+ */
 export function perfRenderCount(gameId: GameId, key: string): void {
   const session = getSession(gameId);
   if (!session) return;
-  bumpCounter(session, `render:${key}`);
+  bumpCounter(session, key);
 }
 
 /**

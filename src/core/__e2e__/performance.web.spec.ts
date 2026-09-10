@@ -415,9 +415,19 @@ for (const scenario of SCENARIOS) {
 }
 
 test.afterAll(async () => {
-  // Tabla resumen: mediana de p95 y máximo de p99 por métrica y escenario
+  // Tabla resumen: por escenario, timers (mediana de p95 / máximo de p99) y
+  // contadores de frecuencia (mediana de valor por run, p.ej. renderFreq:*).
+  // NOTA (PLAN §19): `render.board` (duración) NO aparece en este perfil — el
+  // build instrumentado estándar es React de producción, sin instrumentación
+  // de Profiler; solo un build con profiling la captura. En este perfil la
+  // señal de render son los contadores `renderFreq:*` (frecuencia ≠ duración).
   if (!PERF_BASELINE) return;
-  const summary: Record<string, Record<string, { p95Med: number; p99Max: number; n: number }>> = {};
+  interface TimerAgg {
+    p95Med: number;
+    p99Max: number;
+    n: number;
+  }
+  const summary: Record<string, { timers: Record<string, TimerAgg>; counters: Record<string, number> }> = {};
   for (const scenario of SCENARIOS) {
     const file = path.join(ARTIFACT_DIR, `${scenario.id}.jsonl`);
     let lines: string[] = [];
@@ -428,30 +438,43 @@ test.afterAll(async () => {
     }
     const timers = new Map<string, number[]>();
     const p99s = new Map<string, number[]>();
+    const counters = new Map<string, number[]>();
     for (const line of lines) {
       const env = JSON.parse(line) as RunEnvelope;
       for (const [key, s] of Object.entries(env.snapshot?.timers ?? {})) {
         timers.set(key, [...(timers.get(key) ?? []), s.p95]);
         p99s.set(key, [...(p99s.get(key) ?? []), s.p99]);
       }
+      for (const [key, value] of Object.entries(env.snapshot?.counters ?? {})) {
+        counters.set(key, [...(counters.get(key) ?? []), value]);
+      }
     }
-    summary[scenario.id] = {};
+    const timersAgg: Record<string, TimerAgg> = {};
     for (const [key, values] of timers) {
       const sorted = [...values].sort((a, b) => a - b);
       const sorted99 = [...(p99s.get(key) ?? [])].sort((a, b) => a - b);
-      summary[scenario.id][key] = {
+      timersAgg[key] = {
         p95Med: sorted[Math.floor(sorted.length / 2)],
         p99Max: sorted99[sorted99.length - 1],
         n: values.length,
       };
     }
+    const countersAgg: Record<string, number> = {};
+    for (const [key, values] of counters) {
+      const sorted = [...values].sort((a, b) => a - b);
+      countersAgg[key] = sorted[Math.floor(sorted.length / 2)];
+    }
+    summary[scenario.id] = { timers: timersAgg, counters: countersAgg };
   }
   writeFileSync(path.join(ARTIFACT_DIR, 'summary.json'), JSON.stringify(summary, null, 2));
   console.log(`[perf-harness] resumen escrito en tmp/perf/summary.json`);
-  for (const [scenarioId, metrics] of Object.entries(summary)) {
+  for (const [scenarioId, agg] of Object.entries(summary)) {
     console.log(`\n=== ${scenarioId} ===`);
-    for (const [key, s] of Object.entries(metrics)) {
+    for (const [key, s] of Object.entries(agg.timers)) {
       console.log(`  ${key}: p95Med=${s.p95Med}ms p99Max=${s.p99Max}ms (n=${s.n})`);
+    }
+    for (const [key, med] of Object.entries(agg.counters)) {
+      console.log(`  ${key}: med=${med}`);
     }
   }
 });

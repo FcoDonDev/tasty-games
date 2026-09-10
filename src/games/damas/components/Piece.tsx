@@ -43,8 +43,9 @@ export const PieceView = memo(function PieceView({
   ty,
   callbacks,
 }: PieceViewProps) {
-  // Contador de renders por ficha (CA3 en damas)
-  perfRenderCount('damas', `piece:${piece.id}`);
+  // Frecuencia de renders por ficha (CA3 en damas). Prefijo `renderFreq:`
+  // (semántica de frecuencia, NO duración) — PLAN-PERFORMANCE §19.
+  perfRenderCount('damas', `renderFreq:piece:${piece.id}`);
   const gesture = useDragGesture(piece.id, callbacks, draggable, { tx, ty });
   const scale = useSharedValue(1);
   const rotate = useSharedValue(0);

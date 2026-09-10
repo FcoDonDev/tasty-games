@@ -172,8 +172,10 @@ export const Pile = memo(function Pile({
   onAutoMove,
 }: PileProps) {
   const theme = useTheme();
-  // Contador de renders por pila (CA3): verifica la efectividad de la memoización
-  perfRenderCount('solitario', `pile:${kind === 'waste' ? 'waste' : `${kind}-${pileIndex}`}`);
+  // Frecuencia de renders por pila (CA3): verifica la efectividad de la
+  // memoización. Prefijo `renderFreq:` para no confundir con `render.board`
+  // (duración, solo en builds con profiling de React) — PLAN-PERFORMANCE §19.
+  perfRenderCount('solitario', `renderFreq:pile:${kind === 'waste' ? 'waste' : `${kind}-${pileIndex}`}`);
 
   // Ref estable: si se recrea por render, rompería el memo de los PileCard
   const pileRef: PileRef = useMemo<PileRef>(

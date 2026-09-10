@@ -78,9 +78,9 @@ describe('perf (gate encendido)', () => {
     beginPerfSession(GAME);
     perfAudio(GAME, { handlerToPlayMs: 0.5 });
     perfRenderReport(GAME, 12);
-    perfRenderCount(GAME, 'pile:tableau-0');
-    perfRenderCount(GAME, 'pile:tableau-0');
-    perfRenderCount(GAME, 'pile:waste');
+    perfRenderCount(GAME, 'renderFreq:pile:tableau-0');
+    perfRenderCount(GAME, 'renderFreq:pile:tableau-0');
+    perfRenderCount(GAME, 'renderFreq:pile:waste');
     perfJsStall(GAME, 30);
     perfUiFrame(GAME, { longFrameEvents: 2, estimatedDroppedFrames: 3, total: 100, maxDtMs: 42 });
     endPerfSession(GAME);
@@ -89,8 +89,8 @@ describe('perf (gate encendido)', () => {
     expect(snapshot?.timers['audio.handlerToPlay']).toMatchObject({ count: 1 });
     expect(snapshot?.timers['render.board']).toMatchObject({ count: 1 });
     expect(snapshot?.timers['jsStall.dt']).toMatchObject({ count: 1 });
-    expect(snapshot?.counters['render:pile:tableau-0']).toBe(2);
-    expect(snapshot?.counters['render:pile:waste']).toBe(1);
+    expect(snapshot?.counters['renderFreq:pile:tableau-0']).toBe(2);
+    expect(snapshot?.counters['renderFreq:pile:waste']).toBe(1);
     expect(snapshot?.counters['uiFrames.longFrameEvents']).toBe(2);
     expect(snapshot?.counters['uiFrames.estimatedDroppedFrames']).toBe(3);
     expect(snapshot?.counters['uiFrames.total']).toBe(100);
