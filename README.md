@@ -10,6 +10,8 @@ Aplicación con múltiples juegos 2d simples (Web + Android) — Expo SDK 57 / E
 | [`docs/UI-UX.md`](docs/UI-UX.md) | Reglas de animación, layout, haptics y verificación visual |
 | [`docs/GOTCHAS.md`](docs/GOTCHAS.md) | Lecciones técnicas del toolchain (RN, Reanimated, Jest, Playwright, Metro) |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Trabajo pendiente (Fase E Android, deudas) |
+| [`docs/PERFORMANCE-AUDIT.md`](docs/PERFORMANCE-AUDIT.md) | Auditoría de performance (análisis estático) |
+| [`docs/PERFORMANCE-BASELINE.md`](docs/PERFORMANCE-BASELINE.md) | Baseline de performance web: comando, prerequisitos, métricas e interpretación |
 | [`AGENTS.md`](AGENTS.md) | Convenciones del repo para agentes (procesos, comandos, verificación) |
 | `src/games/<id>/README.md` | Documentación técnica de cada juego |
 | `src/games/<id>/RULES.md` | Reglas implementadas de cada juego (QA) |
@@ -41,3 +43,5 @@ pnpm e2e:report     # abre el reporte HTML del último run
 - **Registros de resultados**: el reporte HTML queda en `playwright-report/` y los
   artefactos de fallo (traza `retain-on-failure`, snapshots) en `test-results/`.
   Ambos están gitignored.
+- **Baseline de performance** (protocolo separado, gated con `PERF_BASELINE=1`):
+  ver [`docs/PERFORMANCE-BASELINE.md`](docs/PERFORMANCE-BASELINE.md).
