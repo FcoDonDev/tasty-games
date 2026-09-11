@@ -14,7 +14,8 @@ import Animated, {
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { PressableScale } from '@/core/ui/PressableScale';
-import { beginPerfSession, endPerfSession, perfJsStall } from '@/core/perf';
+import { beginPerfSession, endPerfSession, isPerfEnabled, perfCount, perfJsStall, perfSample } from '@/core/perf';
+import { PerfProfiler } from '@/core/perf/PerfProfiler';
 import { usePerfFrameMonitor } from '@/core/perf/usePerfFrameMonitor';
 import { useIsTouchDevice } from '@/core/ui/useIsTouchDevice';
 import { hapticCombo, hapticGameWin, hapticSelection } from '@/core/ui/haptics';
@@ -41,7 +42,7 @@ import {
 import { MAX_LEVEL } from './engine/levels';
 import { MAZE_COLS, MAZE_ROWS, type Direction } from './engine/maze';
 import { worldSnapshot, type GameEvent } from './engine/rules';
-import { useWakWakStore } from './engine/state';
+import { useWakWakStore, drainTickStats, setTickStatsEnabled } from './engine/state';
 import { EntitiesLayer, type EntitiesHandle } from './renderer/reanimated/EntitiesLayer';
 import { DeathFx } from './renderer/reanimated/DeathFx';
 import { MazeLayer } from './renderer/reanimated/MazeLayer';
@@ -148,8 +149,20 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   // Métricas: FPS UI thread (no-op con gate off) + sesión de resumen
   usePerfFrameMonitor('wakwak');
   useEffect(() => {
+    // D-WW0: el store acumula stats del tick en buffers planos; al desmontar
+    // se vuelcan a la sesión perf ANTES de cerrarla (incluidos en el snapshot).
+    setTickStatsEnabled(isPerfEnabled());
     beginPerfSession('wakwak');
-    return () => endPerfSession('wakwak');
+    return () => {
+      const stats = drainTickStats();
+      for (const ms of stats.advanceSamples) perfSample('wakwak', 'loop.advance', ms);
+      if (stats.tickCalls > 0) {
+        perfCount('wakwak', 'loop.tick.calls', stats.tickCalls);
+        perfCount('wakwak', 'loop.tick.published', stats.tickPublished);
+      }
+      endPerfSession('wakwak');
+      setTickStatsEnabled(false);
+    };
   }, []);
 
   // --- partida: reset al montar y al reintentar (conserva seed E2E)
@@ -374,6 +387,10 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
       const dt = Math.min(100, rawDt);
       last = now;
       const store = useWakWakStore.getState();
+      // D-WW0: timers del loop (gated; cero overhead con el gate apagado).
+      // `loop.tick` = advance+publish; `loop.advance` (vía buffers del store,
+      // volcados al desmontar) separa simulación de publicación.
+      const perfOn = isPerfEnabled();
       const deathFrozen = now < deathUntilRef.current;
       if (!store.paused && store.game.status === 'playing') {
         // hit-stop activo: el engine no avanza (pausa visual-only, D4)
@@ -382,22 +399,33 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
           // amenazas calculadas UNA vez; ambos objetivos con la misma rampa
           const game = store.game;
           const powered = game.powerUntil !== null;
+          let t0 = 0;
+          if (perfOn) t0 = performance.now();
           const threats = threatsOf(game);
+          if (perfOn) perfSample('wakwak', 'loop.threats', performance.now() - t0);
           const k = Math.min(1, rawDt / SLOWMO_RAMP_MS);
           slowScaleRef.current += (slowMoScale(threats, powered) - slowScaleRef.current) * k;
           if (!reduced) {
             threatZoomRef.current += (threatZoom(threats, powered) - threatZoomRef.current) * k;
             threatZoomSV.value = threatZoomRef.current;
           }
-          handleEvents(store.tick(dt * slowScaleRef.current));
+          if (perfOn) t0 = performance.now();
+          const tickEvents = store.tick(dt * slowScaleRef.current);
+          if (perfOn) perfSample('wakwak', 'loop.tick', performance.now() - t0);
+          handleEvents(tickEvents);
         }
       }
       // Durante el clip de muerte present TAMBIÉN se congela: el engine ya
       // reseteó posiciones y las entidades teleportarían a los spawns
       // (hallazgo 2: última pose fija hasta que el zoom vuelve a 1).
       if (!deathFrozen) {
+        let t0 = 0;
+        if (perfOn) t0 = performance.now();
         const snapshot = worldSnapshot(useWakWakStore.getState().game);
+        if (perfOn) perfSample('wakwak', 'loop.worldSnapshot', performance.now() - t0);
+        if (perfOn) t0 = performance.now();
         entitiesRef.current?.present(snapshot);
+        if (perfOn) perfSample('wakwak', 'loop.present', performance.now() - t0);
         powerFractionSV.value = snapshot.powerFraction;
       }
       // Métrica de jank del loop (JS thread): dt crudo por encima del presupuesto
@@ -534,12 +562,16 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
           style={[styles.board, { width: boardWidth, height: boardHeight }, boardZoomStyle]}
           accessibilityLabel="tablero-wakwak"
         >
-          <MazeLayer
-            cellSize={cellSize}
-            batteries={batteries}
-            supers={supers}
-            bonusActive={bonusActive}
-          />
+          {/* D-WW0: duración de los commits del laberinto (pickups) —`render.board`;
+              solo existe en builds con profiling; no-op en los demás (PerfProfiler). */}
+          <PerfProfiler gameId="wakwak" id="maze-pickup">
+            <MazeLayer
+              cellSize={cellSize}
+              batteries={batteries}
+              supers={supers}
+              bonusActive={bonusActive}
+            />
+          </PerfProfiler>
           <EntitiesLayer ref={entitiesRef} cellSize={cellSize} />
           <BoardBanner powerFraction={powerFractionSV} />
           {death ? (

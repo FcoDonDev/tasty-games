@@ -187,6 +187,28 @@ export function perfRenderCount(gameId: GameId, key: string): void {
 }
 
 /**
+ * Muestra de duración genérica del loop de un juego (ej: `loop.tick` en
+ * WakWak). Silenciosa (sin log por muestra): a 60 Hz un log por muestra
+ * rompería la consola y el E2E. Gated: no-op con el gate apagado.
+ * (D-WW0, PLAN-PERFORMANCE §11.)
+ */
+export function perfSample(gameId: GameId, key: string, ms: number): void {
+  const session = getSession(gameId);
+  if (!session) return;
+  recordTimer(session, key, ms);
+}
+
+/**
+ * Contador genérico por clave (ej: `loop.tick.calls` en WakWak): suma `by`
+ * al contador. Gated: no-op con el gate apagado. (D-WW0.)
+ */
+export function perfCount(gameId: GameId, key: string, by = 1): void {
+  const session = getSession(gameId);
+  if (!session) return;
+  bumpCounter(session, key, by);
+}
+
+/**
  * Stall del loop rAF del juego (JS thread): el llamante decide cuándo hay stall
  * (dt por encima del presupuesto) y reporta el dt.
  */

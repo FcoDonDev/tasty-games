@@ -2,10 +2,12 @@ import {
   beginPerfSession,
   endPerfSession,
   perfAudio,
+  perfCount,
   perfDragEvent,
   perfJsStall,
   perfRenderCount,
   perfRenderReport,
+  perfSample,
   perfUiFrame,
   readPerfMetrics,
   setPerfEnabledForTests,
@@ -50,6 +52,8 @@ describe('perf (gate apagado)', () => {
     perfRenderCount(GAME, 'pile:tableau-0');
     perfJsStall(GAME, 30);
     perfUiFrame(GAME, { longFrameEvents: 1, estimatedDroppedFrames: 2, total: 10, maxDtMs: 30 });
+    perfSample(GAME, 'loop.tick', 1);
+    perfCount(GAME, 'loop.tick.calls', 60);
     endPerfSession(GAME);
     expect(logSpy).not.toHaveBeenCalled();
     expect(readPerfMetrics(GAME)).toBeNull();
@@ -206,5 +210,25 @@ describe('perf (gate encendido)', () => {
     beginPerfSession(GAME);
     endPerfSession(GAME);
     expect(readPerfMetrics(GAME)?.timers['drag.handler']).toBeUndefined();
+  });
+
+  it('perfSample acumula timers silenciosos y perfCount suma contadores (D-WW0)', () => {
+    beginPerfSession(GAME);
+    perfSample(GAME, 'loop.tick', 2);
+    perfSample(GAME, 'loop.tick', 4);
+    perfCount(GAME, 'loop.tick.calls', 60);
+    perfCount(GAME, 'loop.tick.published', 59);
+    perfCount(GAME, 'loop.tick.published');
+    endPerfSession(GAME);
+
+    // Silencioso: ningún log por muestra (a 60 Hz rompería consola/E2E);
+    // la única línea con la clave es el resumen agregado de la sesión.
+    const loopLogs = logSpy.mock.calls.filter((call) => String(call[0]).includes('loop.'));
+    expect(loopLogs).toHaveLength(1);
+    expect(String(loopLogs[0][0])).toContain('summary');
+
+    expect(readPerfMetrics(GAME)?.timers['loop.tick']).toMatchObject({ count: 2, avg: 3, min: 2, max: 4 });
+    expect(readPerfMetrics(GAME)?.counters['loop.tick.calls']).toBe(60);
+    expect(readPerfMetrics(GAME)?.counters['loop.tick.published']).toBe(60);
   });
 });

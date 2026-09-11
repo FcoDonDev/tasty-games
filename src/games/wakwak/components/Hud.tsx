@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { perfRenderCount } from '@/core/perf';
 import { useWakWakStore } from '../engine/state';
 
 /** HUD discreto: score, nivel y vidas. El combo y la SÚPER CARGA se muestran
@@ -6,6 +7,8 @@ import { useWakWakStore } from '../engine/state';
  * apreciaba (PLAN-WAK-POLISH F1). Selectores zustand estrechos: re-renderiza
  * solo cuando cambia el valor, no por frame. */
 export function Hud() {
+  // D-WW0: frecuencia de renders del HUD (debería ser solo eventos discretos).
+  perfRenderCount('wakwak', 'renderFreq:hud');
   const score = useWakWakStore((s) => s.game.score);
   const lives = useWakWakStore((s) => s.game.lives);
   const level = useWakWakStore((s) => s.game.level);

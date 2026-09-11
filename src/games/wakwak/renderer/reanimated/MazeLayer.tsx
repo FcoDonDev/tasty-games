@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { perfRenderCount } from '@/core/perf';
 import { MAZE, MAZE_COLS, MAZE_ROWS, colOf, rowOf, toIndex, type MazeData } from '../../engine/maze';
 import { BONUS_CELL } from '../../engine/rules';
 
@@ -135,6 +136,10 @@ export interface MazeLayerProps {
 }
 
 function MazeLayerImpl({ cellSize, batteries, supers, bonusActive }: MazeLayerProps) {
+  // D-WW0: frecuencia de renders del laberinto (debería ser solo pickups +
+  // cambios de layout). Prefijo `renderFreq:` para no confundir con `render.board`
+  // (duración, solo profiling). No-op con el gate apagado.
+  perfRenderCount('wakwak', 'renderFreq:maze');
   const batterySet = useMemo(() => new Set(batteries), [batteries]);
   const superSet = useMemo(() => new Set(supers), [supers]);
 
