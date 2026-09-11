@@ -36,7 +36,7 @@ Estas son propuestas, no decisiones aprobadas para implementación.
 
 | Tema | Alternativas | Recomendación provisional | Estado |
 |---|---|---|---|
-| Build de medición | Instrumentado con `EXPO_PUBLIC_PERF_METRICS=1` / release con gate apagado | Separar ambos perfiles; usar el instrumentado para diagnóstico y release para regresión | Pendiente |
+| Build de medición | Instrumentado con `EXPO_PUBLIC_PERF_METRICS=1` / profiling con `EXPO_PUBLIC_PERF_PROFILING=1` / release con gate apagado | Separar los tres perfiles; usar el instrumentado para diagnóstico, profiling para duraciones de render y release para regresión; etiquetar `buildMode` en cada envelope | Decidida e implementada (Fase 1) |
 | Ownership de `remainderMs` en WakWak | Mantenerlo en `GameState` / retornarlo separado / mover acumulador al adaptador | Evaluar mover el acumulador al adaptador sin cambiar `advance()` hasta demostrar equivalencia | Pendiente |
 | Publicación de poses | Zustand / estado transitorio del adaptador / shared values | Mantener reglas puras y publicar HUD/eventos discretos; poses fuera de React | Pendiente |
 | Bundle de juegos | Registro eager / metadata + loader web / loader universal con fallback nativo | Medir Atlas primero; solo introducir loader si supera el presupuesto | Pendiente |
@@ -167,6 +167,7 @@ En web, las métricas deben nombrar explícitamente el contexto (`browser.rAF`,
 ### Perfiles de build
 
 - **Instrumentado:** `EXPO_PUBLIC_PERF_METRICS=1`; puede usar `EXPO_PUBLIC_E2E=1` para fixtures y debe etiquetarse como `instrumented`, no como release comparable.
+- **Instrumentado-profiling:** `EXPO_PUBLIC_PERF_METRICS=1` + `EXPO_PUBLIC_PERF_PROFILING=1` (alias `react-dom` → `react-dom/profiling` en `metro.config.js`); etiquetado `instrumented-profiling`. Variante de medición para la duración de renders (`render.board`); nunca mezclar con el perfil estándar en comparaciones.
 - **Release web funcional:** `EXPO_PUBLIC_PERF_METRICS=0`, sin canal E2E; sirve para comprobar que el gate apagado no altera el comportamiento.
 - **Release Android:** build profileable/release separado; no se puede inferir desde E2E web.
 
@@ -224,24 +225,51 @@ Las fixtures nuevas deben crearse en Fase 0A antes de ejecutar este baseline.
 
 ### Salidas
 
-- [x] Snapshot versionado por `scenarioId` y `runId` (envelope `schemaVersion: 1` + `PERF_SCHEMA_VERSION` en el snapshot).
-- [x] Guardar artifacts locales bajo `tmp/perf/` y publicarlos como artifacts de CI, sin commitear snapshots. (JSONL por escenario + `summary.json`.)
-- [ ] Bundle Atlas web. (Comando documentado en esta sección; corre junto al primer baseline completo.)
-- [ ] Tabla baseline con p50/p95/p99/max y dispersión por lote. (El spec ya agrega mediana de p95 / máximo de p99 por métrica; falta la corrida completa 5 lotes × 30 runs.)
-- [ ] Tamaño raw/gzip de chunks web.
-- [ ] Tamaño y cantidad de assets de audio.
-- [x] Registro de hardware/browser, refresh rate, commit y modo de build. (Envelope: commit, viewport, buildMode `instrumented`; refresh rate queda como limitación conocida web.)
+- [x] Snapshot versionado por `scenarioId` y `runId` (envelope `schemaVersion: 1` + `PERF_SCHEMA_VERSION` en el snapshot; `buildMode` distingue `instrumented` de `instrumented-profiling`).
+- [x] Guardar artifacts locales bajo `tmp/perf/` y publicarlos como artifacts de CI, sin commitear snapshots. (JSONL por escenario + `summary.json` con timers —mediana de p95 / máximo de p99— y contadores —mediana por corrida—.)
+- [x] Tabla baseline con p50/p95/p99/max y dispersión por lote. (Tres baselines versionados en `baselines/`: v1 `b37eaf8` estándar, v2 `e839cbe` estándar —réplica que confirma reproducibilidad—, v3 `300b9f8` profiling con `render.board`. Ver MANIFEST de cada uno.)
+- [ ] Bundle Atlas web. (Postergado a Fase 6: comando documentado en esta sección.)
+- [ ] Tamaño raw/gzip de chunks web. (Postergado a Fase 6.)
+- [ ] Tamaño y cantidad de assets de audio. (Postergado a Fase 6.)
+- [x] Registro de hardware/browser, refresh rate, commit y modo de build. (Envelope: commit, viewport, buildMode; hardware/browser en cada MANIFEST; refresh rate queda como limitación conocida web.)
 
-**Estado de la Fase 1 (2026-09-09):** protocolo implementado y validado con corrida
-reducida (`PERF_WARMUP=1 PERF_LOTS=1 PERF_RUNS=3`, 11 escenarios, 8+ escenarios
-verdes). El baseline completo se corre con:
+**Estado de la Fase 1 (2026-09-11): COMPLETA en web.** Protocolo implementado,
+harness estable y tres baselines versionados en `baselines/`:
+
+| Baseline | Fecha | Commit | Perfil | Contenido |
+|---|---|---|---|---|
+| v1 | 2026-09-10 | `b37eaf8` | instrumented | 11×150 corridas; referencia de la regla §5 (único outlier ambiental documentado) |
+| v2 | 2026-09-10/11 | `e839cbe` | instrumented | Réplica de v1: medianas idénticas → reproducibilidad confirmada, sin regresiones |
+| v3 | 2026-09-11 | `300b9f8` | instrumented-profiling | `render.board` en solitario+damas (900/900); referencia para mejoras de render |
+
+Comandos (sin `CI=1`; borrar `tmp/perf` antes de corridas parciales):
 
 ```bash
+# Perfil estándar
 EXPO_PUBLIC_PERF_METRICS=1 PERF_BASELINE=1 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
 node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
+# Variante profiling (duración de renders)
+EXPO_PUBLIC_PERF_METRICS=1 EXPO_PUBLIC_PERF_PROFILING=1 PERF_BASELINE=1 \
+PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
+node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
+# Por juego (mismo rigor por escenario): agregar -g "<juego>", ej. -g "solitario"
 ```
 
-## 10. Fase 1N: baseline Android bloqueado externamente
+El harness imprime `build=instrumented(-profiling)` al inicio: verificar que
+coincida con el perfil deseado antes de dejar correr la suite completa.
+Pendientes movidos a Fase 6 (Atlas, tamaños) y a Fase 1N (validación Android,
+pospuesta — ver §10).
+
+## 10. Fase 1N: baseline Android POSPUESTA
+
+> **Pospuesta por decisión del usuario (2026-09-11).** Para retomarla a futuro:
+> hacer checkout de la rama **`feature/perf-medicion-baseline`** en el commit
+> `e839cbe` o posterior (el canal de recolección nativo —`src/core/perf/snapshotSink.ts`,
+> tests y runbook en `docs/PERFORMANCE-BASELINE.md` §nativo— ya quedó implementado
+> y commiteado en esta rama). Lo que faltará entonces: toolchain (Java 17 +
+> Android SDK/ADB), proyecto `android/` (decidir EAS vs prebuild commiteado) y
+> la corrida con el runbook documentado. Las conclusiones web (v1/v2/v3) no
+> dependen de esta fase.
 
 Esta fase debe ejecutarse inmediatamente después del baseline web y antes de
 aceptar optimizaciones nativas. Está bloqueada en el entorno actual porque no
