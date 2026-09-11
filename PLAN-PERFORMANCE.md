@@ -297,28 +297,68 @@ hay Java 17, Android SDK/ADB, proyecto `android/` ni `eas.json`.
 **Orden recomendado:** mayor frecuencia de ejecución. La prioridad de retorno se
 confirma solo después del baseline.
 
-### D-WW: diagnóstico
+### 11.0 Estado de partida (2026-09-11)
 
-- [ ] Medir publicaciones Zustand por callback rAF y separar cambios de `remainderMs` de cambios semánticos.
-- [ ] Medir `advance`, `step`, `worldSnapshot`, `present`, `threatsOf` y el cálculo repetido de `floatPos(robot)`.
-- [ ] Comparar juego activo, pausa, interstitial, overlay final y niveles 1/8.
-- [ ] Decidir ownership de `remainderMs` antes de cambiar el store.
+Baselines v1/v2/v3: `uiFrame.maxDt` en el piso teórico a 60 Hz, 0 frames
+largos/descartados en nivel 1, 8 y pausa. Eso descarta jank en la máquina de
+medición, pero NO prueba eficiencia. Reporte de usuario real: en **web móvil**
+el juego fluye pero con "pausas" o micro-bloqueos irregulares cada cierto
+tiempo. Hipótesis de trabajo: GC por asignaciones por frame/step, ráfagas de
+steps tras un stall (guard de 8 en `advance`, `rules.ts:352`), o costo en el
+main thread (en web no hay UI thread separado). Por eso esta fase es
+**profiling completo primero, cambios después**: ningún ítem I-WW se
+implementa sin una traza D-WW que lo justifique.
 
-### I-WW: implementación condicional
+Hueco ciego conocido: WakWak no tiene `PerfProfiler` ni contadores
+`renderFreq` — del lado React del juego más caliente no hay ninguna señal en
+los baselines. D-WW0 cierra ese hueco antes de medir.
+
+Validación de los claims de la auditoría contra el código actual (2026-09-11):
+
+| Claim | Veredicto | Nota |
+|---|---|---|
+| F-01 publica Zustand 60×/s | Confirmado (estructura) | `advance` siempre retorna objeto nuevo (`rules.ts:359`) → `set()` por frame; pero los selectores estrechos evitan re-renders. Costo = asignaciones + notificación a suscriptores, a medir. |
+| `floatPos(robot)` recalculado por drone | Obsoleto | Ya hoisteado a `robotPosNow` (`rules.ts:529`). |
+| F-02 escrituras SV incondicionales | Confirmado (estructura) | `present()` escribe sin comparar; ver observación en I-WW (posible redundancia con `valueSetter`). |
+| `threatsOf()` en power descartado | Confirmado, costo menor | Corre sobre el estado pre-tick (1 frame de staleness, irrelevante para feel). |
+| F-04 loop/idles vivos en pausa/fin | Confirmado, mayor leverage | El rAF nunca se suspende; `worldSnapshot`+`present` corren en pausa (`WakWakScreen.tsx:398-402`); los `withRepeat` idle ignoran `paused`/`status`. |
+| F-05 reconcilia muros+corral+dinámicos | Parcialmente obsoleto | Muros/corral ya están en `MazeStaticLayer` memoizado; solo los edibles (19×21 = 399 celdas) se reconstruyen, y solo en pickups discretos. Falta medir el commit. |
+| V-WW reiniciar `last` al reanudar | Ya satisfecho | `last = now` se actualiza cada frame aun en pausa (`:375`); queda como assert de regresión. |
+
+### D-WW: diagnóstico (profiling completo primero)
+
+Orden de ejecución — instrumentar, medir E2E, perfilar manual con throttle,
+auditar suscriptores, y recién entonces decidir:
+
+- [ ] **D-WW0 instrumentación render-side + engine, gated por `EXPO_PUBLIC_PERF_METRICS`**: montar `PerfProfiler` en `WakWakScreen` (para `render.board` en futuros baselines profiling) y/o `renderFreq` en `MazeLayer`/`Hud`; timers en `advance`, `step`, `worldSnapshot`, `present`, `threatsOf`; contador de `set()` en `tick()` (publicaciones por callback rAF). Tests unitarios. No toca lógica del juego. Restricción de arquitectura: los engines son funciones puras y no importan performance — los timers del engine se miden en el call-site (pantalla/store) o vía instrumentación de tests (precedente Fase 3), nunca con imports en `rules.ts`.
+- [ ] Medir publicaciones Zustand por callback rAF y separar cambios de `remainderMs` de cambios semánticos. (Cubierto por el contador de D-WW0; incluye el caso `elapsedMs`-only.)
+- [ ] Medir `advance`, `step`, `worldSnapshot`, `present`, `threatsOf` y el cálculo repetido de `floatPos(robot)`. (Nota: `floatPos(robot)` ya está hoisteado —`rules.ts:529`—; el timer lo confirma en vez de asumirlo.)
+- [ ] **D-WW1 corrida E2E solo-wakwak (`-g "wakwak"`) en ambos perfiles** (estándar + profiling) con protocolo completo, comparada contra v1/v2/v3. Requiere D-WW0 para tener señal del lado React.
+- [ ] **D-WW2 profiling manual web con CPU throttle** (motivado por hitches reportados en móvil real): servir `dist/` de producción, DevTools Performance con throttle 4× (6× para gama baja), grabar loop activo y pausado; leer eventos `Animation Frame Fired`, Bottom-Up Self Time, track GC (`--trace-gc`) y heap snapshots. Objetivo: atribuir micro-bloqueos irregulares (GC por asignaciones/clones por step, ráfagas post-stall) que los timers E2E no pueden atribuir.
+- [ ] Comparar juego activo, pausa, interstitial, overlay final y niveles 1/8. (Incluye costo CPU por frame en pausa —los baselines solo muestran frames, no trabajo desperdiciado— y nivel 1 vs 8.)
+- [ ] **D-WW3 auditoría de suscriptores**: quién consume qué del store por frame (selectores actuales: score/lives/level/batteries/supers/bonus/status/paused/runLevel; nadie consume `elapsedMs`/progreso). Decide entre gate de publicación en `tick()` (sin tocar el engine) vs cambio de ownership (plan B).
+- [ ] **D-WW4 commit de pickup**: medir el render/commit de `MazeLayer` al recoger (con `render.board`/`renderFreq` de D-WW0). Confirma o descarta F-05 antes de tocar capas.
+- [ ] Decidir ownership de `remainderMs` antes de cambiar el store. (Requiere aprobación explícita; evaluar primero el gate en `tick()` según D-WW3.)
+
+### I-WW: implementación condicional (ningún ítem sin traza D-WW que lo justifique)
 
 - [ ] Mantener `advance()` aislado y probar equivalencia con seeds antes de modificar el canal de publicación.
 - [ ] Si el diagnóstico lo justifica, separar el acumulador de `remainderMs` o cambiar el contrato de forma explícita.
-- [ ] Comparar la pose actual con la última pose presentada y omitir shared values sin cambios.
-- [ ] Calcular `robotPos` una sola vez por paso de colisión.
-- [ ] Omitir `threatsOf()` durante power si el resultado funcional sigue siendo equivalente.
-- [ ] Separar capas estáticas y dinámicas del laberinto solo si el commit de pickup supera el presupuesto.
+- [ ] Comparar la pose actual con la última pose presentada y omitir shared values sin cambios. (Observación: posiblemente **redundante** — `valueSetter` de Reanimated ya omite escrituras al mismo valor primitivo sin notificar listeners/mappers, en nativo y en web; y en juego activo tx/ty cambian cada frame de todos modos. Solo implementar si D-WW demuestra costo en la llamada misma.)
+- [ ] Calcular `robotPos` una sola vez por paso de colisión. (Observación: posiblemente **irrelevante** — ya hoisteado en `rules.ts:529`; el timer de D-WW lo confirma y en ese caso el ítem se cierra sin cambios.)
+- [ ] Omitir `threatsOf()` durante power si el resultado funcional sigue siendo equivalente. (Gate de una línea; costo menor pero gratis.)
+- [ ] Separar capas estáticas y dinámicas del laberinto solo si el commit de pickup supera el presupuesto. (Observación: muros/corral ya separados en `MazeStaticLayer` memoizado; solo D-WW4 puede justificar más.)
+- [ ] Suspender loop/`present` en pausa/fin/interstitial si D-WW muestra trabajo desperdiciado (precedente existente: `deathFrozen` ya congela `present`). Incluye gates de idle `withRepeat` por `paused`/`status` + reduced motion.
+- [ ] Gate de publicación en `tick()` (omitir `set()` si solo cambió `remainderMs`/`elapsedMs` sin eventos) si D-WW3 confirma que nadie consume progreso por frame. Alternativa de menor riesgo al cambio de ownership.
+- [ ] Clones same-ref en `step()` (drones sin cambios retornan la misma referencia) si D-WW1/D-WW2 muestran presión de GC; preservando determinismo y tests.
 
 ### V-WW: validación
 
 - [ ] Comparar exactamente los escenarios baseline/post-fix.
 - [ ] Verificar score, eventos, vidas, niveles y estados terminales con los mismos seeds.
 - [ ] Medir que pausa/fin no mantengan callbacks rAF continuos salvo trabajo pendiente.
-- [ ] Reiniciar el reloj `last` al reanudar y comprobar que no aparece un `dt` artificial.
+- [ ] Reiniciar el reloj `last` al reanudar y comprobar que no aparece un `dt` artificial. (Nota: ya satisfecho por construcción —`last` se actualiza cada frame aun en pausa—; queda como assert de regresión.)
+- [ ] Recuperación post-stall: tras un stall, verificar que la ráfaga de steps (guard 8, clamp 100 ms) no produce jank en cascada.
 - [ ] Detener/reanudar idle animations según `status`, `paused` y reduced motion.
 
 ### Criterios de aceptación WakWak
@@ -329,6 +369,7 @@ confirma solo después del baseline.
 - [ ] `present()` reduce escrituras por frame solo si el baseline demuestra que son relevantes.
 - [ ] La mejora cumple la regla comparativa de la sección 5 en web y, cuando esté disponible, release Android.
 - [ ] Si no existe mejora significativa, se documenta la decisión de no migrar a Skia.
+- [ ] Si ningún I-WW cruza la regla §5, se documenta la decisión de no-cambio con las trazas D-WW como evidencia.
 
 ## 12. Fase 3: Damas
 
