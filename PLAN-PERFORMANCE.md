@@ -348,6 +348,26 @@ Notas técnicas D-WW2: Playwright ya lanza Chromium con los flags anti-backgroun
 
 ### I-WW: implementación condicional (ningún ítem sin traza D-WW que lo justifique)
 
+#### I-WW-1 (fase 1 de mejoras, aprobada 2026-09-12): `EdibleDot` memoizado por celda
+
+Evidencia: `render.board` del pickup p50 2.3 ms (×4.2 bajo throttle →
+JS-bound) con ~2 Hz durante el juego. Causa: `MazeLayerImpl` recrea ~399
+elementos + estilos por pickup aunque 1–2 celdas cambien
+(`MazeLayer.tsx:146-178`). Diseño: extraer el dot a componente `memo` con
+props primitivas (`x, y, size, borderRadius, color`, key estable por celda);
+el padre mapea las celdas y solo las cambiadas re-renderizan (bail-out por
+props iguales; sin cambios visuales/reglas/contrato). Aislado de cualquier
+higiene para no contaminar la atribución. Aceptación: post-fix reducido
+(3×10, ambos perfiles, `-g wakwak`) vs D-WW1/D-WW2 — si `render.board` p95
+mejora ≥10% → full §5; si no → revert + documentar. Validación manual:
+screenshot 360×640 del laberinto (se borra después).
+(Estado 2026-09-12: implementado + typecheck/tests/smokes verdes en ambos
+perfiles; pendientes las corridas de validación del operador.)
+
+Mejora futura (omitida por ahora): atribución fina creación-vs-commit —
+bundle minificado bloquea B1 por nombre; eventualmente simbolicar con
+source maps de `dist/`.
+
 - [ ] Mantener `advance()` aislado y probar equivalencia con seeds antes de modificar el canal de publicación.
 - [ ] Si el diagnóstico lo justifica, separar el acumulador de `remainderMs` o cambiar el contrato de forma explícita.
 - [ ] Comparar la pose actual con la última pose presentada y omitir shared values sin cambios. (Observación: posiblemente **redundante** — `valueSetter` de Reanimated ya omite escrituras al mismo valor primitivo sin notificar listeners/mappers, en nativo y en web; y en juego activo tx/ty cambian cada frame de todos modos. Solo implementar si D-WW demuestra costo en la llamada misma.)
