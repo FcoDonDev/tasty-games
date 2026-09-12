@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Locator } from '@playwright/test';
+import { expect, test, type CDPSession, type Page, type Locator } from '@playwright/test';
 import { execSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -19,6 +19,13 @@ import { buildDeck, PERF_MATCH_SEED, PERF_MISMATCH_SEED } from '../../games/memo
  * a tmp/perf/ (artifacts locales, nunca commiteados). Defaults reducidos para
  * la corrida de validación; el baseline completo del PLAN se corre con:
  *   PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30
+ *
+ * D-WW2 (PLAN §11): PERF_THROTTLE=<rate> aplica throttle de CPU vía CDP
+ * (Emulation.setCPUThrottlingRate, solo Chromium) tras el ready de cada
+ * corrida; los artifacts van a tmp/perf-throttle/ y el envelope lleva
+ * `throttle` + `heapUsedBefore/After`. Throttled solo se compara contra
+ * throttled. En la primera corrida medida de cada escenario captura además
+ * un CPU profile (dominio Profiler) a <scenarioId>.cpuprofile.json.
  */
 
 const PERF_BASELINE = process.env.PERF_BASELINE === '1';
@@ -33,7 +40,14 @@ const WINDOW_MS = Number(process.env.PERF_WINDOW_MS ?? 4000);
 // PLAN §9: viewport mobile 360x640 (mobile-first); PERF_VIEWPORT=1280x900 para desktop
 const VIEWPORT = (process.env.PERF_VIEWPORT ?? '360x640').split('x').map(Number) as [number, number];
 
-const ARTIFACT_DIR = path.resolve(process.cwd(), 'tmp/perf');
+// D-WW2 (PLAN §11): throttle de CPU vía CDP, solo Chromium. 0/1 = sin
+// throttle; 4 = 4x slowdown. Con throttle los artifacts van a
+// tmp/perf-throttle/ para no mezclarlos con tmp/perf/.
+const THROTTLE = Number(process.env.PERF_THROTTLE ?? 0);
+
+const ARTIFACT_DIR = THROTTLE > 1
+  ? path.resolve(process.cwd(), 'tmp/perf-throttle')
+  : path.resolve(process.cwd(), 'tmp/perf');
 const COMMIT = (() => {
   try {
     return execSync('git rev-parse --short HEAD').toString().trim();
@@ -74,6 +88,11 @@ interface RunEnvelope {
   viewport: string;
   wallMs: number;
   snapshot: PerfSnapshot | null;
+  /** D-WW2: rate de throttle CDP (ausente = sin throttle). Campos aditivos. */
+  throttle?: number;
+  /** D-WW2: JSHeapUsedSize pre/post run (proxy del churn de asignaciones). */
+  heapUsedBefore?: number;
+  heapUsedAfter?: number;
 }
 
 interface Point {
@@ -120,6 +139,12 @@ async function dragByLabel(page: Page, sourceLabel: string, targetLabel: string)
   const from = await stableBox(page, page.getByLabel(sourceLabel, { exact: true }));
   const to = await stableBox(page, page.getByLabel(targetLabel, { exact: true }));
   await dragStepped(page, from, to);
+}
+
+/** D-WW2: lee JSHeapUsedSize de las métricas runtime de Chromium. */
+async function jsHeapUsed(cdp: CDPSession): Promise<number | undefined> {
+  const { metrics } = await cdp.send('Performance.getMetrics');
+  return metrics.find((m) => m.name === 'JSHeapUsedSize')?.value;
 }
 
 interface Scenario {
@@ -383,7 +408,33 @@ for (const scenario of SCENARIOS) {
       const url = scenario.seed ? `/juego/${scenario.gameId}?seed=${scenario.seed}` : `/juego/${scenario.gameId}`;
       await page.goto(url);
       await scenario.ready(page);
+
+      // D-WW2: throttle de CPU tras el ready (mide gameplay, no carga).
+      let cdp: CDPSession | null = null;
+      let heapUsedBefore: number | undefined;
+      if (THROTTLE > 1) {
+        cdp = await page.context().newCDPSession(page);
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
+        await cdp.send('Performance.enable');
+        heapUsedBefore = await jsHeapUsed(cdp);
+      }
+      // D-WW2-B1: CPU profile en la primera corrida medida del escenario.
+      const profileRun = cdp !== null && i === WARMUP;
+      if (profileRun && cdp) {
+        await cdp.send('Profiler.enable');
+        await cdp.send('Profiler.setSamplingInterval', { interval: 1000 });
+        await cdp.send('Profiler.start');
+      }
       await scenario.run(page);
+      if (profileRun && cdp) {
+        const { profile } = await cdp.send('Profiler.stop');
+        writeFileSync(path.join(ARTIFACT_DIR, `${scenario.id}.cpuprofile.json`), JSON.stringify(profile));
+      }
+      const heapUsedAfter = cdp ? await jsHeapUsed(cdp) : undefined;
+      if (cdp) {
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+        await cdp.detach();
+      }
 
       // Salir por SPA (no reload): desmonta la pantalla → endPerfSession +
       // escritura en idle; navegar con goto mataría el idle callback pendiente.
@@ -405,6 +456,9 @@ for (const scenario of SCENARIOS) {
         viewport: `${VIEWPORT[0]}x${VIEWPORT[1]}`,
         wallMs: Date.now() - started,
         snapshot,
+        ...(THROTTLE > 1 ? { throttle: THROTTLE } : {}),
+        ...(heapUsedBefore !== undefined ? { heapUsedBefore } : {}),
+        ...(heapUsedAfter !== undefined ? { heapUsedAfter } : {}),
       };
       if (!warmup) {
         appendFileSync(file, `${JSON.stringify(envelope)}\n`);
@@ -424,6 +478,11 @@ test.beforeAll(() => {
   );
   if (PROFILING_BUILD && process.env.EXPO_PUBLIC_PERF_METRICS !== '1') {
     throw new Error('EXPO_PUBLIC_PERF_PROFILING=1 exige EXPO_PUBLIC_PERF_METRICS=1 (sin gate el Profiler no registra)');
+  }
+  if (THROTTLE > 1) {
+    console.log(
+      `[perf-harness] throttle=${THROTTLE}x (CDP, Chromium) → artifacts en tmp/perf-throttle; NO comparar contra tmp/perf`,
+    );
   }
 });
 
