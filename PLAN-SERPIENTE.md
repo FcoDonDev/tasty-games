@@ -120,7 +120,7 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 
 - [x] T1. `engine/` puro + unit tests (grid/rules/controls/seed, determinismo) + presupuesto §9.3 (cuerpo en `Set` O(1), spawn acotado + test, tope 8/frame).
 - [x] T2. `state.ts` + `index.ts` + registro + `RULES.md` + `README.md` + tick publica solo si `state` cambió + tickStats D-WW0 desde el día 1.
-- [ ] T3. `SerpienteScreen` + HUD + overlays + settings (wrap/control/anillo) + renderer memo §9.2 (grid estático, segmentos memo, HUD por slices, wave en UI-thread, reduced-motion).
+- [x] T3. `SerpienteScreen` + HUD + overlays + settings (wrap/control/anillo) + renderer memo §9.2 (grid estático, segmentos memo, HUD por slices, wave en UI-thread, reduced-motion).
 - [ ] T4. Sonido/haptics + pausa + `onGameEnd`/récord + audio fire-and-forget con prime en idle + haptics solo especial/muerte (§9.5).
 - [ ] T5. `preview/` (elección hecha: V2) → converger tema final al `renderer/` real; la galería queda viva para futuros ajustes.
 - [ ] T6. E2E web (win/lose/crecer + táctil CDP + responsive 360×640 + `serpiente` en GAMES) + escenarios perf `serpiente-*` + waits 900–1000 ms tras muerte.
@@ -284,5 +284,19 @@ overhead: early-returns y el `PerfProfiler` ni siquiera monta).
 
 ## Notas/hallazgos
 
-_(vacío — documentar aquí desviaciones, aprendizajes y problemas a medida que
-aparezcan; al cierre migrar según la tabla de `AGENTS.md`.)_
+- T3 (2026-09-13): taper por rol (cabeza 1.12 / cuerpo 1.0 / cola 0.72) en vez
+  de taper por índice: un taper indexado re-renderizaría TODO el cuerpo por
+  tick (los índices corren); así solo cabeza/cola/rol-cambiado (ver
+  `components/Board.tsx`). La decisión final del taper espera el dato de
+  `renderFreq:segmentos` en T7 (criterio §5).
+- T3: `setWrap` se aplica en vivo a la run en curso (mejor UX que "próxima
+  partida"; sin riesgo: `wrap` solo se lee en `stepIndex`).
+- T3: segmentos con key por CELDA (`seg-<cell>`) para identidad estable;
+  onda `slither` con fase por celda (no por índice) para no saltar por tick.
+- T3: mock `__mocks__/react-native-reanimated.js` extendido
+  (`useReducedMotion`→false, builders `FadeIn/Up/Out`, `withSequence`→último,
+  `useSharedValue` estable). Ojo: mi glob inicial (`*.ts*`) no mostró los
+  `.js` preexistentes y casi duplico el mock — usar `ls __mocks__/` directo.
+  Migrar a `docs/GOTCHAS.md` al cierre.
+- T3: `onGameEnd`/récord + sonido/haptics quedan en T4 con `TODO(T4)` y
+  `endedRef` ya puesto en la pantalla.

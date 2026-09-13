@@ -35,6 +35,13 @@ describe('store serpiente (T2)', () => {
     expect(store().game.wrap).toBe(false);
   });
 
+  test('setWrap se aplica en vivo a la run en curso', () => {
+    expect(store().game.wrap).toBe(true);
+    store().setWrap(false);
+    expect(store().wrap).toBe(false);
+    expect(store().game.wrap).toBe(false);
+  });
+
   test('tick sin pasos no publica (misma referencia)', () => {
     const before = store().game;
     expect(store().tick(0)).toEqual([]);

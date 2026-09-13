@@ -104,5 +104,9 @@ export const useSerpienteStore = create<SerpienteStore>()((set, get) => ({
 
   togglePause: () => set(() => ({ paused: !get().paused })),
 
-  setWrap: (wrap) => set(() => ({ wrap })),
+  setWrap: (wrap) => {
+    // Aplicación inmediata: el setting rige también la run en curso.
+    const { game } = get();
+    set(() => ({ wrap, game: game.status === 'playing' ? { ...game, wrap } : game }));
+  },
 }));

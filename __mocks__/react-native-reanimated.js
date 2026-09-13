@@ -25,7 +25,11 @@ module.exports = {
   __esModule: true,
   default: Animated,
   ...Animated,
-  useSharedValue: (initial) => ({ value: initial }),
+  useSharedValue: (initial) => {
+    // Estable por componente (semántica real); el frame inicial basta en Jest.
+    const [sv] = React.useState(() => ({ value: initial }));
+    return sv;
+  },
   useDerivedValue: (compute) => ({ value: compute() }),
   useAnimatedStyle: (compute) => compute(),
   useAnimatedReaction: NOOP,
@@ -34,12 +38,15 @@ module.exports = {
   useFrameCallback: NOOP,
   useSharedValueEffect: NOOP,
   useAnimatedProps: (compute) => compute(),
+  // En Jest no hay preferencia del SO: se ejercita la rama CON animación.
+  useReducedMotion: () => false,
   runOnJS: (fn) => fn,
   runOnUI: (fn) => fn,
   withTiming: identity,
   withSpring: identity,
   withDelay: identity,
-  withSequence: identity,
+  // Destino = último valor (p. ej. el shake termina en 0).
+  withSequence: (...args) => args[args.length - 1],
   withRepeat: identity,
   withDecay: identity,
   withStyle: identity,
@@ -58,4 +65,9 @@ module.exports = {
   cubicBezier: (x1, y1, x2, y2) => ({
     normalize: () => ({ name: 'cubicBezier', x1, y1, x2, y2 }),
   }),
+  // Builders de entrada/salida: en Jest devuelven objeto inerte.
+  FadeIn: { duration: () => ({}) },
+  FadeInUp: { duration: () => ({}) },
+  FadeOut: { duration: () => ({}) },
+  ReduceMotion: { System: 0, Always: 1, Never: 2 },
 };
