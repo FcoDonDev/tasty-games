@@ -1,15 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, Profiler } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { ReduceMotion, cancelAnimation, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameResult, GameScreenProps } from '@/core/types';
-import {
-  beginPerfSession,
-  endPerfSession,
-  perfAudio,
-  perfDragEvent,
-  perfRenderReport,
-} from '@/core/perf';
+import { beginPerfSession, endPerfSession, perfAudio, perfDragEvent } from '@/core/perf';
+import { PerfProfiler } from '@/core/perf/PerfProfiler';
 import { gameStateRepository } from '@/core/db/repositories/gameStateRepository';
 import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
 import { GameHeader } from '@/core/ui/GameHeader';
@@ -515,13 +510,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
   // desplaza al resto (antes el recentrado vertical las movía a todas).
   const boardTop = 8;
 
-  // Duración de render del tablero (Profiler); solo con métricas activadas
-  const onBoardRender = useCallback(
-    (_id: string, _phase: 'mount' | 'update' | 'nested-update', actualDuration: number) => {
-      perfRenderReport(GAME_ID, actualDuration);
-    },
-    [],
-  );
+  // La duración de render la captura PerfProfiler (no-op con el gate apagado)
 
   if (!ready) {
     return (
@@ -573,7 +562,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
 
       <View style={styles.board} onLayout={onLayout}>
         {layout !== null ? (
-          <Profiler id="board" onRender={onBoardRender}>
+          <PerfProfiler gameId={GAME_ID} id="board">
             <View
               style={[styles.boardInner, { top: boardTop }]}
               accessibilityLabel="solitario-tablero"
@@ -639,7 +628,7 @@ export default function SolitarioScreen({ onExit, onGameEnd, initialSeed }: Game
               />
             ))}
           </View>
-          </Profiler>
+          </PerfProfiler>
         ) : null}
       </View>
 

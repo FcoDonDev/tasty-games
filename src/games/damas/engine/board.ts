@@ -58,12 +58,26 @@ export function forwardDelta(player: Player): number {
 export const TEST_CAPTURE_SEED = '__test_capture__';
 export const TEST_WIN_SEED = '__test_win__';
 
-export type SetupSeed = typeof TEST_CAPTURE_SEED | typeof TEST_WIN_SEED;
+/** Sentinelas de performance (PLAN-PERFORMANCE §7): posiciones de alto coste
+ * para el hot path de reglas, sin capturas disponibles. */
+export const PERF_KINGS_SEED = '__perf_kings__';
+/** Sentinelas de performance (PLAN-PERFORMANCE §7): cadena de capturas con
+ * muchas ramas (dama voladora + multi-aterrizaje) para medir `applyMove`/
+ * `legalMovesForPiece` en el peor caso de ramificación. */
+export const PERF_BRANCHING_SEED = '__perf_branching__';
+
+export type SetupSeed =
+  | typeof TEST_CAPTURE_SEED
+  | typeof TEST_WIN_SEED
+  | typeof PERF_KINGS_SEED
+  | typeof PERF_BRANCHING_SEED;
 
 /** Mapea el `initialSeed` que llega por query param (solo builds E2E) a sentinel. */
 export function parseSetupSeed(initialSeed?: string): SetupSeed | undefined {
   if (initialSeed === 'test-capture') return TEST_CAPTURE_SEED;
   if (initialSeed === 'test-win') return TEST_WIN_SEED;
+  if (initialSeed === 'perf-kings') return PERF_KINGS_SEED;
+  if (initialSeed === 'perf-branching') return PERF_BRANCHING_SEED;
   return undefined;
 }
 
@@ -136,5 +150,55 @@ function testWinBoard(): Board {
 export function initialBoard(seed?: SetupSeed): Board {
   if (seed === TEST_CAPTURE_SEED) return testCaptureBoard();
   if (seed === TEST_WIN_SEED) return testWinBoard();
+  if (seed === PERF_KINGS_SEED) return perfKingsBoard();
+  if (seed === PERF_BRANCHING_SEED) return perfBranchingBoard();
   return standardBoard();
+}
+
+/**
+ * E2E `perf-kings`: 6 damas del jugador 1 (en filas 2-3, p1 avanza hacia
+ * arriba) contra 8 peones del jugador 2 en filas 5-6. Todas las diagonales
+ * entre bandos terminan bloqueadas (por ficha propia o por borde con enemiga
+ * pegada al límite), así que NO hay capturas disponibles: cada
+ * `legalMovesForPiece` ejecuta además el `hasCapture` global sobre todas las
+ * fichas — el peor caso del hot path de drag (PLAN-PERFORMANCE §7).
+ * p1: 17,19,24,26,28,30 · p2: 40,42,44,46 (fila 5) y 49,51,53,55 (fila 6).
+ */
+function perfKingsBoard(): Board {
+  return boardFromSquares([
+    // damas del jugador 1 (filas 2-3)
+    [17, piece(1, true, 'a')],
+    [19, piece(1, true, 'b')],
+    [24, piece(1, true, 'c')],
+    [26, piece(1, true, 'd')],
+    [28, piece(1, true, 'e')],
+    [30, piece(1, true, 'f')],
+    // peones del jugador 2 (filas 5-6); los de fila 6 tienen avance libre
+    [40, piece(2, false, 'a')],
+    [42, piece(2, false, 'b')],
+    [44, piece(2, false, 'c')],
+    [46, piece(2, false, 'd')],
+    [49, piece(2, false, 'e')],
+    [51, piece(2, false, 'f')],
+    [53, piece(2, false, 'g')],
+    [55, piece(2, false, 'h')],
+  ]);
+}
+
+/**
+ * E2E `perf-branching`: una dama del jugador 1 en 44 rodeada de 5 enemigas
+ * (33, 35, 37, 51, 53) con pasillo vacío hacia atrás: la captura por NW abre
+ * aterrizajes múltiples (26, 17, 8...) y desde 26 continúa la cadena hacia
+ * 33 — el caso de ramificación de `kingCaptureChains` (PLAN §7).
+ * El jugador 1 está al turno; la partida no terminó.
+ */
+function perfBranchingBoard(): Board {
+  return boardFromSquares([
+    [44, piece(1, true, 'a')],
+    [33, piece(2, false, 'a')],
+    [35, piece(2, false, 'b')],
+    [37, piece(2, false, 'c')],
+    [51, piece(2, false, 'd')],
+    [53, piece(2, false, 'e')],
+  ]);
 }

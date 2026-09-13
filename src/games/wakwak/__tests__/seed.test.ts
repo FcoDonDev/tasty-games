@@ -36,6 +36,8 @@ describe('seed: parseGameSeed', () => {
     expect(parseGameSeed('test-power')).toBeDefined();
     expect(parseGameSeed('test-combo')).toBeDefined();
     expect(parseGameSeed('test-level')).toBeDefined();
+    expect(parseGameSeed('perf-level-1')).toBeDefined();
+    expect(parseGameSeed('perf-level-8')).toBeDefined();
     expect(parseGameSeed(undefined)).toBeUndefined();
     expect(parseGameSeed('otro')).toBeUndefined();
   });
@@ -81,6 +83,26 @@ describe('seed: seedConfig', () => {
     const config = seedConfig('__test_lose__');
     expect(config.releaseBase).toBeLessThanOrEqual(500);
     expect(config.batteryCells).toHaveLength(MAZE.batteryCells.length);
+  });
+
+  it('perf-level-1 / perf-level-8: partida NORMAL determinista fijada al nivel', () => {
+    for (const [seed, level] of [
+      ['__perf_level_1__', 1],
+      ['__perf_level_8__', 8],
+    ] as const) {
+      const config = seedConfig(seed);
+      expect(config.level).toBe(level);
+      // Reparto normal: laberinto completo, knobs del nivel (sin overrides E2E)
+      expect(config.batteryCells).toEqual([...MAZE.batteryCells].sort((a, b) => a - b));
+      expect(config.superCells).toEqual([...MAZE.superCells].sort((a, b) => a - b));
+      expect(config.releaseBase).toBeUndefined();
+      // Determinista: dos llamadas producen la misma config (mismo stream)
+      expect(seedConfig(seed)).toEqual(config);
+      // Y es exactamente la config default de ese nivel (solo cambia el label)
+      expect(seedConfig(undefined, level)).toEqual({ ...config, label: 'default' });
+    }
+    // Niveles distintos → streams distintos
+    expect(seedConfig('__perf_level_1__').rngSeed).not.toBe(seedConfig('__perf_level_8__').rngSeed);
   });
 
   it('test-power: súper junto al spawn y drone 0 en roaming en su camino', () => {

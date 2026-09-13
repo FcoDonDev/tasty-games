@@ -10,9 +10,11 @@ import { useContainerSize } from '@/core/ui/useContainerSize';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import { Card } from './components/Card';
 import { columnsForWidth, computeCardSize, GAP } from './engine/layout';
+import { parseSeed } from './engine/deck';
 import { MISMATCH_CLEAR_MS, PAIR_COUNT, scoreFor, useMemoriceStore } from './engine/state';
+import { beginPerfSession, endPerfSession } from '@/core/perf';
 
-export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
+export default function MemoriceScreen({ onExit, onGameEnd, initialSeed }: GameScreenProps) {
   const theme = useTheme();
   // Tamaño real del área de tablero (onLayout): el grid llena el 100% disponible
   const { size, onLayout } = useContainerSize();
@@ -27,6 +29,11 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
   const flipCard = useMemoriceStore((state) => state.flipCard);
   const resolveMismatch = useMemoriceStore((state) => state.resolveMismatch);
   const reset = useMemoriceStore((state) => state.reset);
+
+  // El seed solo llega en builds E2E (EXPO_PUBLIC_E2E=1, gateado en
+  // app/juego/[id].tsx): memorize antes repartía con Math.random() sin canal
+  // determinista; los fixtures de performance lo exigen reproducible.
+  const seed = useMemo(() => parseSeed(initialSeed), [initialSeed]);
 
   const [showWin, setShowWin] = useState(false);
   const hasReportedRef = useRef(false);
@@ -44,11 +51,17 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
     [cards, columns],
   );
 
+  // Sesión de métricas (no-op con EXPO_PUBLIC_PERF_METRICS off)
+  useEffect(() => {
+    beginPerfSession('memorice');
+    return () => endPerfSession('memorice');
+  }, []);
+
   useEffect(() => {
     hasReportedRef.current = false;
     setShowWin(false);
-    reset();
-  }, [reset]);
+    reset(seed);
+  }, [reset, seed]);
 
   // Resuelve el par fallado tras un delay (la lógica vive en la UI, el store es puro)
   useEffect(() => {
@@ -77,8 +90,8 @@ export default function MemoriceScreen({ onExit, onGameEnd }: GameScreenProps) {
   const handleReset = useCallback(() => {
     hasReportedRef.current = false;
     setShowWin(false);
-    reset();
-  }, [reset]);
+    reset(seed);
+  }, [reset, seed]);
 
   const isFaceUp = useCallback(
     (id: string) => flipped.includes(id) || matched.includes(id),

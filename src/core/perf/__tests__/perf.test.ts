@@ -2,10 +2,12 @@ import {
   beginPerfSession,
   endPerfSession,
   perfAudio,
+  perfCount,
   perfDragEvent,
   perfJsStall,
   perfRenderCount,
   perfRenderReport,
+  perfSample,
   perfUiFrame,
   readPerfMetrics,
   setPerfEnabledForTests,
@@ -49,7 +51,9 @@ describe('perf (gate apagado)', () => {
     perfRenderReport(GAME, 1);
     perfRenderCount(GAME, 'pile:tableau-0');
     perfJsStall(GAME, 30);
-    perfUiFrame(GAME, 1, 10);
+    perfUiFrame(GAME, { longFrameEvents: 1, estimatedDroppedFrames: 2, total: 10, maxDtMs: 30 });
+    perfSample(GAME, 'loop.tick', 1);
+    perfCount(GAME, 'loop.tick.calls', 60);
     endPerfSession(GAME);
     expect(logSpy).not.toHaveBeenCalled();
     expect(readPerfMetrics(GAME)).toBeNull();
@@ -78,24 +82,27 @@ describe('perf (gate encendido)', () => {
     beginPerfSession(GAME);
     perfAudio(GAME, { handlerToPlayMs: 0.5 });
     perfRenderReport(GAME, 12);
-    perfRenderCount(GAME, 'pile:tableau-0');
-    perfRenderCount(GAME, 'pile:tableau-0');
-    perfRenderCount(GAME, 'pile:waste');
+    perfRenderCount(GAME, 'renderFreq:pile:tableau-0');
+    perfRenderCount(GAME, 'renderFreq:pile:tableau-0');
+    perfRenderCount(GAME, 'renderFreq:pile:waste');
     perfJsStall(GAME, 30);
-    perfUiFrame(GAME, 2, 100);
+    perfUiFrame(GAME, { longFrameEvents: 2, estimatedDroppedFrames: 3, total: 100, maxDtMs: 42 });
     endPerfSession(GAME);
 
     const snapshot = readPerfMetrics(GAME);
     expect(snapshot?.timers['audio.handlerToPlay']).toMatchObject({ count: 1 });
     expect(snapshot?.timers['render.board']).toMatchObject({ count: 1 });
     expect(snapshot?.timers['jsStall.dt']).toMatchObject({ count: 1 });
-    expect(snapshot?.counters['render:pile:tableau-0']).toBe(2);
-    expect(snapshot?.counters['render:pile:waste']).toBe(1);
-    expect(snapshot?.counters['uiFrames.dropped']).toBe(2);
+    expect(snapshot?.counters['renderFreq:pile:tableau-0']).toBe(2);
+    expect(snapshot?.counters['renderFreq:pile:waste']).toBe(1);
+    expect(snapshot?.counters['uiFrames.longFrameEvents']).toBe(2);
+    expect(snapshot?.counters['uiFrames.estimatedDroppedFrames']).toBe(3);
     expect(snapshot?.counters['uiFrames.total']).toBe(100);
+    // maxDt persistido como timer con semántica propia (peor dt del intervalo)
+    expect(snapshot?.timers['uiFrame.maxDt']).toMatchObject({ count: 1, max: 42 });
   });
 
-  it('el resumen imprime count/avg/min/p95 por métrica', () => {
+  it('el resumen imprime count/avg/min y percentiles por métrica', () => {
     beginPerfSession(GAME);
     for (const ms of [10, 20, 30, 40, 100]) perfDragEvent(GAME, { handlerMs: ms });
     endPerfSession(GAME);
@@ -106,7 +113,11 @@ describe('perf (gate encendido)', () => {
     expect(text).toContain('drag.handler: count=5');
     expect(text).toContain('avg=40ms');
     expect(text).toContain('min=10ms');
+    // nearest-rank: p50 = ceil(0.5*5)-1 = 2 → 30
+    expect(text).toContain('p50=30ms');
     expect(text).toContain('p95=100ms');
+    expect(text).toContain('p99=100ms');
+    expect(text).toContain('max=100ms');
   });
 
   it('beginPerfSession reinicia la sesión', () => {
@@ -137,7 +148,87 @@ describe('perf (gate encendido)', () => {
     beginPerfSession(GAME);
     for (const ms of [1, 2, 3, 4, 5, 6, 7, 8, 9, 50]) perfDragEvent(GAME, { handlerMs: ms });
     endPerfSession(GAME);
-    // floor(10 * 0.95) = 9 → el valor más alto
+    // nearest-rank: ceil(10 * 0.95) - 1 = 9 → el valor más alto
     expect(readPerfMetrics(GAME)?.timers['drag.handler'].p95).toBe(50);
+  });
+
+  it('calcula p50/p95/p99/max (semántica de percentiles, PLAN §6)', () => {
+    beginPerfSession(GAME);
+    for (let ms = 1; ms <= 100; ms++) perfDragEvent(GAME, { handlerMs: ms });
+    endPerfSession(GAME);
+    const t = readPerfMetrics(GAME)?.timers['drag.handler'];
+    expect(t).toMatchObject({ count: 100, min: 1, max: 100 });
+    // n=100: p50 → ceil(50)-1 = índice 49 → 50; p95 → índice 94 → 95;
+    // p99 → índice 98 → 99. p95 < max demuestra que el p99 no es el máximo.
+    expect(t?.p50).toBe(50);
+    expect(t?.p95).toBe(95);
+    expect(t?.p99).toBe(99);
+    expect(t?.max).toBe(100);
+  });
+
+  it('con muestras pequeñas los percentiles coinciden con min/max (edge cases)', () => {
+    beginPerfSession(GAME);
+    perfDragEvent(GAME, { handlerMs: 5 }); // n=1: p50=p95=p99=max
+    endPerfSession(GAME);
+    const single = readPerfMetrics(GAME)?.timers['drag.handler'];
+    expect(single).toMatchObject({ count: 1, p50: 5, p95: 5, p99: 5, max: 5 });
+
+    beginPerfSession(GAME);
+    perfDragEvent(GAME, { handlerMs: 2 });
+    perfDragEvent(GAME, { handlerMs: 9 });
+    endPerfSession(GAME);
+    const pair = readPerfMetrics(GAME)?.timers['drag.handler'];
+    // n=2: p50 → ceil(1)-1=0 → 2; p95/p99 → ceil(1.9)-1=1 → 9
+    expect(pair).toMatchObject({ p50: 2, p95: 9, p99: 9, max: 9 });
+  });
+
+  it('acota las muestras con buffer circular sin perder count/sum', () => {
+    beginPerfSession(GAME);
+    for (let i = 1; i <= 1000; i++) perfDragEvent(GAME, { handlerMs: i });
+    endPerfSession(GAME);
+    const t = readPerfMetrics(GAME)?.timers['drag.handler'];
+    // count/sum/min/max se llevan la cuenta completa; solo el buffer de
+    // muestras queda acotado (percentiles sobre las últimas ~512).
+    expect(t?.count).toBe(1000);
+    expect(t?.max).toBe(1000);
+    expect(t?.min).toBe(1);
+    // Buffer de 512: muestras 489..1000 (ordenadas). n=512:
+    // p50 → ceil(256)-1=255 → 489+255=744; p95 → ceil(486.4)-1=486 → 975;
+    // p99 → ceil(506.88)-1=506 → 995.
+    expect(t?.p50).toBe(744);
+    expect(t?.p95).toBe(975);
+    expect(t?.p99).toBe(995);
+  });
+
+  it('endPerfSession libera la sesión mutable (el snapshot persiste)', () => {
+    beginPerfSession(GAME);
+    perfDragEvent(GAME, { handlerMs: 4 });
+    endPerfSession(GAME);
+    // El snapshot cerrado sigue legible (memoria + storage)
+    expect(readPerfMetrics(GAME)?.timers['drag.handler']).toMatchObject({ count: 1, avg: 4 });
+    // begin tras el cierre abre una sesión NUEVA (no reutiliza la anterior)
+    beginPerfSession(GAME);
+    endPerfSession(GAME);
+    expect(readPerfMetrics(GAME)?.timers['drag.handler']).toBeUndefined();
+  });
+
+  it('perfSample acumula timers silenciosos y perfCount suma contadores (D-WW0)', () => {
+    beginPerfSession(GAME);
+    perfSample(GAME, 'loop.tick', 2);
+    perfSample(GAME, 'loop.tick', 4);
+    perfCount(GAME, 'loop.tick.calls', 60);
+    perfCount(GAME, 'loop.tick.published', 59);
+    perfCount(GAME, 'loop.tick.published');
+    endPerfSession(GAME);
+
+    // Silencioso: ningún log por muestra (a 60 Hz rompería consola/E2E);
+    // la única línea con la clave es el resumen agregado de la sesión.
+    const loopLogs = logSpy.mock.calls.filter((call) => String(call[0]).includes('loop.'));
+    expect(loopLogs).toHaveLength(1);
+    expect(String(loopLogs[0][0])).toContain('summary');
+
+    expect(readPerfMetrics(GAME)?.timers['loop.tick']).toMatchObject({ count: 2, avg: 3, min: 2, max: 4 });
+    expect(readPerfMetrics(GAME)?.counters['loop.tick.calls']).toBe(60);
+    expect(readPerfMetrics(GAME)?.counters['loop.tick.published']).toBe(60);
   });
 });

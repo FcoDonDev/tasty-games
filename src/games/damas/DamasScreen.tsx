@@ -1,14 +1,10 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, Profiler } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { ReduceMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { GameScreenProps } from '@/core/types';
-import {
-  beginPerfSession,
-  endPerfSession,
-  perfDragEvent,
-  perfRenderReport,
-} from '@/core/perf';
+import { beginPerfSession, endPerfSession, perfDragEvent } from '@/core/perf';
+import { PerfProfiler } from '@/core/perf/PerfProfiler';
 import { GameHeader } from '@/core/ui/GameHeader';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { hapticDropCommit, hapticGameWin } from '@/core/ui/haptics';
@@ -226,10 +222,7 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
 
       <View style={styles.board} onLayout={onLayout}>
         {layout !== null ? (
-          <Profiler
-            id="board"
-            onRender={(_id, _phase, actualDuration) => perfRenderReport(GAME_ID, actualDuration)}
-          >
+          <PerfProfiler gameId={GAME_ID} id="board">
             {Array.from({ length: 64 }, (_, i) => {
               const pos = squarePosition(layout, i);
               const dark = isDark(i);
@@ -262,7 +255,7 @@ export default function DamasScreen({ onExit, initialSeed }: GameScreenProps) {
                 />
               ) : null,
             )}
-          </Profiler>
+          </PerfProfiler>
         ) : null}
       </View>
 

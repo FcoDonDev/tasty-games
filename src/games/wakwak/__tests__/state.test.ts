@@ -1,7 +1,7 @@
 import { TICK_MS, type GameEvent } from '../engine/rules';
 import { toIndex } from '../engine/maze';
 import { MAX_LEVEL } from '../engine/levels';
-import { useWakWakStore } from '../engine/state';
+import { drainTickStats, setTickStatsEnabled, useWakWakStore } from '../engine/state';
 
 describe('state: store zustand', () => {
   beforeEach(() => {
@@ -148,5 +148,53 @@ describe('state: run continua de niveles', () => {
     store.advanceLevel();
     expect(useWakWakStore.getState().game.rng()).toBe(seed2);
     expect(seed2).not.toBe(seed1);
+  });
+});
+
+describe('state: stats del tick (D-WW0)', () => {
+  beforeEach(() => {
+    useWakWakStore.getState().reset();
+    drainTickStats();
+    setTickStatsEnabled(false);
+  });
+
+  afterEach(() => {
+    drainTickStats();
+    setTickStatsEnabled(false);
+  });
+
+  it('apagado por defecto: tick no acumula nada (cero overhead)', () => {
+    useWakWakStore.getState().setDirection('left');
+    useWakWakStore.getState().tick(TICK_MS);
+    expect(drainTickStats()).toEqual({ advanceSamples: [], tickCalls: 0, tickPublished: 0 });
+  });
+
+  it('encendido: cuenta llamadas, publicaciones y duraciones de advance', () => {
+    setTickStatsEnabled(true);
+    const store = useWakWakStore.getState();
+    store.setDirection('left');
+    store.tick(TICK_MS);
+    store.tick(TICK_MS);
+    const stats = drainTickStats();
+    expect(stats.tickCalls).toBe(2);
+    // advance siempre retorna objeto nuevo (remainderMs) → publica siempre
+    expect(stats.tickPublished).toBe(2);
+    expect(stats.advanceSamples).toHaveLength(2);
+    expect(stats.advanceSamples.every((ms) => ms >= 0)).toBe(true);
+  });
+
+  it('tick pausado/terminado no cuenta (early return)', () => {
+    setTickStatsEnabled(true);
+    const store = useWakWakStore.getState();
+    store.togglePause();
+    store.tick(TICK_MS * 60);
+    expect(drainTickStats()).toEqual({ advanceSamples: [], tickCalls: 0, tickPublished: 0 });
+  });
+
+  it('drainTickStats limpia los buffers', () => {
+    setTickStatsEnabled(true);
+    useWakWakStore.getState().tick(TICK_MS);
+    expect(drainTickStats().tickCalls).toBe(1);
+    expect(drainTickStats()).toEqual({ advanceSamples: [], tickCalls: 0, tickPublished: 0 });
   });
 });

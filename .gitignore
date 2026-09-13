@@ -53,3 +53,6 @@ example
 .env
 .codegraph/
 .playwright-mcp/
+
+# scratch personal (no commitear)
+borrame/

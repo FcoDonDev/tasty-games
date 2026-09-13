@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { perfRenderCount } from '@/core/perf';
 import { MAZE, MAZE_COLS, MAZE_ROWS, colOf, rowOf, toIndex, type MazeData } from '../../engine/maze';
 import { BONUS_CELL } from '../../engine/rules';
 
@@ -134,7 +135,43 @@ export interface MazeLayerProps {
   bonusActive: boolean;
 }
 
+interface EdibleDotProps {
+  x: number;
+  y: number;
+  size: number;
+  borderRadius: number;
+  color: string;
+  testID: string;
+}
+
+/**
+ * Dot comestible de una celda (I-WW-1, PLAN-PERFORMANCE §11): `memo` con
+ * props primitivas para que el bail-out funcione — por pickup solo las
+ * celdas cambiadas re-renderizan, en vez de recrear ~399 Views + estilos.
+ * Sin objetos inline en props (derrotarían al memo).
+ */
+const EdibleDot = memo(function EdibleDot({ x, y, size, borderRadius, color, testID }: EdibleDotProps) {
+  return (
+    <View
+      testID={testID}
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        width: size,
+        height: size,
+        borderRadius,
+        backgroundColor: color,
+      }}
+    />
+  );
+});
+
 function MazeLayerImpl({ cellSize, batteries, supers, bonusActive }: MazeLayerProps) {
+  // D-WW0: frecuencia de renders del laberinto (debería ser solo pickups +
+  // cambios de layout). Prefijo `renderFreq:` para no confundir con `render.board`
+  // (duración, solo profiling). No-op con el gate apagado.
+  perfRenderCount('wakwak', 'renderFreq:maze');
   const batterySet = useMemo(() => new Set(batteries), [batteries]);
   const superSet = useMemo(() => new Set(supers), [supers]);
 
@@ -146,32 +183,26 @@ function MazeLayerImpl({ cellSize, batteries, supers, bonusActive }: MazeLayerPr
   for (let index = 0; index < MAZE_COLS * MAZE_ROWS; index++) {
     if (batterySet.has(index)) {
       edibles.push(
-        <View
+        <EdibleDot
           key={`b-${index}`}
-          style={{
-            position: 'absolute',
-            left: colOf(index) * cellSize + (cellSize - dotSize) / 2,
-            top: rowOf(index) * cellSize + (cellSize - dotSize) / 2,
-            width: dotSize,
-            height: dotSize,
-            borderRadius: 1.5,
-            backgroundColor: COLORS.battery,
-          }}
+          testID={`wakwak-dot-${index}`}
+          x={colOf(index) * cellSize + (cellSize - dotSize) / 2}
+          y={rowOf(index) * cellSize + (cellSize - dotSize) / 2}
+          size={dotSize}
+          borderRadius={1.5}
+          color={COLORS.battery}
         />,
       );
     } else if (superSet.has(index)) {
       edibles.push(
-        <View
+        <EdibleDot
           key={`s-${index}`}
-          style={{
-            position: 'absolute',
-            left: colOf(index) * cellSize + (cellSize - superSize) / 2,
-            top: rowOf(index) * cellSize + (cellSize - superSize) / 2,
-            width: superSize,
-            height: superSize,
-            borderRadius: 3,
-            backgroundColor: COLORS.super,
-          }}
+          testID={`wakwak-dot-${index}`}
+          x={colOf(index) * cellSize + (cellSize - superSize) / 2}
+          y={rowOf(index) * cellSize + (cellSize - superSize) / 2}
+          size={superSize}
+          borderRadius={3}
+          color={COLORS.super}
         />,
       );
     }
