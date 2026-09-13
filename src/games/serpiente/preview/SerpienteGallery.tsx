@@ -12,18 +12,18 @@ import { SerpientePreviewV3 } from './SerpientePreviewV3';
 const VERSIONS = [
   {
     id: 'V1',
-    title: 'V1 · Pixel 8-bit',
-    points: ['Bloques cuadrados + borde pixel', 'HUD chunky monoespaciado', 'Ojos direccionales en cabeza'],
+    title: 'V1 · Víbora neón',
+    points: ['Cuerpo continuo + cabeza rosa con glow focalizado', 'HUD flotante + chip violeta', 'Ondulación, pulso y popup animados en loop'],
   },
   {
     id: 'V2',
-    title: 'V2 · Neón synthwave',
-    points: ['Glow cian/rosa sobre negro', 'HUD flotante + chip 7s', 'Cabeza rosa destacada'],
+    title: 'V2 · Escamas arcade',
+    points: ['Cuerpo continuo con escamas, cero glow (más barato)', 'HUD flotante + chip violeta', 'Ojos direccionales + ring en el especial'],
   },
   {
     id: 'V3',
-    title: 'V3 · Plano colección',
-    points: ['Cápsulas + tarjeta con borde', 'HUD fila estilo Hud + chip', 'Ojos circulares'],
+    title: 'V3 · Tinta colección',
+    points: ['Cuerpo menta con vientre + tarjeta con borde', 'HUD flotante + chip violeta', 'Coherente con WakWak, sin glow'],
   },
 ] as const;
 

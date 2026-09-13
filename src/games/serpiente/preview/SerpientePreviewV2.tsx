@@ -8,148 +8,72 @@ import {
   MOCK_SNAKE,
   MOCK_SPECIAL,
   MOCK_SPECIAL_SECS,
-  colOfPreview,
-  rowOfPreview,
 } from './mock';
+import { BobbingPopup, FloatingHud, PulsingFood, SlitherBody, SpecialRing } from './fx';
 
 /**
- * V2 · Neón synthwave (PLAN-SERPIENTE §8): glow cian/rosa sobre negro
- * profundo, grilla tenue, HUD flotante con texto neón + chip de especial.
- * Mock estático (el glow usa shadow*, costo moderado en nativo).
+ * V2 · Escamas arcade (iteración 2): cuerpo continuo verde clásico con
+ * textura de escamas, sin glow (lo más barato), HUD B2 flotante + chip,
+ * ring en el especial. Ojos direccionales + `+10`.
  */
-const C = {
-  bg: '#1A1A2E',
-  grid: 'rgba(93,52,208,0.18)',
-  snake: '#00FFFF',
-  head: '#FF006E',
-  food: '#FBBF24',
-  special: '#5D34D0',
-  text: '#FFFFFF',
-  muted: '#A5B4FC',
-} as const;
-
 export function SerpientePreviewV2() {
   const { size, onLayout } = useContainerSize();
   const cell = size ? size.width / GRID : 0;
 
   return (
     <View accessibilityLabel="preview-serpiente-v2">
-      <View style={styles.hud} accessibilityLabel="preview-v2-hud">
-        <Text style={styles.score}>{MOCK_SCORE}</Text>
-        <Text style={styles.scoreLabel}>PTS</Text>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>{MOCK_SPECIAL_SECS}s</Text>
-        </View>
-      </View>
+      <FloatingHud
+        label="preview-v2-hud"
+        score={MOCK_SCORE}
+        secs={MOCK_SPECIAL_SECS}
+        chipColor="#8B5CF6"
+      />
       <View onLayout={onLayout} style={styles.boardWrap}>
         {cell > 0 ? (
           <View
             style={[styles.board, { width: cell * GRID, height: cell * GRID }]}
             accessibilityLabel="preview-v2-tablero"
           >
-            {MOCK_SNAKE.map((index, i) => {
-              const head = i === 0;
-              return (
-                <View
-                  key={`v2-snake-${index}`}
-                  style={[
-                    styles.cell,
-                    {
-                      left: colOfPreview(index) * cell + 0.5,
-                      top: rowOfPreview(index) * cell + 0.5,
-                      width: cell - 1,
-                      height: cell - 1,
-                      backgroundColor: head ? C.head : C.snake,
-                      shadowColor: head ? C.head : C.snake,
-                    },
-                  ]}
-                />
-              );
-            })}
-            <View
-              key="v2-food"
-              style={[
-                styles.cell,
-                {
-                  left: colOfPreview(MOCK_FOOD) * cell + 0.5,
-                  top: rowOfPreview(MOCK_FOOD) * cell + 0.5,
-                  width: cell - 1,
-                  height: cell - 1,
-                  backgroundColor: C.food,
-                  shadowColor: C.food,
-                },
-              ]}
+            <SlitherBody
+              label="v2"
+              snake={MOCK_SNAKE}
+              cell={cell}
+              palette={{
+                body: '#22C55E',
+                head: '#4ADE80',
+                eyeWhite: '#FFFFFF',
+                pupil: '#052E16',
+                pattern: '#15803D',
+                patternKind: 'scales',
+              }}
             />
-            <View
-              key="v2-special"
-              style={[
-                styles.cell,
-                {
-                  left: colOfPreview(MOCK_SPECIAL) * cell + 0.5,
-                  top: rowOfPreview(MOCK_SPECIAL) * cell + 0.5,
-                  width: cell - 1,
-                  height: cell - 1,
-                  backgroundColor: C.special,
-                  shadowColor: C.special,
-                },
-              ]}
+            <PulsingFood label="v2-food" cell={cell} at={MOCK_FOOD} color="#FBBF24" glow="#FBBF24" />
+            <SpecialRing
+              label="v2-special"
+              cell={cell}
+              at={MOCK_SPECIAL}
+              color="#8B5CF6"
+              secs={MOCK_SPECIAL_SECS}
             />
-            <Text
-              style={[
-                styles.popup,
-                {
-                  left: colOfPreview(MOCK_POPUP.cell) * cell,
-                  top: rowOfPreview(MOCK_POPUP.cell) * cell - cell,
-                  fontSize: Math.max(13, cell * 0.9),
-                },
-              ]}
-            >
-              {MOCK_POPUP.text}
-            </Text>
+            <BobbingPopup
+              label="v2-popup"
+              cell={cell}
+              at={MOCK_POPUP.cell}
+              text={MOCK_POPUP.text}
+              color="#FBBF24"
+            />
           </View>
         ) : null}
       </View>
-      <Text style={styles.caption}>Slow-mo ×0.7 cerca del peligro · freeze 400 ms al morir (runtime)</Text>
+      <Text style={styles.caption}>
+        Cero glow, solo Views opacas · runtime: squash, hit-stop especial, vignette, flash causa
+        (sin slow-mo)
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  hud: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  score: {
-    color: C.text,
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: 2,
-    textShadowColor: C.snake,
-    textShadowRadius: 12,
-  },
-  scoreLabel: {
-    color: C.muted,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 3,
-  },
-  chip: {
-    backgroundColor: C.special,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    shadowColor: C.special,
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-  },
-  chipText: {
-    color: C.text,
-    fontSize: 12,
-    fontWeight: '800',
-  },
   boardWrap: {
     width: '100%',
     aspectRatio: 1,
@@ -157,24 +81,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   board: {
-    backgroundColor: C.bg,
-  },
-  cell: {
-    position: 'absolute',
-    backgroundColor: C.grid,
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  popup: {
-    position: 'absolute',
-    color: C.food,
-    fontWeight: '900',
-    textShadowColor: C.food,
-    textShadowRadius: 10,
+    backgroundColor: '#0B1F14',
   },
   caption: {
-    color: C.muted,
+    color: '#86EFAC',
     fontSize: 11,
     marginTop: 8,
     textAlign: 'center',

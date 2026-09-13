@@ -7,4 +7,6 @@ export { SerpientePreviewV1 } from './SerpientePreviewV1';
 export { SerpientePreviewV2 } from './SerpientePreviewV2';
 export { SerpientePreviewV3 } from './SerpientePreviewV3';
 export { SerpienteGallery, SerpienteGalleryScreen } from './SerpienteGallery';
+export { SlitherBody, PulsingFood, BobbingPopup, SpecialRing, FloatingHud } from './fx';
+export type { SlitherPalette } from './fx';
 export { GRID } from './mock';

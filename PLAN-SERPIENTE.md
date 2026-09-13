@@ -47,6 +47,10 @@ La variante de §4 es **Arcade jugoso**, único camino.
 | D10 | Render | Re-render React por tick (cadencia baja, sin shared values por frame); grilla memoizada patrón `MazeLayer` | Adaptador Reanimated por frame (innecesario a esta cadencia) |
 | D11 | Fin | `status: 'playing'|'won'|'lost'`; `won` = tablero lleno; `onGameEnd` una sola vez (`endedRef`), solo `app/juego/[id].tsx` escribe récords | — |
 | D12 | Seeds E2E | `test-win`, `test-lose`, `test-crecer`, solo con `EXPO_PUBLIC_E2E=1` | — |
+| D13 | Cuerpo | **Continuo orgánico** con ondulación leve (solapado + taper), ojos direccionales (2026-09-13) | Segmentos cuadrados / cápsulas sueltas |
+| D14 | HUD | **Flotante + chip** B2: score grande + chip countdown especial | Barra chunky / fila colección |
+| D15 | Slow-mo | **Quitado** del snake (2026-09-13) | Slow-mo ×0.7 en peligro |
+| D16 | Especial/muerte | **Countdown ring en celda** + **flash en celda causa** | Chip texto / muerte sin causa |
 
 ## 4. Propuesta base + variante UI/UX
 
@@ -75,11 +79,16 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 
 ### Variante elegida — Arcade jugoso
 
-- Cabeza interpolada entre celdas (`progress 0..1`, como `Robot.progress`).
-- Hit-stop 60 ms + popup `+10/+50` (cap 5 vivos) + blip con pitch cada 5
-  comidas + haptic Medium en especial.
-- Slow-mo ×0.7 a ≤2 celdas del peligro (solo `wrap=false`); muerte con freeze
-  400 ms + shake + overlay diferido. `reduced motion` lo apaga.
+- Cuerpo continuo orgánico (D13): segmentos solapados con taper
+  (cabeza ancha → cola fina) + ondulación lateral viajera (~12% celda);
+  cabeza interpolada entre celdas (`progress 0..1`, como `Robot.progress`).
+- Comer normal: squash + popup `+10/+50` flotante (cap 5 vivos) + blip con
+  pitch cada 5 comidas. Sin hit-stop al comer (pelearía con el input).
+- Especial: hit-stop 60–80 ms + haptic Medium al comer; countdown ring en la
+  celda (D16). Sin slow-mo (D15, quitado a petición).
+- Peligro (solo `wrap=false`): vignette estática a ≤2 celdas; muerte con
+  freeze 400 ms + shake + flash en la celda causa + overlay diferido +
+  retry <1 s. `reduced motion` apaga todo salvo fades.
 - Pros: esconde el tick de 140 ms, más divertida. Contras: más animación solo
   UI-thread, E2E con waits 900–1000 ms tras muerte.
 
@@ -110,25 +119,64 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 - Grid: 20×20 fijo.
 - Especial: caduca a los 8 s.
 
-## 8. Proceso iterativo de UIs (matriz tema × HUD)
+## 8. Proceso iterativo de UIs (tema × HUD + movimiento)
 
-Las 3 versiones de §4 son takes de **Arcade jugoso** que combinan tema
-visual + HUD + feel. Viven en `src/games/serpiente/preview/` con estado
-falso (`mock.ts`, sin engine aún) y se comparan en la ruta dev
-`/serpiente-preview` (patrón ADR 0012, sin navegación de producción).
+Ruta dev `/serpiente-preview` (patrón ADR 0012, sin navegación de
+producción), estado falso en `preview/mock.ts`.
 
-| Versión | Tema | HUD | Feel mostrado |
-|---|---|---|---|
-| V1 Pixel 8-bit | bloques cuadrados, borde pixel, fondo `#0F172A` | barra chunky con borde, monoespaciada | popup `+10`, ojos direccionales |
-| V2 Neón synthwave | glow cian/rosa, fondo `#1A1A2E`, grilla tenue | flotante con texto neón + chip `7s` | popup `+10`, cabeza rosa destacada |
-| V3 Plano colección | cápsulas redondeadas, tarjeta `#0B1220` borde `#33415C` | fila estilo `Hud` + chip violeta | popup `+10` ámbar, ojos circulares |
+### Iteración 1 (implementada `e5e4442` — insuficiente, 2026-09-13)
 
-Ciclo: previsualizar → elegir características sueltas de cada versión
-(pueden mezclarse: ej. tema V2 + HUD V3) → converger a la UI final →
-implementar en el `renderer/` real recién con aprobación → la preview queda
-como comparación histórica (desechable por diseño, ADR 0012). El feel
-temporal (hit-stop, slow-mo, shake) es runtime del UI thread y en preview se
-representa estático; se valida en juego real.
+3 takes estáticos que mezclan tema+HUD en un solo bloque y reducen el feel
+a un popup fijo. Crítica: no hay sistema de movimiento (la cabeza salta de
+celda en celda cada 140 ms — el problema nº1 de feel); los ejes no se pueden
+comparar por separado; V2 con `shadow*` en ~400 celdas es costo GPU serio en
+nativo; V3 coherente pero sin personalidad; ojos poco legibles a celda ~15px.
+
+### Iteración 2 (propuesta — pendiente de aprobación del usuario)
+
+Ejes ortogonales y combinables (ojos direccionales + popup `+10` van en los
+3: aceptados):
+
+- **A. Cuerpo**: A1 bloques pixel con borde (barato, skill `pixel-art`
+  cost:low) · A2 neón glow (coste moderado, `retro-futurism`
+  accessibility risk:high) · A3 cápsulas colección (barato, coherente,
+  menos personalidad).
+- **B. HUD** (compacto arriba: el tablero 20×20 ocupa ~340px de 640):
+  B1 barra chunky mono · B2 flotante neón + chip · B3 fila estilo `Hud` +
+  chip violeta.
+- **C. Movimiento** (nuevo: juice por tiers, runtime en UI-thread vía
+  Reanimated; `reduced motion` = solo fades):
+  - Locomoción: cabeza interpolada `progress 0..1` + cuerpo con easing.
+  - Comer normal: squash + popup `+10` flotante + blip con pitch + punch
+    sutil. Sin hit-stop ni shake (el freeze pelea con el input; el shake se
+    lee como daño).
+  - Especial: spawn con anillo + countdown ring en la celda; al comer,
+    hit-stop 60–80 ms + shake leve + haptic Medium + popup `+50`.
+  - Peligro: vignette + slow-mo ×0.7 a ≤2 celdas (solo `wrap=false`).
+  - Muerte: freeze 400 ms + shake + flash en la celda causa (toda muerte es
+    culpa del jugador: hay que mostrar la causa) + overlay diferido +
+    retry <1 s, sin fricción.
+- Tiers: normal = sutil, especial = medio, muerte = pesado; nunca sumar
+  efectos (strongest-wins); sincronía exacta de imagen+sonido+haptic.
+
+### Aprobado iteración 2 (2026-09-13, respuestas del usuario)
+
+- A: cuerpo **continuo** con movimiento corporal leve aunque cueste más (no
+  cuadrados ni cápsulas sueltas); ojos direccionales + popup `+10` intactos.
+- B: HUD **B2 flotante + chip**.
+- C: **todo menos slow-mo** (quitado del snake); muerte con freeze + shake.
+- Especial: **ring en celda**; muerte: **flash en celda causa**.
+- Previews V1–V3 re-enfocadas: mismo cuerpo continuo + HUD B2 en las 3;
+  varían tema/textura de piel + acentos. Llevan animación ambiental en loop
+  (ondulación,   pulso de comida, popup flotante) para ver movimiento sin
+  engine aún. Elegir tema → converger → implementar en `renderer/` real.
+
+Fuentes iteración 2: skill ui-ux-pro-max (pixel-art cost:low,
+retro-futurism cost:moderate/risk:high, Reanimated UI-thread, haptics en
+confirmaciones); theoriginalsnake (progreso visible = la serpiente, retry
+sin fricción); `Juice.cs` de CoilGarden (punch al comer, shake solo al
+morir, sin hitstop al comer); Solana Garden/Falcon (sincronía, graduar por
+tier, no over-juice); Snakonda (controles responsivos = table stakes).
 
 ## Notas/hallazgos
 
