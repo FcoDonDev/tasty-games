@@ -15,7 +15,9 @@ export function Hud() {
 
   return (
     <View style={styles.hud} accessibilityLabel="hud-serpiente">
-      <Text style={styles.score}>{score}</Text>
+      <Text style={styles.score} accessibilityLabel="hud-puntos">
+        {score}
+      </Text>
       <Text style={styles.pts}>PTS</Text>
       <View style={styles.chip} accessibilityLabel={secs !== null ? `hud-especial-${secs}s` : 'hud-longitud'}>
         <Text style={styles.chipText}>{secs !== null ? `${secs}s` : `⬢ ${len}`}</Text>

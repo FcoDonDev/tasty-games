@@ -41,6 +41,7 @@ import {
   updateFloatingDrag,
 } from './engine/controls';
 import { GRID_COLS, GRID_ROWS, colOf, rowOf, type Direction } from './engine/grid';
+import { parseSerpienteSeed } from './engine/seed';
 import {
   DEATH_FREEZE_MS,
   END_DELAY_LOST_MS,
@@ -177,8 +178,10 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     return () => sub.remove();
   }, []);
 
-  // --- setting wrap (D1, siempre visible) + preferencias táctiles
+  // --- setting wrap (D1): con seed sentinela el config manda (determinismo
+  // E2E) y la preferencia persistida no lo pisa al resolverse.
   useEffect(() => {
+    if (parseSerpienteSeed(initialSeed)) return;
     let cancelled = false;
     void preferencesRepository.get(PREF_WRAP).then((raw) => {
       if (cancelled) return;
@@ -187,7 +190,7 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialSeed]);
 
   useEffect(() => {
     if (!isTouch) return;
@@ -432,7 +435,6 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
             { width: cellSize * GRID_COLS, height: cellSize * GRID_ROWS },
             shakeStyle,
           ]}
-          accessibilityLabel="tablero-serpiente"
         >
           {/* D-WW0: `render.board` (duración, solo profiling) + `renderFreq:*`
               (frecuencia, instrumentado). No-op con el gate apagado. */}

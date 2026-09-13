@@ -10,7 +10,7 @@ export function PauseOverlay({ onResume }: { onResume: () => void }) {
       entering={overlayEnter()}
       exiting={overlayExit()}
       style={styles.overlay}
-      accessibilityLabel="pausa-serpiente"
+      accessibilityLabel="modal-pausa-serpiente"
     >
       <View style={styles.card}>
         <Text style={styles.title}>Pausa</Text>
@@ -43,7 +43,7 @@ export function EndOverlay({
       entering={overlayEnter()}
       exiting={overlayExit()}
       style={styles.overlay}
-      accessibilityLabel="fin-serpiente"
+      accessibilityLabel="modal-fin-serpiente"
     >
       <View style={styles.card}>
         <Text style={styles.title}>{won ? '¡Tablero lleno!' : 'Fin del juego'}</Text>

@@ -213,7 +213,11 @@ function SnakeLayer({
             amp={(head ? 0.04 : 0.1) * cell}
             label={`serpiente-seg-${s}`}
           >
-            {head ? <View accessibilityLabel="serpiente-cabeza">{eyes}</View> : null}
+            {head ? (
+              <View accessibilityLabel="serpiente-cabeza" style={{ flex: 1 }}>
+                {eyes}
+              </View>
+            ) : null}
           </SnakeSegment>
         );
       })}

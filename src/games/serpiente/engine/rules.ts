@@ -227,6 +227,11 @@ function stepOnce(state: GameState): { state: GameState; events: SerpienteEvent[
  * Núcleo puro con ticks fijos (D8): acumula `dtMs` en `remainderMs` y avanza
  * de a `stepMs(eaten)` con tope `MAX_STEPS_PER_FRAME` por llamada. Sin pasos
  * pendientes devuelve la MISMA referencia (el store no publica).
+ *
+ * Contrato de `remainderMs`: solo se persiste cuando corre ≥1 paso. Con un dt
+ * menor al paso (p. ej. frames de 16 ms vs paso de 140 ms) NO acumula: la
+ * acumulación vive en el llamador (`store.tick`), que así publica solo cuando
+ * el juego cambia (§9.1) en vez de un set() por frame.
  */
 export function advance(state: GameState, dtMs: number): { state: GameState; events: SerpienteEvent[] } {
   if (state.status !== 'playing') return { state, events: [] };

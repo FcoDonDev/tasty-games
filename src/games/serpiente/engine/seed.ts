@@ -10,14 +10,21 @@ import type { SerpienteConfig } from './rules';
 export const TEST_WIN_SEED = '__serpiente_test_win__';
 export const TEST_LOSE_SEED = '__serpiente_test_lose__';
 export const TEST_GROW_SEED = '__serpiente_test_crecer__';
+/** Fixture de performance (§9.4/T6): 100 segmentos, cadencia máxima. */
+export const PERF_LONG_SEED = '__serpiente_perf_long__';
 
-export type SerpienteSeed = typeof TEST_WIN_SEED | typeof TEST_LOSE_SEED | typeof TEST_GROW_SEED;
+export type SerpienteSeed =
+  | typeof TEST_WIN_SEED
+  | typeof TEST_LOSE_SEED
+  | typeof TEST_GROW_SEED
+  | typeof PERF_LONG_SEED;
 
 /** Query param `initialSeed` → sentinela, o `undefined` (partida normal). */
 export function parseSerpienteSeed(initialSeed?: string | null): SerpienteSeed | undefined {
   if (initialSeed === 'test-win') return TEST_WIN_SEED;
   if (initialSeed === 'test-lose') return TEST_LOSE_SEED;
   if (initialSeed === 'test-crecer') return TEST_GROW_SEED;
+  if (initialSeed === 'perf-long') return PERF_LONG_SEED;
   return undefined;
 }
 
@@ -53,9 +60,34 @@ function testGrowConfig(): SerpienteConfig {
   };
 }
 
+/**
+ * Peor caso de render (§9.4): 100 segmentos en bustrófedon (filas 5–9),
+ * cabeza en (9,19) bajando a campo abierto, cadencia máxima (70 ms). Recorre
+ * ~25 celdas libres antes de chocar: cubre el peor caso, no juego sostenido.
+ */
+function perfLongConfig(): SerpienteConfig {
+  const tailFirst: number[] = [];
+  for (let row = 5; row <= 9; row++) {
+    const leftToRight = row % 2 === 1;
+    for (let k = 0; k < 20; k++) {
+      tailFirst.push(toIndex(row, leftToRight ? k : 19 - k));
+    }
+  }
+  return {
+    rngSeed: 4,
+    wrap: true,
+    snake: [...tailFirst].reverse(),
+    dir: 'down',
+    food: toIndex(15, 10),
+    eaten: 96,
+    score: 960,
+  };
+}
+
 export function seedConfig(sentinel?: SerpienteSeed): SerpienteConfig {
   if (sentinel === TEST_WIN_SEED) return testWinConfig();
   if (sentinel === TEST_LOSE_SEED) return testLoseConfig();
   if (sentinel === TEST_GROW_SEED) return testGrowConfig();
+  if (sentinel === PERF_LONG_SEED) return perfLongConfig();
   return {};
 }

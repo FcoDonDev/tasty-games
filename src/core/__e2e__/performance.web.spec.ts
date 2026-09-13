@@ -149,7 +149,7 @@ async function jsHeapUsed(cdp: CDPSession): Promise<number | undefined> {
 
 interface Scenario {
   id: string;
-  gameId: 'solitario' | 'damas' | 'wakwak' | 'memorice';
+  gameId: 'solitario' | 'damas' | 'wakwak' | 'memorice' | 'serpiente';
   seed: string | null;
   /** Indicador de que el juego terminó de montar (espera activa de E2E). */
   ready: (page: Page) => Promise<void>;
@@ -214,6 +214,61 @@ const SCENARIOS: Scenario[] = [
       await page.getByLabel('pausa-wakwak', { exact: true }).click();
       await page.waitForTimeout(1500);
       await page.getByLabel('reanudar-wakwak', { exact: true }).click();
+      await page.waitForTimeout(WINDOW_MS / 4);
+    },
+  },
+  {
+    id: 'serpiente-active',
+    gameId: 'serpiente',
+    seed: 'test-crecer',
+    ready: async (page) => {
+      await expect(page.getByLabel('tablero-serpiente', { exact: true })).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByLabel('serpiente-cabeza', { exact: true })).toBeVisible();
+    },
+    // Movimiento continuo durante una ventana fija (teclado PC web). Si la
+    // serpiente muere a mitad de ventana, la medición sigue siendo válida
+    // (timers + render del tablero final).
+    run: async (page) => {
+      const keys = ['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp'];
+      const deadline = Date.now() + WINDOW_MS;
+      let i = 0;
+      while (Date.now() < deadline) {
+        const key = keys[i % keys.length];
+        i += 1;
+        await page.keyboard.down(key);
+        await page.waitForTimeout(Math.min(400, Math.max(50, deadline - Date.now())));
+        await page.keyboard.up(key);
+      }
+    },
+  },
+  {
+    id: 'serpiente-long',
+    gameId: 'serpiente',
+    seed: 'perf-long',
+    ready: async (page) => {
+      await expect(page.getByLabel('tablero-serpiente', { exact: true })).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByLabel('serpiente-cabeza', { exact: true })).toBeVisible();
+    },
+    // Peor caso de render (§9.4): 100 segmentos a cadencia máxima. Recorre
+    // ~25 celdas libres (~1.75 s) y luego muere: cubre el peor caso, no juego
+    // sostenido. Sin input (el loop avanza solo).
+    run: async (page) => {
+      await page.waitForTimeout(WINDOW_MS);
+    },
+  },
+  {
+    id: 'serpiente-paused',
+    gameId: 'serpiente',
+    seed: 'test-crecer',
+    ready: async (page) => {
+      await expect(page.getByLabel('tablero-serpiente', { exact: true })).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByLabel('serpiente-cabeza', { exact: true })).toBeVisible();
+    },
+    run: async (page) => {
+      // Pausar 1.5 s y reanudar: los callbacks de juego deben detenerse
+      await page.getByLabel('pausa-serpiente', { exact: true }).click();
+      await page.waitForTimeout(1500);
+      await page.getByLabel('reanudar-serpiente', { exact: true }).click();
       await page.waitForTimeout(WINDOW_MS / 4);
     },
   },

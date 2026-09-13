@@ -123,7 +123,7 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 - [x] T3. `SerpienteScreen` + HUD + overlays + settings (wrap/control/anillo) + renderer memo §9.2 (grid estático, segmentos memo, HUD por slices, wave en UI-thread, reduced-motion).
 - [x] T4. Sonido/haptics + pausa + `onGameEnd`/récord + audio fire-and-forget con prime en idle + haptics solo especial/muerte (§9.5).
 - [x] T5. `preview/` (elección hecha: V2) → converger tema final al `renderer/` real; la galería queda viva para futuros ajustes.
-- [ ] T6. E2E web (win/lose/crecer + táctil CDP + responsive 360×640 + `serpiente` en GAMES) + escenarios perf `serpiente-*` + waits 900–1000 ms tras muerte.
+- [x] T6. E2E web (win/lose/crecer + táctil CDP + responsive 360×640 + `serpiente` en GAMES) + escenarios perf `serpiente-*` + waits 900–1000 ms tras muerte.
 - [ ] T7. Verificación estándar: `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs` + baseline perf versionado en `baselines/` (§9.4).
 
 ## 7. Resuelto 2026-09-13
@@ -310,3 +310,22 @@ overhead: early-returns y el `PerfProfiler` ni siquiera monta).
   sola vez vía `recordEnd` + `endedRef`.
 - T5 (2026-09-13): paleta V2 idéntica en preview y renderer (verificada por
   grep); enlaces cruzados en ambos archivos; galería viva confirmada.
+- T6 (2026-09-13) BUG CRÍTICO: `advance` descartaba `remainderMs` sin pasos →
+  frames de 16 ms contra pasos de 140 ms jamás avanzaban (parálisis total;
+  en Jest pasaba porque los tests daban 140 ms de una). Fix: el acumulador
+  vive en `store.tick` (se publica solo si el juego cambia) + tests de
+  regresión (acumulación 9×16 ms, descarte al pausar). Lección: unit con dt
+  realista de frame, no solo pasos exactos.
+- T6: `tablero-serpiente` duplicado (pantalla + Board) → strict violation;
+  queda solo en Board. `serpiente-cabeza` era wrapper sin tamaño (hidden) →
+  `flex:1`.
+- T6: el efecto de prefs pisaba el `wrap=false` del sentinela (raw null →
+  `setWrap(true)` en vivo). Con seed, el sentinela manda (gate en pantalla).
+- T6: lectura del head en E2E ATÓMICA en un solo evaluate sobre el tablero:
+  resolver el locator y leer en dos pasos pierde la carrera contra los ticks
+  (nodo reemplazado = ancestros perdidos, `closest` → null). Migrar a
+  `docs/GOTCHAS.md` al cierre.
+- T6: asserts de dirección con latencia CDP: esperar el giro + dirección
+  sostenida, no el primer movimiento (llega el paso previo al giro).
+- T6: reintentar conserva el seed (vuelve a 3990 y regana): se candea el
+  reinicio, no el score 0.

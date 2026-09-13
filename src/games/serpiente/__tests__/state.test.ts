@@ -48,6 +48,32 @@ describe('store serpiente (T2)', () => {
     expect(store().game).toBe(before);
   });
 
+  test('acumula fracciones entre frames (regresión: loop de 16 ms)', () => {
+    const before = store().game;
+    // 8×16 = 128 < 140: sin pasos ni publicación.
+    for (let i = 0; i < 8; i++) {
+      expect(store().tick(16)).toEqual([]);
+      expect(store().game).toBe(before);
+    }
+    // 9×16 = 144 ≥ 140: avanza un paso (cabeza a la derecha) y publica.
+    store().tick(16);
+    expect(store().game).not.toBe(before);
+    expect(store().game.snake[0]).toBe(10 * 20 + 11);
+    expect(store().game.elapsedMs).toBe(140);
+  });
+
+  test('pausar descarta el acumulado (sin tormenta al reanudar)', () => {
+    store().tick(100);
+    const before = store().game;
+    store().togglePause();
+    store().tick(5000);
+    store().togglePause();
+    expect(store().game).toBe(before);
+    // Los 100 ms previos no cuentan: 50 ms no alcanzan el paso.
+    store().tick(50);
+    expect(store().game).toBe(before);
+  });
+
   test('dirección rechazada no publica (misma referencia)', () => {
     const before = store().game;
     store().setDirection('left'); // reversa de 'right' inicial

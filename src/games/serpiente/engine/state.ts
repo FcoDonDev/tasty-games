@@ -46,7 +46,6 @@ let advanceSamples: number[] = [];
 export function setTickStatsEnabled(value: boolean): void {
   tickStatsEnabled = value;
 }
-
 /** Vuelca y limpia los buffers (la pantalla lo llama antes de `endPerfSession`). */
 export function drainTickStats(): {
   advanceSamples: number[];
@@ -60,6 +59,16 @@ export function drainTickStats(): {
   return drained;
 }
 
+/**
+ * Acumulador de fracciones de ms entre frames (D8/§9.3): `advance` solo
+ * persiste `remainderMs` cuando corre ≥1 paso, así que el resto lo acumula el
+ * store. Sin esto, frames de 16 ms contra pasos de 140 ms jamás avanzarían.
+ * Se publica (`set()`) solo cuando el juego cambia: cero re-renders por
+ * frames sin paso. Se descarta al pausar/terminar (sin tormenta al reanudar)
+ * y al iniciar una run (aislamiento entre tests).
+ */
+let tickAccumMs = 0;
+
 export const useSerpienteStore = create<SerpienteStore>()((set, get) => ({
   game: createGameState(seedConfig(undefined)),
   paused: false,
@@ -67,6 +76,7 @@ export const useSerpienteStore = create<SerpienteStore>()((set, get) => ({
 
   startRun: (seed) => {
     const config = seedConfig(parseSerpienteSeed(seed));
+    tickAccumMs = 0;
     set(() => ({
       // El sentinela manda en `wrap` si lo fija (test-lose); si no, se
       // conserva el setting del usuario.
@@ -79,16 +89,21 @@ export const useSerpienteStore = create<SerpienteStore>()((set, get) => ({
 
   tick: (dtMs) => {
     const { game, paused } = get();
-    if (paused || game.status !== 'playing') return [];
+    if (paused || game.status !== 'playing') {
+      tickAccumMs = 0;
+      return [];
+    }
+    tickAccumMs += Math.max(0, dtMs);
     const collect = tickStatsEnabled;
     if (collect) tickCalls += 1;
     const t0 = collect ? performance.now() : 0;
-    const result = advance(game, dtMs);
+    const result = advance(game, tickAccumMs);
     if (collect) {
       if (advanceSamples.length >= MAX_TICK_SAMPLES) advanceSamples.shift();
       advanceSamples.push(performance.now() - t0);
     }
     if (result.state !== game) {
+      tickAccumMs = result.state.remainderMs;
       if (collect) tickPublished += 1;
       set(() => ({ game: result.state }));
     }
