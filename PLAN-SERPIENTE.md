@@ -111,16 +111,20 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 - [ ] Verificación estándar verde (§6).
 - [ ] La ruta dev `/serpiente-preview` sigue viva junto al juego real para
       futuros ajustes (herramienta permanente, no desechable).
+- [ ] Presupuesto §9.1 verde en instrumentado y throttle ×4 (baseline
+      versionado en `baselines/` + MANIFEST).
+- [ ] `renderFreq:segmentos` confirma: un tick sin comer re-renderiza solo
+      cabeza/cola (+ overlays); la decisión del taper se toma con ese dato.
 
 ## 6. Checklist de tareas (en orden)
 
-- [ ] T1. `engine/` puro + unit tests (grid/rules/controls/seed, determinismo).
-- [ ] T2. `state.ts` + `index.ts` + registro + `RULES.md` + `README.md`.
-- [ ] T3. `SerpienteScreen` + HUD + overlays + settings (wrap/control/anillo).
-- [ ] T4. Sonido/haptics + pausa + `onGameEnd`/récord.
+- [ ] T1. `engine/` puro + unit tests (grid/rules/controls/seed, determinismo) + presupuesto §9.3 (cuerpo en `Set` O(1), spawn acotado + test, tope 8/frame).
+- [ ] T2. `state.ts` + `index.ts` + registro + `RULES.md` + `README.md` + tick publica solo si `state` cambió + tickStats D-WW0 desde el día 1.
+- [ ] T3. `SerpienteScreen` + HUD + overlays + settings (wrap/control/anillo) + renderer memo §9.2 (grid estático, segmentos memo, HUD por slices, wave en UI-thread, reduced-motion).
+- [ ] T4. Sonido/haptics + pausa + `onGameEnd`/récord + audio fire-and-forget con prime en idle + haptics solo especial/muerte (§9.5).
 - [ ] T5. `preview/` (elección hecha: V2) → converger tema final al `renderer/` real; la galería queda viva para futuros ajustes.
-- [ ] T6. E2E web (win/lose/crecer + táctil CDP + responsive 360×640).
-- [ ] T7. Verificación estándar: `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs`.
+- [ ] T6. E2E web (win/lose/crecer + táctil CDP + responsive 360×640 + `serpiente` en GAMES) + escenarios perf `serpiente-*` + waits 900–1000 ms tras muerte.
+- [ ] T7. Verificación estándar: `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs` + baseline perf versionado en `baselines/` (§9.4).
 
 ## 7. Resuelto 2026-09-13
 
@@ -195,6 +199,88 @@ tier, no over-juice); Snakonda (controles responsivos = table stakes).
   real para futuros ajustes (ruta dev, patrón ADR 0012, sin navegación de
   producción). Matiz a ADR 0012: en serpiente la galería es herramienta viva,
   no comparación histórica desechable.
+
+## 9. Performance: presupuesto y prácticas (WakWak → requisitos)
+
+No implementar un juego "mal optimizado": lo aprendido en PLAN-PERFORMANCE
+Fase 2 + ADR 0011 + `docs/GOTCHAS.md` § Performance entra como requisito
+desde el día 1, no como retrofit. Regla madre: **medir antes de optimizar**
+(`src/core/perf/`, gate `EXPO_PUBLIC_PERF_METRICS=1`, default OFF = cero
+overhead: early-returns y el `PerfProfiler` ni siquiera monta).
+
+### 9.1 Presupuesto (360×640 dev web; validar también en throttle CPU ×4)
+
+- Engine `advance`: p95 ≤ 0,5 ms (referencia WakWak: `loop.*` ~0,1 ms).
+- `render.board` (Profiler, build profiling): p50 ≤ 3 ms en
+  `serpiente-active`; ningún cambio de renderer regresa >20% sin dato que lo
+  justifique.
+- `renderFreq:segmentos`: un tick sin comer re-renderiza solo cabeza/cola
+  (+ overlays), nunca el cuerpo entero.
+- Publicación: `set()` solo si `state` cambió (patrón `tick` de
+  `wakwak/engine/state.ts`, `tickPublished/tickCalls`) — nunca `set()`
+  incondicional por tick.
+- Throttle ×4 (D-WW2, CDP `Emulation.setCPUThrottlingRate`): sin hitches
+  nuevos vs baseline; CPU profile (B1 `Profiler`) en la primera corrida de
+  cada escenario.
+
+### 9.2 Render (patrón `MazeLayer` / `EdibleDot`, I-WW-1)
+
+- Fondo/grid en capa estática `memo` + `useMemo` (como `MazeStaticLayer` +
+  `mergeWalls` en `src/games/wakwak/renderer/reanimated/MazeLayer.tsx`);
+  serpiente y overlays en capas separadas con `PerfProfiler id="board"`.
+- Segmento = componente `memo` con props primitivas (`x/y/size/color`,
+  nunca objetos ni estilos inline) y callbacks estables: los cierres inline
+  (`onX={() => fn(id)}`) y los objetos por render rompen el memo (GOTCHAS).
+- Trampa del taper (D13): si el grosor depende del índice, cada tick mueve
+  los índices y re-renderiza TODO el cuerpo. Decidir con
+  `renderFreq:segmentos`: (a) grosor uniforme + cabeza/cola destacados =
+  2–3 nodos/tick (recomendado); (b) taper solo si la medición lo avala a
+  14 Hz.
+- `slither` en UI-thread (shared `phase`, como `preview/fx.tsx`): cero
+  re-renders JS por la ondulación. Sin `entering`/layout animations ligadas
+  al movimiento (re-disparan en cada montaje — GOTCHAS, patrón `dealing` de
+  solitario); shared values inicializados al estado actual + skip del primer
+  effect (sin animaciones fantasma al montar con seed).
+- Glow (`shadow*`) solo focalizado (cabeza/comida/especial): V2 ya es cero
+  glow — no reintroducirlo por segmento (costo GPU en nativo). Popups vivos
+  con cap 5 (§4).
+- HUD suscrito a slices (`score`, `specialSecs`), no al `game` completo;
+  `fontVariant: ['tabular-nums']` (array, no string — GOTCHAS).
+
+### 9.3 Engine/store (T1–T2)
+
+- `advance` O(1) amortizado por tick: cuerpo en `Set` para colisión O(1);
+  spawn de comida por muestreo aleatorio con reintentos acotados y full scan
+  solo como fallback con tablero casi lleno (+ unit test que acota el peor
+  caso, no asserts de tiempo en Jest).
+- `remainderMs` con tope 8/frame (D8, anti-espiral de la muerte); RNG
+  `mulberry32` propio (determinismo para tests y seeds E2E).
+- Tick-stats D-WW0 desde el día 1 (`tickCalls/tickPublished/advanceSamples`,
+  buffer acotado, apagado por defecto): el engine no importa perf — la
+  pantalla los vuelca con `drainTickStats` al desmontar.
+
+### 9.4 Instrumentación y escenarios (T6–T7)
+
+- `PerfProfiler id="board"` + `renderFreq:board/segmentos` + timers
+  `loop.tick/worldSnapshot/present` desde el primer renderer (D-WW0, no
+  retrofit). Frecuencia en instrumentado, duración en profiling: no mezclar.
+- Escenarios nuevos en `src/core/__e2e__/performance.web.spec.ts`:
+  `serpiente-active` (partida media), `serpiente-long` (~100 segmentos, peor
+  caso de render), `serpiente-paused`; reutilizando seeds E2E de D12.
+- Flujo probado: baseline → fix → re-medición con el mismo protocolo;
+  versionar en `baselines/` + MANIFEST (patrón V-WW); comparar solo mismo
+  perfil. Export con `--clear` (la cache de Metro ignora `EXPO_PUBLIC_*`).
+
+### 9.5 Audio/haptics (T4)
+
+- Fire-and-forget + prime en idle post-`ready` (`setTimeout(0)` tras el
+  primer render): el primer uso no paga la creación; sin `.then` encadenado
+  al `seekTo/play` — el round-trip nativo era el desfase real, no el coste
+  JS que mide `handlerToPlay` (GOTCHAS).
+- Haptics (wrapper de core) solo en confirmaciones: especial y muerte.
+  Comer = solo blip con pitch (no vibrar hasta 14 veces/s). Sonido/haptics
+  sensibles a latencia: dispararlos LO PRIMERO del handler (GOTCHAS:
+  `scheduleOnRN` encola tras el trabajo JS pendiente).
 
 ## Notas/hallazgos
 
