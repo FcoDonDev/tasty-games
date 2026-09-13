@@ -1,6 +1,10 @@
 import type { GameDefinition } from '@/core/types';
 import WakWakScreen from './WakWakScreen';
 
+/**
+ * Regla resumida que se muestra en la pantalla de ayuda.
+ * Las reglas completas están en RULES.md del juego y deben usarse para QA.
+ */
 const RULES = [
   'Wak Wak: guía al robot aspiradora por el laberinto recogiendo baterías mientras esquivas a los 4 drones antivirus.',
   '',
@@ -14,7 +18,6 @@ const RULES = [
   '',
   'Puntaje: batería ×10 · súper ×50 · drone ×200 · chip ×100 · bonus por vidas al despejar.',
   '',
-  'Reglas completas para QA: RULES.md del juego.',
 ].join('\n');
 
 const wakwak: GameDefinition = {
