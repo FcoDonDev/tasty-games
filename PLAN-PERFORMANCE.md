@@ -363,6 +363,12 @@ mejora ≥10% → full §5; si no → revert + documentar. Validación manual:
 screenshot 360×640 del laberinto (se borra después).
 (Estado 2026-09-12: implementado + typecheck/tests/smokes verdes en ambos
 perfiles; pendientes las corridas de validación del operador.)
+**ACEPTADO 2026-09-13**: post-fix 3×10 en 4 condiciones — `render.board`
+p50Med −91% sin throttle (2.3→0.2 ms) y −90% con throttle (9.6→0.9 ms);
+throttled p95Med −43%/−39%; sin regresiones en loop/frames/freq/publicación.
+Tradeoff documentado: mount ~1 ms más (p95 = max = mount con count=8, no
+mide pickups); full §5 omitido por decisión — no resuelve ese confound.
+Baselines `2026-09-13-cdd72c3-wakwak-postfix*` (4 tars + MANIFESTs).
 
 Mejora futura (omitida por ahora): atribución fina creación-vs-commit —
 bundle minificado bloquea B1 por nombre; eventualmente simbolicar con
@@ -596,6 +602,11 @@ Cada cambio de performance debe poder revertirse sin modificar reglas de juego n
 - **Baseline v2 capturado (2026-09-10/11, commit `e839cbe`)**: versionado como [`baselines/2026-09-10-e839cbe.tar.xz`] + [`baselines/MANIFEST-2026-09-10-e839cbe.md`](baselines/MANIFEST-2026-09-10-e839cbe.md). Hallazgo de revisión: la corrida se ejecutó SIN `EXPO_PUBLIC_PERF_PROFILING=1` (envelopes `instrumented`, 0/1650 corridas con `render.board`) — es una réplica válida del perfil estándar (v1→v2 confirma reproducibilidad: medianas idénticas, el outlier de v1 no se repitió) pero NO la variante profiling; esa corrida (para `render.board`) queda pendiente.
 - **Baseline v3 capturado (2026-09-11, commit `300b9f8`)**: primera corrida profiling completa, versionada como [`baselines/2026-09-11-300b9f8-profiling.tar.xz`] + [`baselines/MANIFEST-2026-09-11-300b9f8-profiling.md`](baselines/MANIFEST-2026-09-11-300b9f8-profiling.md). `render.board` medido en 900/900 corridas de solitario+damas (drag 3.0ms, damas 4.6–7.0ms, persist 12.9ms montaje, endgame 20.0ms — candidato a revisión en fase solitario). Handlers/audio/frames idénticos al perfil estándar: el overhead del profiling no distorsiona el resto de métricas. Sin outliers.
 - **Baseline D-WW1 capturado (2026-09-11, commit `04d8a2b`, solo WakWak, 3 escenarios × 30 corridas)**: versionado como [`baselines/2026-09-11-04d8a2b-wakwak.tar.xz`] + profiling [`baselines/2026-09-11-04d8a2b-wakwak-profiling.tar.xz`] (MANIFEST respectivos). Hallazgos: publicación Zustand 100% (calls == published en 180/180 corridas); engine frío (`loop.*` p95Med 0.1 ms = piso de resolución, nivel 1 = 8); **primer `render.board` de WakWak: commit de pickup p95 ~7.5 ms, p99 11–16 ms** — principal sospechoso de los hitches en móvil real (D-WW4 respondido afirmativamente); pausa con ~93 frames de solo-`present` por episodio y `renderFreq:maze=1` (el memo aguanta). Protocolo reducido: solo `p95Med`/contadores comparables, `p99Max` no.
+- **I-WW-1 aceptado (2026-09-13, commit `cdd72c3`)**: `EdibleDot` memoizado —
+  pickup p50Med −91% (4/4 condiciones), throttled p95Med −43%/−39%, sin
+  regresiones; tradeoff mount ~+1 ms documentado; full §5 omitido por
+  decisión (el p95 con count=8 mide el mount, más n no lo resuelve).
+  Baselines `2026-09-13-cdd72c3-wakwak-postfix*`.
 - Decisión pendiente: `remainderMs`, lazy loading, persistencia y background audio requieren aprobación antes de implementar.
 - Decisión tomada (Fase 0B, dentro del alcance de medición): percentiles nearest-rank; buffer circular de 512 muestras (determinista, sin reservoir aleatorio); sesión mutable se libera en `endPerfSession`; monitor UI queda limitado a WakWak hasta que el baseline justifique extenderlo; `PerfProfiler` gatea el React Profiler sin hooks condicionales.
 
