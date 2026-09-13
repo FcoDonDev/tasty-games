@@ -22,6 +22,9 @@ import { useSerpienteStore } from '../engine/state';
  * en el cuerpo + cabeza destacada + cola fina. Un taper por índice correría
  * los tamaños de TODO el cuerpo en cada tick; así solo cabeza/cola (+ la que
  * cambia de rol) re-renderizan por tick.
+ *
+ * Tema convergido de la preview V2 Escamas (T5, D17): la galería en
+ * `preview/` queda viva para futuros ajustes.
  */
 
 export const BOARD_BG = '#0B1F14';

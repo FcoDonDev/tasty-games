@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   FadeIn,
@@ -19,6 +19,15 @@ import { beginPerfSession, endPerfSession, isPerfEnabled, perfCount, perfJsStall
 import { PerfProfiler } from '@/core/perf/PerfProfiler';
 import { usePerfFrameMonitor } from '@/core/perf/usePerfFrameMonitor';
 import { useIsTouchDevice } from '@/core/ui/useIsTouchDevice';
+import { hapticCombo, hapticGameWin, hapticHeavy, hapticSelection } from '@/core/ui/haptics';
+import {
+  primeAudioPlayers,
+  soundCombo,
+  soundExplosion,
+  soundGameWin,
+  soundPickup,
+  soundPowerUp,
+} from '@/core/ui/sound';
 import { useContainerSize } from '@/core/ui/useContainerSize';
 import type { GameScreenProps } from '@/core/types';
 import { Board } from './components/Board';
@@ -32,7 +41,15 @@ import {
   updateFloatingDrag,
 } from './engine/controls';
 import { GRID_COLS, GRID_ROWS, colOf, rowOf, type Direction } from './engine/grid';
-import type { SerpienteEvent } from './engine/rules';
+import {
+  DEATH_FREEZE_MS,
+  END_DELAY_LOST_MS,
+  END_DELAY_WON_MS,
+  comboChainForEaten,
+  hitStopForEvent,
+  popupForEvent,
+} from './engine/feel';
+import { SPECIAL_EVERY, type SerpienteEvent } from './engine/rules';
 import { drainTickStats, setTickStatsEnabled, useSerpienteStore } from './engine/state';
 
 const PREF_WRAP = 'serpiente.wrap';
@@ -40,13 +57,8 @@ const PREF_CONTROL = 'serpiente.controlMode';
 const PREF_RING = 'serpiente.floatingRing';
 /** Presupuesto de frame ~16.7ms: dt > 25ms = stall del loop rAF (JS thread). */
 const STALL_BUDGET_MS = 25;
-/** Hit-stop al comer el especial (D4/D17): 70 ms, visual-only. */
-const SPECIAL_HIT_STOP_MS = 70;
-/** Muerte (§4/C): freeze 400 ms + shake + flash causa + overlay diferido. */
-const DEATH_FREEZE_MS = 400;
+/** Coreografía del shake de muerte (los tiempos van en `engine/feel.ts`). */
 const DEATH_SHAKE_MS = 50;
-const END_DELAY_WON_MS = 600;
-const END_DELAY_LOST_MS = 750;
 const RING_SIZE = 72;
 
 interface ScorePopup {
@@ -61,12 +73,12 @@ interface ScorePopup {
  * SerpienteScreen (T3): loop rAF → `store.tick(dt)` + renderer V2 Escamas.
  * Eventos discretos → popups (`score-float` estático + animación de entrada),
  * hit-stop del especial, freeze+shake+flash de muerte y overlays. Sonido,
- * haptics y `onGameEnd`/récord van en T4 (ver TODO).
+ * haptics, prime, auto-pausa y `onGameEnd`/récord: T4.
  */
 export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: GameScreenProps) {
   const { size, onLayout } = useContainerSize();
   const [cellSize, setCellSize] = useState(0);
-  // TODO(T4): llamar onGameEndRef al cerrar (won/lost) para el récord.
+  // T4: récord vía onGameEnd (solo app/juego/[id].tsx escribe récords, D11).
   const onGameEndRef = useRef(onGameEnd);
   onGameEndRef.current = onGameEnd;
   const endedRef = useRef(false);
@@ -140,6 +152,31 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     [],
   );
 
+  // --- prime de audio en idle (GOTCHAS): el primer play no paga la creación
+  useEffect(() => {
+    const id = setTimeout(() => primeAudioPlayers(), 0);
+    return () => clearTimeout(id);
+  }, []);
+
+  // --- auto-pausa al ocultar la pestaña (web) o ir a background (nativo)
+  useEffect(() => {
+    const autoPause = (): void => {
+      const store = useSerpienteStore.getState();
+      if (!store.paused && store.game.status === 'playing') store.togglePause();
+    };
+    if (Platform.OS === 'web') {
+      const onVisibility = (): void => {
+        if (document.hidden) autoPause();
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+      return () => document.removeEventListener('visibilitychange', onVisibility);
+    }
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') autoPause();
+    });
+    return () => sub.remove();
+  }, []);
+
   // --- setting wrap (D1, siempre visible) + preferencias táctiles
   useEffect(() => {
     let cancelled = false;
@@ -204,26 +241,52 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     setTimeout(() => setPopups((prev) => prev.filter((p) => p.id !== id)), 800);
   }, []);
 
-  // --- fin de partida: overlay diferido (el récord se escribe en T4)
-  const scheduleEnd = useCallback((delayMs: number) => {
+  // --- fin de partida: récord una sola vez + overlay diferido
+  const recordEnd = useCallback((won: boolean) => {
+    if (endedRef.current) return;
     endedRef.current = true;
+    const game = useSerpienteStore.getState().game;
+    onGameEndRef.current({
+      gameId: 'serpiente',
+      won,
+      score: game.score,
+      durationMs: game.elapsedMs,
+      finishedAt: new Date().toISOString(),
+    });
+  }, []);
+
+  const scheduleEnd = useCallback((delayMs: number) => {
     if (endTimerRef.current) clearTimeout(endTimerRef.current);
     endTimerRef.current = setTimeout(() => setEndShown(true), delayMs);
   }, []);
 
-  // --- eventos discretos → popups / hit-stop / muerte (sonido+haptics: T4)
+  // --- eventos discretos → sonido/haptics (LO PRIMERO, latencia) + popups +
+  // hit-stop / muerte (§9.5). Comer = solo blip; haptics solo especial/muerte.
   const handleEvents = useCallback(
     (events: SerpienteEvent[]) => {
       for (const event of events) {
         switch (event) {
-          case 'eat':
-            spawnPopup('+10', '#FBBF24');
+          case 'eat': {
+            const eatenNow = useSerpienteStore.getState().game.eaten;
+            if (eatenNow % SPECIAL_EVERY === 0) soundCombo(comboChainForEaten(eatenNow));
+            else soundPickup();
+            const popup = popupForEvent(event);
+            if (popup) spawnPopup(popup.text, popup.color);
             break;
-          case 'special':
-            spawnPopup('+50', '#C4B5FD');
-            hitStopUntilRef.current = Math.max(performance.now(), hitStopUntilRef.current) + SPECIAL_HIT_STOP_MS;
+          }
+          case 'special': {
+            soundPowerUp();
+            hapticCombo();
+            const popup = popupForEvent(event);
+            if (popup) spawnPopup(popup.text, popup.color);
+            hitStopUntilRef.current =
+              Math.max(performance.now(), hitStopUntilRef.current) + hitStopForEvent(event);
             break;
+          }
           case 'die': {
+            soundExplosion();
+            hapticHeavy();
+            recordEnd(false);
             // Flash en la celda causa (D16): la cabeza al morir.
             const game = useSerpienteStore.getState().game;
             setDeathCell(game.snake[0] ?? null);
@@ -243,12 +306,15 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
             break;
           }
           case 'win':
+            soundGameWin();
+            hapticGameWin();
+            recordEnd(true);
             scheduleEnd(END_DELAY_WON_MS);
             break;
         }
       }
     },
-    [spawnPopup, scheduleEnd, reduced, shakeX],
+    [spawnPopup, scheduleEnd, recordEnd, reduced, shakeX],
   );
 
   // --- loop del juego (D8/D10): rAF + tick; React re-renderiza por tick
@@ -299,8 +365,8 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
 
   const panGesture = useMemo(() => {
     if (!isTouch) return null;
-    // Callbacks planos (JS thread): tocan zustand; runOnJS(true) lo hace
-    // explícito y silencia el warning de RNGH. Haptics en T4.
+    // Callbacks planos (JS thread): tocan zustand/haptics; runOnJS(true) lo
+    // hace explícito y silencia el warning de RNGH.
     const pan = Gesture.Pan().runOnJS(true);
     if (controlMode === 'gestos') {
       let emitted = false;
@@ -313,6 +379,7 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
           const dir = swipeToDirection(event.translationX, event.translationY);
           if (!dir) return;
           emitted = true;
+          hapticSelection();
           useSerpienteStore.getState().setDirection(dir);
         });
     }
@@ -332,6 +399,7 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
         drag = updateFloatingDrag(drag, event.x, event.y);
         if (drag.dir !== null && drag.dir !== lastDir) {
           lastDir = drag.dir;
+          hapticSelection();
           useSerpienteStore.getState().setDirection(drag.dir);
           if (ringEnabled) {
             ringX.value = drag.ox;

@@ -15,6 +15,9 @@ import { BobbingPopup, FloatingHud, PulsingFood, SlitherBody, SpecialRing } from
  * V2 · Escamas arcade (iteración 2): cuerpo continuo verde clásico con
  * textura de escamas, sin glow (lo más barato), HUD B2 flotante + chip,
  * ring en el especial. Ojos direccionales + `+10`.
+ *
+ * TEMA ELEGIDO (D17, T5): implementado en `components/Board.tsx`; esta
+ * preview queda viva para futuros ajustes.
  */
 export function SerpientePreviewV2() {
   const { size, onLayout } = useContainerSize();

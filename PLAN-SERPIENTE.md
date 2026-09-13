@@ -121,8 +121,8 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 - [x] T1. `engine/` puro + unit tests (grid/rules/controls/seed, determinismo) + presupuesto §9.3 (cuerpo en `Set` O(1), spawn acotado + test, tope 8/frame).
 - [x] T2. `state.ts` + `index.ts` + registro + `RULES.md` + `README.md` + tick publica solo si `state` cambió + tickStats D-WW0 desde el día 1.
 - [x] T3. `SerpienteScreen` + HUD + overlays + settings (wrap/control/anillo) + renderer memo §9.2 (grid estático, segmentos memo, HUD por slices, wave en UI-thread, reduced-motion).
-- [ ] T4. Sonido/haptics + pausa + `onGameEnd`/récord + audio fire-and-forget con prime en idle + haptics solo especial/muerte (§9.5).
-- [ ] T5. `preview/` (elección hecha: V2) → converger tema final al `renderer/` real; la galería queda viva para futuros ajustes.
+- [x] T4. Sonido/haptics + pausa + `onGameEnd`/récord + audio fire-and-forget con prime en idle + haptics solo especial/muerte (§9.5).
+- [x] T5. `preview/` (elección hecha: V2) → converger tema final al `renderer/` real; la galería queda viva para futuros ajustes.
 - [ ] T6. E2E web (win/lose/crecer + táctil CDP + responsive 360×640 + `serpiente` en GAMES) + escenarios perf `serpiente-*` + waits 900–1000 ms tras muerte.
 - [ ] T7. Verificación estándar: `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs` + baseline perf versionado en `baselines/` (§9.4).
 
@@ -300,3 +300,13 @@ overhead: early-returns y el `PerfProfiler` ni siquiera monta).
   Migrar a `docs/GOTCHAS.md` al cierre.
 - T3: `onGameEnd`/récord + sonido/haptics quedan en T4 con `TODO(T4)` y
   `endedRef` ya puesto en la pantalla.
+- T4 (2026-09-13): `engine/feel.ts` puro (popup/hit-stop/pitch por evento) +
+  sonido LO PRIMERO del handler; hito cada 5 comidas con `soundCombo(chain)`
+  (pitch creciente sobre el player de pickup); especial = `soundPowerUp` +
+  `hapticCombo` (Medium, mismo instante que el hit-stop); muerte =
+  `soundExplosion` + `hapticHeavy` NUEVO en core (Medium existente no
+  distingue; Success es semántica de victoria); `primeAudioPlayers()` en idle
+  post-primer render; auto-pausa en `visibilitychange`/background; récord una
+  sola vez vía `recordEnd` + `endedRef`.
+- T5 (2026-09-13): paleta V2 idéntica en preview y renderer (verificada por
+  grep); enlaces cruzados en ambos archivos; galería viva confirmada.

@@ -23,6 +23,13 @@ export function hapticCombo(): void {
   }
 }
 
+/** Impacto fuerte: muerte (serpiente) u otro golpe definitivo. */
+export function hapticHeavy(): void {
+  if (ENABLED) {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  }
+}
+
 /** Notificación de éxito: partida ganada. */
 export function hapticGameWin(): void {
   if (ENABLED) {
