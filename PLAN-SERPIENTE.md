@@ -119,7 +119,7 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 ## 6. Checklist de tareas (en orden)
 
 - [x] T1. `engine/` puro + unit tests (grid/rules/controls/seed, determinismo) + presupuesto §9.3 (cuerpo en `Set` O(1), spawn acotado + test, tope 8/frame).
-- [ ] T2. `state.ts` + `index.ts` + registro + `RULES.md` + `README.md` + tick publica solo si `state` cambió + tickStats D-WW0 desde el día 1.
+- [x] T2. `state.ts` + `index.ts` + registro + `RULES.md` + `README.md` + tick publica solo si `state` cambió + tickStats D-WW0 desde el día 1.
 - [ ] T3. `SerpienteScreen` + HUD + overlays + settings (wrap/control/anillo) + renderer memo §9.2 (grid estático, segmentos memo, HUD por slices, wave en UI-thread, reduced-motion).
 - [ ] T4. Sonido/haptics + pausa + `onGameEnd`/récord + audio fire-and-forget con prime en idle + haptics solo especial/muerte (§9.5).
 - [ ] T5. `preview/` (elección hecha: V2) → converger tema final al `renderer/` real; la galería queda viva para futuros ajustes.
