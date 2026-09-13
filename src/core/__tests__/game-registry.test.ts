@@ -22,4 +22,11 @@ describe('game-registry', () => {
     expect(getGameById('memorice')?.supportsLandscape).toBeFalsy();
     expect(getGameById('damas')?.supportsLandscape).toBeFalsy();
   });
+
+  it('registra serpiente con su pantalla', () => {
+    const game = getGameById('serpiente');
+    expect(game?.id).toBe('serpiente');
+    expect(typeof game?.Component).toBe('function');
+    expect(game?.supportsLandscape).toBeFalsy();
+  });
 });
