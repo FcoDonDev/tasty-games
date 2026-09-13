@@ -124,7 +124,7 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 - [x] T4. Sonido/haptics + pausa + `onGameEnd`/récord + audio fire-and-forget con prime en idle + haptics solo especial/muerte (§9.5).
 - [x] T5. `preview/` (elección hecha: V2) → converger tema final al `renderer/` real; la galería queda viva para futuros ajustes.
 - [x] T6. E2E web (win/lose/crecer + táctil CDP + responsive 360×640 + `serpiente` en GAMES) + escenarios perf `serpiente-*` + waits 900–1000 ms tras muerte.
-- [ ] T7. Verificación estándar: `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs` + baseline perf versionado en `baselines/` (§9.4).
+- [x] T7. Verificación estándar: `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs` + baseline perf versionado en `baselines/` (§9.4).
 
 ## 7. Resuelto 2026-09-13
 
