@@ -51,6 +51,7 @@ La variante de §4 es **Arcade jugoso**, único camino.
 | D14 | HUD | **Flotante + chip** B2: score grande + chip countdown especial | Barra chunky / fila colección |
 | D15 | Slow-mo | **Quitado** del snake (2026-09-13) | Slow-mo ×0.7 en peligro |
 | D16 | Especial/muerte | **Countdown ring en celda** + **flash en celda causa** | Chip texto / muerte sin causa |
+| D17 | Tema final + motion | **V2 Escamas arcade**; tokens `slither`/`food-pulse`/`score-float`; preview viva (2026-09-13) | V1 neón / V3 tinta (alternativas visibles) |
 
 ## 4. Propuesta base + variante UI/UX
 
@@ -89,6 +90,11 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 - Peligro (solo `wrap=false`): vignette estática a ≤2 celdas; muerte con
   freeze 400 ms + shake + flash en la celda causa + overlay diferido +
   retry <1 s. `reduced motion` apaga todo salvo fades.
+- Tema aprobado: **V2 Escamas arcade** (cuerpo verde + escamas, cero glow,
+  fondo `#0B1F14`); V1/V3 quedan como alternativas en la preview. Tokens de
+  motion: `slither` (ondulación viajera, 1800 ms), `food-pulse` (pulso
+  1→1.18, 800 ms yoyó), `score-float` (popup a la deriva −35% celda,
+  750 ms yoyó).
 - Pros: esconde el tick de 140 ms, más divertida. Contras: más animación solo
   UI-thread, E2E con waits 900–1000 ms tras muerte.
 
@@ -103,6 +109,8 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 - [ ] Variante Arcade jugoso implementada.
 - [ ] Seeds `test-win/test-lose/test-crecer` solo con `EXPO_PUBLIC_E2E=1`.
 - [ ] Verificación estándar verde (§6).
+- [ ] La ruta dev `/serpiente-preview` sigue viva junto al juego real para
+      futuros ajustes (herramienta permanente, no desechable).
 
 ## 6. Checklist de tareas (en orden)
 
@@ -110,7 +118,7 @@ Sonido/haptics vía wrappers de core, fire-and-forget + prime en idle.
 - [ ] T2. `state.ts` + `index.ts` + registro + `RULES.md` + `README.md`.
 - [ ] T3. `SerpienteScreen` + HUD + overlays + settings (wrap/control/anillo).
 - [ ] T4. Sonido/haptics + pausa + `onGameEnd`/récord.
-- [ ] T5. `preview/` con 3 versiones (matriz tema × HUD, §8) → elección iterativa con usuario.
+- [ ] T5. `preview/` (elección hecha: V2) → converger tema final al `renderer/` real; la galería queda viva para futuros ajustes.
 - [ ] T6. E2E web (win/lose/crecer + táctil CDP + responsive 360×640).
 - [ ] T7. Verificación estándar: `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs`.
 
@@ -177,6 +185,16 @@ confirmaciones); theoriginalsnake (progreso visible = la serpiente, retry
 sin fricción); `Juice.cs` de CoilGarden (punch al comer, shake solo al
 morir, sin hitstop al comer); Solana Garden/Falcon (sincronía, graduar por
 tier, no over-juice); Snakonda (controles responsivos = table stakes).
+
+### Aprobado final (2026-09-13, confirmado por el usuario)
+
+- Ojos direccionales (iris blanco + pupila negra), popup `+10` con
+  `score-float`, cuerpo continuo, HUD B2, `slither` + `food-pulse`.
+- Tema: **V2 Escamas arcade**. V1/V3 quedan como alternativas visibles.
+- La preview **no se desecha**: queda disponible junto a la implementación
+  real para futuros ajustes (ruta dev, patrón ADR 0012, sin navegación de
+  producción). Matiz a ADR 0012: en serpiente la galería es herramienta viva,
+  no comparación histórica desechable.
 
 ## Notas/hallazgos
 
