@@ -12,6 +12,7 @@ import Animated, {
 import type { SharedValue } from 'react-native-reanimated';
 import { perfRenderCount } from '@/core/perf';
 import { DIR_DELTA, GRID_COLS, GRID_ROWS, colOf, rowOf, toIndex, type Direction } from '../engine/grid';
+import { SPECIAL_TTL_MS } from '../engine/rules';
 import { useSerpienteStore } from '../engine/state';
 
 /**
@@ -261,13 +262,31 @@ const FoodDot = memo(function FoodDot({ food, cell }: { food: number; cell: numb
   );
 });
 
+/**
+ * Ángulos de rotación del arco restante del especial (D18): receta de dos
+ * mitades con clip + rotación (Views puros, sin SVG/Skia — ADR 0001).
+ * `right` dibuja el tramo [0°..180°] desde las 12 (horario) cubriendo
+ * `min(f, .5)·360`; `left` cubre el resto (f > .5). Puro para unit tests.
+ */
+export function arcAngles(ttlMs: number, ttlTotal: number = SPECIAL_TTL_MS): {
+  right: number;
+  left: number;
+} {
+  const f = Math.max(0, Math.min(1, ttlMs / ttlTotal));
+  const angRight = Math.max(0, Math.min(180, f * 360));
+  const angLeft = Math.max(0, Math.min(180, f * 360 - 180));
+  return { right: 45 + 180 - angRight, left: -225 + angLeft };
+}
+
 function SpecialRing({ cell, at }: { cell: number; at: number }) {
-  // Slice derivado en segundos: re-render 1 vez/s, no por tick.
-  const secs = useSerpienteStore((s) =>
-    s.game.special ? Math.max(0, Math.ceil(s.game.special.ttlMs / 1000)) : null,
-  );
-  if (secs === null) return null;
+  // D18: el anillo se CONSUME con el ttl (arco restante). Slice por ttlMs:
+  // re-render por paso (~140-70 ms), no por frame.
+  const ttlMs = useSerpienteStore((s) => s.game.special?.ttlMs ?? null);
+  if (ttlMs === null) return null;
+  const secs = Math.max(0, Math.ceil(ttlMs / 1000));
+  const { right, left } = arcAngles(ttlMs);
   const ring = cell * 1.22;
+  const w = 3;
   const d = cell * 0.6;
   return (
     <View
@@ -282,24 +301,61 @@ function SpecialRing({ cell, at }: { cell: number; at: number }) {
         justifyContent: 'center',
       }}
     >
+      {/* pista */}
       <View
         style={{
           position: 'absolute',
           width: ring,
           height: ring,
           borderRadius: ring / 2,
-          borderWidth: 3,
-          borderColor: SPECIAL,
+          borderWidth: w,
+          borderColor: 'rgba(139,92,246,0.25)',
         }}
       />
-      <View style={{ width: d, height: d, borderRadius: d / 2, backgroundColor: SPECIAL }} />
-      <View accessibilityLabel={`serpiente-especial-${secs}s`}>
-        {/* M3: texto dentro del anillo — nacidos en la última fila lo dejaban
-            a ~4px del borde inferior del tablero (clip potencial). */}
-        <Animated.Text style={{ position: 'absolute', top: ring - 16, color: SPECIAL, fontSize: 11, fontWeight: '800' }}>
-          {secs}s
-        </Animated.Text>
+      {/* arco restante: media derecha (12→6 horario) + media izquierda */}
+      <View style={{ position: 'absolute', left: ring / 2, top: 0, width: ring / 2, height: ring, overflow: 'hidden' }}>
+        <View
+          style={{
+            width: ring,
+            height: ring,
+            borderRadius: ring / 2,
+            borderWidth: w,
+            borderColor: SPECIAL,
+            borderLeftColor: 'transparent',
+            borderBottomColor: 'transparent',
+            transform: [{ rotate: `${right}deg` }],
+          }}
+        />
       </View>
+      <View style={{ position: 'absolute', left: 0, top: 0, width: ring / 2, height: ring, overflow: 'hidden' }}>
+        <View
+          style={{
+            width: ring,
+            height: ring,
+            borderRadius: ring / 2,
+            borderWidth: w,
+            borderColor: SPECIAL,
+            borderRightColor: 'transparent',
+            borderBottomColor: 'transparent',
+            transform: [{ rotate: `${left}deg` }],
+          }}
+        />
+      </View>
+      <View
+        style={{
+          width: d,
+          height: d,
+          borderRadius: d / 2,
+          backgroundColor: SPECIAL,
+          // D19: glow focalizado del especial (como PulsingFood en la preview)
+          shadowColor: SPECIAL,
+          shadowOpacity: 0.9,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 0 },
+        }}
+      />
+      {/* anuncio a11y: el arco no es texto; el lector sigue oyendo los segundos */}
+      <View accessibilityLabel={`serpiente-especial-${secs}s`} style={{ width: 0, height: 0 }} />
     </View>
   );
 }

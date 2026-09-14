@@ -342,7 +342,11 @@ export function BobbingPopup({
   );
 }
 
-/** Especial con countdown ring en la celda (D16). Runtime: arco animado. */
+/**
+ * Especial con countdown ring (D16). D18: el anillo se CONSUME como arco
+ * de progreso (misma receta de dos mitades + rotación que el renderer real
+ * en `components/Board.tsx::arcAngles`); sin texto visible.
+ */
 export function SpecialRing({
   cell,
   at,
@@ -356,7 +360,14 @@ export function SpecialRing({
   secs: number;
   label: string;
 }) {
+  const ttlMs = secs * 1000;
+  const f = Math.max(0, Math.min(1, ttlMs / (8 * 1000)));
+  const angRight = Math.max(0, Math.min(180, f * 360));
+  const angLeft = Math.max(0, Math.min(180, f * 360 - 180));
+  const right = 45 + 180 - angRight;
+  const left = -225 + angLeft;
   const s = cell * 1.22;
+  const w = 3;
   const d = cell * 0.6;
   return (
     <View
@@ -377,10 +388,38 @@ export function SpecialRing({
           width: s,
           height: s,
           borderRadius: s / 2,
-          borderWidth: 3,
-          borderColor: color,
+          borderWidth: w,
+          borderColor: 'rgba(139,92,246,0.25)',
         }}
       />
+      <View style={{ position: 'absolute', left: s / 2, top: 0, width: s / 2, height: s, overflow: 'hidden' }}>
+        <View
+          style={{
+            width: s,
+            height: s,
+            borderRadius: s / 2,
+            borderWidth: w,
+            borderColor: color,
+            borderLeftColor: 'transparent',
+            borderBottomColor: 'transparent',
+            transform: [{ rotate: `${right}deg` }],
+          }}
+        />
+      </View>
+      <View style={{ position: 'absolute', left: 0, top: 0, width: s / 2, height: s, overflow: 'hidden' }}>
+        <View
+          style={{
+            width: s,
+            height: s,
+            borderRadius: s / 2,
+            borderWidth: w,
+            borderColor: color,
+            borderRightColor: 'transparent',
+            borderBottomColor: 'transparent',
+            transform: [{ rotate: `${left}deg` }],
+          }}
+        />
+      </View>
       <View
         style={{
           width: d,
@@ -393,9 +432,6 @@ export function SpecialRing({
           shadowOffset: { width: 0, height: 0 },
         }}
       />
-      <Text style={{ position: 'absolute', top: s - 2, color, fontSize: 11, fontWeight: '800' }}>
-        {secs}s
-      </Text>
     </View>
   );
 }

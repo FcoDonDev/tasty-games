@@ -1,11 +1,31 @@
 import { render, screen } from '@testing-library/react-native';
-import { Board } from '../components/Board';
+import { arcAngles, Board } from '../components/Board';
+import { SPECIAL_TTL_MS } from '../engine/rules';
 import { toIndex } from '../engine/grid';
 import { useSerpienteStore } from '../engine/state';
 
 beforeEach(() => {
   useSerpienteStore.getState().setWrap(true);
   useSerpienteStore.getState().startRun('test-crecer');
+});
+
+describe('arcAngles (D18: arco de depletion del especial)', () => {
+  it('lleno = círculo completo (mitades en su rotación "llena")', () => {
+    expect(arcAngles(SPECIAL_TTL_MS)).toEqual({ right: 45, left: -45 });
+  });
+
+  it('medio = solo la mitad derecha; vacío = nada visible', () => {
+    expect(arcAngles(SPECIAL_TTL_MS / 2)).toEqual({ right: 45, left: -225 });
+    expect(arcAngles(0)).toEqual({ right: 225, left: -225 });
+  });
+
+  it('cuartos y clamp (ttl fuera de rango)', () => {
+    expect(arcAngles(SPECIAL_TTL_MS / 4)).toEqual({ right: 135, left: -225 });
+    expect(arcAngles(SPECIAL_TTL_MS * 0.75)).toEqual({ right: 45, left: -135 });
+    // clamp: ttl mayor al total = lleno; negativo = vacío
+    expect(arcAngles(999999)).toEqual({ right: 45, left: -45 });
+    expect(arcAngles(-5)).toEqual({ right: 225, left: -225 });
+  });
 });
 
 describe('Board serpiente (T3, §9.2)', () => {
