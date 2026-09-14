@@ -79,8 +79,9 @@ interface SegmentProps {
   pattern: boolean;
   amp: number;
   /** D4: identificador en `testID` (selectores E2E), NO en a11y — el lector
-   * de pantalla no necesita 100 avisos del cuerpo. */
-  testId: string;
+   * de pantalla no necesita 100 avisos del cuerpo. Las copias entrantes del
+   * toro (D22) van sin testID: los selectores candean solo la copia base. */
+  testId?: string;
   /** D20: slide interpolado hacia el upstream (px por unidad de progreso).
    * 0 para los segmentos estáticos. */
   mDeltaX: number;
@@ -175,34 +176,48 @@ function SnakeLayer({
 }) {
   const n = snake.length;
   const centers = snake.map((s) => ({ x: (colOf(s) + 0.5) * cell, y: (rowOf(s) + 0.5) * cell }));
-  const centerOf = (c: number): { x: number; y: number } => ({
-    x: (colOf(c) + 0.5) * cell,
-    y: (rowOf(c) + 0.5) * cell,
-  });
+  const ZERO = { x: 0, y: 0 };
+  // D22 (render toroidal): dimensiones del tablero para las copias entrantes.
+  const boardW = GRID_COLS * cell;
+  const boardH = GRID_ROWS * cell;
   /**
-   * D20: delta px de slide entre celdas ADYACENTES del cuerpo. Si el par
-   * CRUZA la costura del wrap (delta crudo ±(N-1)), el nodo DESCANSA ese
-   * intervalo (delta 0): interpolar lo haría salir por un borde y "desarmar"
-   * la serpiente (hallazgo del usuario 2026-09-14). El nodo teletransporta
-   * al publicar el paso — salto discreto localizado en la costura, como
-   * WakWak en los túneles.
+   * D22: delta de slide NORMALIZADO (±1 celda) de `from` hacia `to` — para
+   * pares que cruzan la costura del wrap, el slide va por fuera del tablero
+   * y lo hace visible la copia entrante. `to < 0` = muro (sin wrap): cero.
    */
-  const deltaPx = (from: number, to: number): { x: number; y: number } => {
-    const dc = colOf(to) - colOf(from);
-    const dr = rowOf(to) - rowOf(from);
-    if (Math.abs(dc) > 1 || Math.abs(dr) > 1) return ZERO;
+  const seamDelta = (from: number, to: number): { x: number; y: number } => {
+    let dc = colOf(to) - colOf(from);
+    let dr = rowOf(to) - rowOf(from);
+    if (dc > 1) dc -= GRID_COLS;
+    else if (dc < -1) dc += GRID_COLS;
+    if (dr > 1) dr -= GRID_ROWS;
+    else if (dr < -1) dr += GRID_ROWS;
     return { x: dc * cell, y: dr * cell };
   };
-  const isCrossing = (from: number, to: number): boolean =>
-    Math.abs(colOf(to) - colOf(from)) > 1 || Math.abs(rowOf(to) - rowOf(from)) > 1;
-  const ZERO = { x: 0, y: 0 };
-  // D20: destino del próximo paso. stepIndex < 0 = muro (sin wrap): la cabeza
-  // NO se interpola ese intervalo (descansa en su celda hasta morir).
+  /**
+   * D22: offset px de la copia ENTRANTE de un nodo (gemela toroidal). Se
+   * emite cuando (a) la base está SOBRE la costura (midpoint de un par que
+   * la cruza: 0 o W — su gemela muestra la porción que asoma del otro lado)
+   * o (b) la base se sale del tablero al completar el slide (target fuera).
+   */
+  const enteringOffset = (base: { x: number; y: number }, delta: { x: number; y: number }): { x: number; y: number } | null => {
+    if (base.x <= 0 || base.x >= boardW) return { x: base.x >= boardW ? -boardW : boardW, y: 0 };
+    if (base.y <= 0 || base.y >= boardH) return { x: 0, y: base.y >= boardH ? -boardH : boardH };
+    const tx = base.x + delta.x;
+    const ty = base.y + delta.y;
+    if (tx >= boardW) return { x: -boardW, y: 0 };
+    if (tx <= 0) return { x: boardW, y: 0 };
+    if (ty >= boardH) return { x: 0, y: -boardH };
+    if (ty <= 0) return { x: 0, y: boardH };
+    return null;
+  };
+  // D20/D22: destino del próximo paso. stepIndex < 0 = muro (sin wrap): la
+  // cabeza NO se interpola ese intervalo (descansa en su celda hasta morir).
   const target = stepIndex(snake[0], dirNext, wrap);
-  const targetC = target >= 0 ? centerOf(target) : null;
-  // ¿La cabeza cruza la costura en este paso? Su mid del cuello también
-  // descansa (el midpoint virtual cabeza→target no existe en el tablero).
-  const headCrosses = target >= 0 && isCrossing(snake[0], target);
+  const headDelta = target >= 0 ? seamDelta(snake[0], target) : ZERO;
+  // Posición torus de la cabeza al completar el paso (del lado correcto de la
+  // costura, incluso cruzándola): upstream virtual del mid del cuello.
+  const headNext = { x: centers[0].x + headDelta.x, y: centers[0].y + headDelta.y };
   // ¿El paso EN CURSO come? (predecible: el target es la comida/especial) —
   // si come, la cola NO se retrae en este intervalo (stepOnce conserva cola).
   const eats =
@@ -262,9 +277,79 @@ function SnakeLayer({
   // su upstream por `progress` — el cuerpo entero fluye con la cabeza.
   // Z-order (hallazgo del usuario 2026-09-14): se itera COLA→CABEZA igual
   // que SlitherBody para que la cabeza quede ENCIMA del cuello y su mid.
+  // D22: los nodos que cruzan/emergen de la costura se renderizan en sus DOS
+  // posiciones congruentes del toro (base + entrante): el clip del tablero
+  // muestra la porción visible de cada una — cruce continuo, sin salto.
   const roleSize = (i: number): number =>
     cell * (i === 0 ? HEAD_SIZE : i === n - 1 ? TAIL_SIZE : BODY_SIZE);
   const nodes: ReactNode[] = [];
+  const pushNode = (
+    key: string,
+    base: { x: number; y: number },
+    delta: { x: number; y: number },
+    opts: {
+      anchor: number;
+      px: number;
+      py: number;
+      size: number;
+      color: string;
+      pattern: boolean;
+      amp: number;
+      testId?: string;
+      children?: ReactNode;
+      warpChildren?: ReactNode;
+    },
+  ): void => {
+    const { anchor, px, py, size, color, pattern, amp, testId, children, warpChildren } = opts;
+    nodes.push(
+      <SnakeSegment
+        key={key}
+        phase={phase}
+        anchor={anchor}
+        cx={base.x}
+        cy={base.y}
+        px={px}
+        py={py}
+        size={size}
+        color={color}
+        pattern={pattern}
+        amp={amp}
+        testId={testId}
+        mDeltaX={delta.x}
+        mDeltaY={delta.y}
+        progress={progress}
+      >
+        {children}
+      </SnakeSegment>,
+    );
+    const off = enteringOffset(base, delta);
+    if (off) {
+      // Copia entrante (toro): misma pieza del otro lado de la costura. Sin
+      // aria-label (el a11y candea solo la copia base); el testID con sufijo
+      // `-w` permite aserciones (E2E usa closest sobre la copia base).
+      nodes.push(
+        <SnakeSegment
+          key={`${key}-w`}
+          phase={phase}
+          anchor={anchor}
+          cx={base.x + off.x}
+          cy={base.y + off.y}
+          px={px}
+          py={py}
+          size={size}
+          color={color}
+          pattern={pattern}
+          amp={amp}
+          testId={testId ? `${testId}-w` : undefined}
+          mDeltaX={delta.x}
+          mDeltaY={delta.y}
+          progress={progress}
+        >
+          {warpChildren}
+        </SnakeSegment>,
+      );
+    }
+  };
   for (let i = n - 1; i >= 0; i--) {
     const s = snake[i];
     const size = roleSize(i);
@@ -272,74 +357,78 @@ function SnakeLayer({
     // Slide del segmento: cabeza → target; cuerpo → su upstream (celda i-1).
     // Cola estática si este paso come (no se libera). Upstream estable por
     // identidad de celda → memo: solo cabeza/cuello/cola re-renderizan/tick.
-    let mD;
-    if (i === 0) {
-      mD = targetC ? deltaPx(s, target) : ZERO;
-    } else if (i === n - 1 && eats) {
-      mD = ZERO;
-    } else {
-      mD = deltaPx(s, snake[i - 1]);
-    }
-    nodes.push(
-      <SnakeSegment
-        key={`seg-${s}`}
-        phase={phase}
-        anchor={s}
-        cx={centers[i].x}
-        cy={centers[i].y}
-        px={p.x}
-        py={p.y}
-        size={size}
-        color={i === 0 ? HEAD : BODY}
-        pattern={i !== 0 && i !== n - 1}
-        amp={(i === 0 ? 0.04 : 0.1) * cell}
-        testId={`serpiente-seg-${s}`}
-        mDeltaX={mD.x}
-        mDeltaY={mD.y}
-        progress={progress}
-      >
-        {i === 0 ? (
+    const mD = i === 0 ? headDelta : i === n - 1 && eats ? ZERO : seamDelta(s, snake[i - 1]);
+    pushNode(`seg-${s}`, centers[i], mD, {
+      anchor: s,
+      px: p.x,
+      py: p.y,
+      size,
+      color: i === 0 ? HEAD : BODY,
+      pattern: i !== 0 && i !== n - 1,
+      amp: (i === 0 ? 0.04 : 0.1) * cell,
+      testId: `serpiente-seg-${s}`,
+      children:
+        i === 0 ? (
           <View accessibilityLabel="serpiente-cabeza" style={{ flex: 1 }}>
             {eyes}
           </View>
-        ) : null}
-      </SnakeSegment>,
-    );
-    // Mid de continuidad solo para pares IN-BOARD: un par que cruza la
-    // costura del wrap tendría su midpoint en el centro del tablero
-    // (promedio de bordes opuestos) — ahí la costura muestra un hueco.
-    if (i > 0 && !isCrossing(snake[i - 1], s)) {
+        ) : undefined,
+      warpChildren: i === 0 ? <View style={{ flex: 1 }}>{eyes}</View> : undefined,
+    });
+    if (i > 0) {
       const prev = snake[i - 1];
-      const cur = { x: (centers[i].x + centers[i - 1].x) / 2, y: (centers[i].y + centers[i - 1].y) / 2 };
-      // Slide del mid: hacia el midpoint upstream (para i-1==0 el upstream
-      // virtual es el target: la cabellera se mantiene pegada a la cabeza).
-      // Si la cabeza cruza la costura, ese midpoint virtual no existe: descansa.
-      const upA = centers[i - 1];
-      const upB = i - 1 === 0 ? (targetC ?? centers[0]) : centers[i - 2];
-      const neckMidFrozen = i === 1 && headCrosses;
-      const mSlide =
-        (i === n - 1 && eats) || neckMidFrozen
-          ? ZERO
-          : { x: (upA.x + upB.x) / 2 - cur.x, y: (upA.y + upB.y) / 2 - cur.y };
-      nodes.push(
-        <SnakeSegment
-          key={`mid-${prev}-${s}`}
-          phase={phase}
-          anchor={(prev + s) / 2}
-          cx={cur.x}
-          cy={cur.y}
-          px={p.x}
-          py={p.y}
-          size={((size + roleSize(i - 1)) / 2) * 0.98}
-          color={BODY}
-          pattern={false}
-          amp={0.12 * cell}
-          testId={`serpiente-mid-${prev}-${s}`}
-          mDeltaX={mSlide.x}
-          mDeltaY={mSlide.y}
-          progress={progress}
-        />,
-      );
+      const rawDc = colOf(s) - colOf(prev);
+      const rawDr = rowOf(s) - rowOf(prev);
+      const crossingPair = Math.abs(rawDc) > 1 || Math.abs(rawDr) > 1;
+      const midOpts = {
+        px: p.x,
+        py: p.y,
+        size: ((size + roleSize(i - 1)) / 2) * 0.98,
+        color: BODY,
+        pattern: false,
+        amp: 0.12 * cell,
+      };
+      if (crossingPair) {
+        // D22: midpoint TORUS — continuo a través de la costura. Base = alias
+        // torus del midpoint (center(prev) + unit a→b / 2: 0 o W, gemela vía
+        // enteringOffset cubre el otro). Slide = FLUJO del cuerpo en la
+        // costura = −unit (verificado con flow +x y −x: el mid sigue al
+        // cuerpo, no a la dirección short-path prev→s).
+        const u = seamDelta(prev, s);
+        pushNode(
+          `mid-${prev}-${s}`,
+          { x: centers[i - 1].x + u.x / 2, y: centers[i - 1].y + u.y / 2 },
+          { x: -u.x, y: -u.y },
+          { ...midOpts, anchor: (prev + s) / 2, testId: `serpiente-mid-${prev}-${s}` },
+        );
+      } else {
+        const base = { x: (centers[i].x + centers[i - 1].x) / 2, y: (centers[i].y + centers[i - 1].y) / 2 };
+        // Slide hacia el midpoint upstream. Para i-1==0 el virtual es
+        // headNext (del lado correcto de la costura aunque la cabeza cruce);
+        // para i-1>0, si el PAR upstream cruza la costura el midpoint es el
+        // alias torus continuo con la posición actual del mid (no el promedio
+        // de celdas opuestas, que caería en el centro del tablero).
+        const upA = centers[i - 1];
+        let targetMid: { x: number; y: number };
+        if (i - 1 === 0) {
+          targetMid = { x: (upA.x + headNext.x) / 2, y: (upA.y + headNext.y) / 2 };
+        } else {
+          const up2 = snake[i - 2];
+          if (Math.abs(colOf(up2) - colOf(prev)) > 1 || Math.abs(rowOf(up2) - rowOf(prev)) > 1) {
+            const u2 = seamDelta(prev, up2);
+            targetMid = { x: upA.x + u2.x / 2, y: upA.y + u2.y / 2 };
+          } else {
+            targetMid = { x: (upA.x + centers[i - 2].x) / 2, y: (upA.y + centers[i - 2].y) / 2 };
+          }
+        }
+        const delta =
+          i === n - 1 && eats ? ZERO : { x: targetMid.x - base.x, y: targetMid.y - base.y };
+        pushNode(`mid-${prev}-${s}`, base, delta, {
+          ...midOpts,
+          anchor: (prev + s) / 2,
+          testId: `serpiente-mid-${prev}-${s}`,
+        });
+      }
     }
   }
   return <>{nodes}</>;
@@ -534,18 +623,23 @@ export function Board({
       style={{ width: size, height: size, backgroundColor: BOARD_BG }}
       accessibilityLabel="tablero-serpiente"
     >
-      <BoardGrid cell={cellSize} />
-      <SnakeLayer
-        snake={snake}
-        cell={cellSize}
-        phase={phase}
-        progress={stepProgress}
-        dirNext={queuedFirst ?? dir}
-        wrap={wrap}
-        foodCell={food}
-        specialCell={specialCell}
-      />
-      <FoodDot food={food} cell={cellSize} />
+      {/* D22: SOLO el contenido va clipado (overflow hidden) — las copias
+          toroidales que salen del borde se recortan acá. Ring y vignette
+          quedan fuera: asoman del borde y no deben recortarse. */}
+      <View style={{ width: size, height: size, overflow: 'hidden' }}>
+        <BoardGrid cell={cellSize} />
+        <SnakeLayer
+          snake={snake}
+          cell={cellSize}
+          phase={phase}
+          progress={stepProgress}
+          dirNext={queuedFirst ?? dir}
+          wrap={wrap}
+          foodCell={food}
+          specialCell={specialCell}
+        />
+        <FoodDot food={food} cell={cellSize} />
+      </View>
       {specialCell !== null ? <SpecialRing cell={cellSize} at={specialCell} /> : null}
       {danger ? (
         <View

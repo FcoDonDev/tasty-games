@@ -430,6 +430,19 @@ el acumulador pasa a ser la única fuente de verdad del progreso).
   renderizan mid (hueco en la costura). (3) Z-order: la iteración era
   cabeza-primero → el cuello pintaba ENCIMA de la cabeza; ahora cola→
   cabeza como `SlitherBody` (cabeza encima del cuello y su mid).
+  **D22 · Render toroidal (2026-09-14, decisión del usuario)**: el salto
+  discreto en la costura seguía viéndose (el original discreto lo ocultaba
+  porque TODOS los pasos saltaban). Mecanismo pro: cada nodo cuyo slide
+  cruza/emerge de la costura se renderiza en sus DOS posiciones congruentes
+  (base + gemela entrante desplazada ±W/±H) con clip `overflow:'hidden'`
+  solo en el contenido del tablero (ring/vignette fuera del clip). Mids
+  reactivados para pares cruzando (midpoint torus + flujo = −unit, verificado
+  con flow +x y −x); neck-mid con headNext virtual del lado correcto.
+  Inspección visual del cruce en dev server (screenshots 360×640, borrados):
+  cabeza sale y entra simultáneamente, cuerpo atraviesa sin desarmarse.
+  Evaluación Skia: descartada para el juego (0 frames dropeados actuales,
+  +2.9MB CanvasKit web, a11y/tests por reconstruir); queda anotado un posible
+  PoC aislado (V4 en preview) para validar excepciones futuras a ADR 0001.
 - [x] Verificación estándar: typecheck → test → e2e serpiente/responsive →
   perf render path (`EXPO_PUBLIC_PERF_METRICS=1`, presupuesto §9, seed
   `perf-long` con mids + interpolación). Punto de riesgo a medir:

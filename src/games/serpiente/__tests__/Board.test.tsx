@@ -61,7 +61,7 @@ describe('Board serpiente (T3, §9.2)', () => {
     expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 9)}`)).toBeOnTheScreen();
   });
 
-  it('cuerpo que cruza la costura del wrap: sin mid en el par cruzado (D20-fix)', async () => {
+  it('cuerpo que cruza la costura del wrap: mid torus + copia entrante (D22)', async () => {
     const view = await render(<Board cellSize={10} />);
     // Cabeza ya cruzada: (5,0) con cuello en (5,19) — par wrapped-adjacente.
     useSerpienteStore.setState({
@@ -73,10 +73,18 @@ describe('Board serpiente (T3, §9.2)', () => {
       },
     });
     await view.rerender(<Board cellSize={10} />);
-    // El mid del par cruzado NO existe (su promedio caería en el centro).
-    expect(screen.queryByTestId(`serpiente-mid-${toIndex(5, 0)}-${toIndex(5, 19)}`)).toBeNull();
-    // El mid del cuerpo in-board sigue (key = par [upstream, propio]).
+    // D22: el par cruzado TIENE mid torus (base + gemela) — sin hueco ni mid
+    // en el centro del tablero.
+    expect(screen.getByTestId(`serpiente-mid-${toIndex(5, 0)}-${toIndex(5, 19)}`)).toBeOnTheScreen();
+    expect(screen.getByTestId(`serpiente-mid-${toIndex(5, 0)}-${toIndex(5, 19)}-w`)).toBeOnTheScreen();
+    // El cuello (col 19 → slide hacia la cabeza a través de la costura) tiene
+    // copia entrante; el resto del cuerpo in-board, una sola copia.
+    expect(screen.getByTestId(`serpiente-seg-${toIndex(5, 19)}`)).toBeOnTheScreen();
+    expect(screen.getByTestId(`serpiente-seg-${toIndex(5, 19)}-w`)).toBeOnTheScreen();
+    // El mid del cuerpo in-board también fluye hacia la costura (su target es
+    // el midpoint torus en el borde) → copia entrante correcta.
     expect(screen.getByTestId(`serpiente-mid-${toIndex(5, 19)}-${toIndex(5, 18)}`)).toBeOnTheScreen();
+    expect(screen.getByTestId(`serpiente-mid-${toIndex(5, 19)}-${toIndex(5, 18)}-w`)).toBeOnTheScreen();
   });
 
   it('sin especial no hay ring; con 5 comidas aparece', async () => {
