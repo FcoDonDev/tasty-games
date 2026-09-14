@@ -22,16 +22,24 @@ import { buildDeck, PERF_MATCH_SEED, PERF_MISMATCH_SEED } from '../../games/memo
  *
  * D-WW2 (PLAN §11): PERF_THROTTLE=<rate> aplica throttle de CPU vía CDP
  * (Emulation.setCPUThrottlingRate, solo Chromium) tras el ready de cada
- * corrida; los artifacts van a tmp/perf-throttle/ y el envelope lleva
- * `throttle` + `heapUsedBefore/After`. Throttled solo se compara contra
- * throttled. En la primera corrida medida de cada escenario captura además
- * un CPU profile (dominio Profiler) a <scenarioId>.cpuprofile.json.
+ * corrida; el envelope lleva `throttle` + `heapUsedBefore/After`. Throttled
+ * solo se compara contra throttled. En la primera corrida medida de cada
+ * escenario captura además un CPU profile (dominio Profiler) a
+ * <scenarioId>.cpuprofile.json.
+ *
+ * PERF_PROFILE (PLAN §9, decisión 2026-09-14): selector de perfil con default
+ * `instrumented-profiling` — lo traduce scripts/e2e.mjs a los envs de export
+ * cuando PERF_BASELINE=1. Cada condición escribe en SU ruta (nunca mezclar):
+ *   instrumented             → tmp/perf/                (throttle: tmp/perf-throttle/)
+ *   instrumented-profiling   → tmp/perf-profiling/      (throttle: tmp/perf-throttle-profiling/)
  */
 
 const PERF_BASELINE = process.env.PERF_BASELINE === '1';
 // Variante profiling (PLAN §19): el export debe correrse con
 // EXPO_PUBLIC_PERF_PROFILING=1 (alias react-dom → react-dom/profiling en
 // metro.config.js) para que el timer `render.board` (duración) exista.
+// e2e.mjs lo setea automáticamente con el default PERF_PROFILE; el valor
+// explícito sigue soportado para corridas sin el orquestador.
 const PROFILING_BUILD = process.env.EXPO_PUBLIC_PERF_PROFILING === '1';
 const WARMUP = Number(process.env.PERF_WARMUP ?? 1);
 const LOTS = Number(process.env.PERF_LOTS ?? 1);
@@ -41,13 +49,15 @@ const WINDOW_MS = Number(process.env.PERF_WINDOW_MS ?? 4000);
 const VIEWPORT = (process.env.PERF_VIEWPORT ?? '360x640').split('x').map(Number) as [number, number];
 
 // D-WW2 (PLAN §11): throttle de CPU vía CDP, solo Chromium. 0/1 = sin
-// throttle; 4 = 4x slowdown. Con throttle los artifacts van a
-// tmp/perf-throttle/ para no mezclarlos con tmp/perf/.
+// throttle; 4 = 4x slowdown.
+// Rutas por condición (decisión 2026-09-14): el sufijo `-profiling` separa el
+// build profiling del estándar — los 4 combos nunca comparten directorio.
 const THROTTLE = Number(process.env.PERF_THROTTLE ?? 0);
 
-const ARTIFACT_DIR = THROTTLE > 1
-  ? path.resolve(process.cwd(), 'tmp/perf-throttle')
-  : path.resolve(process.cwd(), 'tmp/perf');
+const ARTIFACT_DIR = path.resolve(
+  process.cwd(),
+  THROTTLE > 1 ? 'tmp/perf-throttle' : 'tmp/perf',
+) + (PROFILING_BUILD ? '-profiling' : '');
 const COMMIT = (() => {
   try {
     return execSync('git rev-parse --short HEAD').toString().trim();
@@ -546,9 +556,20 @@ test.beforeAll(() => {
   if (PROFILING_BUILD && process.env.EXPO_PUBLIC_PERF_METRICS !== '1') {
     throw new Error('EXPO_PUBLIC_PERF_PROFILING=1 exige EXPO_PUBLIC_PERF_METRICS=1 (sin gate el Profiler no registra)');
   }
+  // Consistencia del selector (decisión 2026-09-14): PERF_PROFILE manda; un
+  // env residual de la shell no puede contradecirlo.
+  const requestedProfile = process.env.PERF_PROFILE;
+  if (
+    requestedProfile &&
+    requestedProfile !== (PROFILING_BUILD ? 'instrumented-profiling' : 'instrumented')
+  ) {
+    throw new Error(
+      `PERF_PROFILE=${requestedProfile} contradice EXPO_PUBLIC_PERF_PROFILING=${process.env.EXPO_PUBLIC_PERF_PROFILING ?? '(no seteado)'} — deja que e2e.mjs derive los envs del perfil`,
+    );
+  }
   if (THROTTLE > 1) {
     console.log(
-      `[perf-harness] throttle=${THROTTLE}x (CDP, Chromium) → artifacts en tmp/perf-throttle; NO comparar contra tmp/perf`,
+      `[perf-harness] throttle=${THROTTLE}x (CDP, Chromium) → artifacts en ${ARTIFACT_DIR}; NO comparar contra corridas sin throttle`,
     );
   }
 });
@@ -608,7 +629,7 @@ test.afterAll(async () => {
     summary[scenario.id] = { timers: timersAgg, counters: countersAgg };
   }
   writeFileSync(path.join(ARTIFACT_DIR, 'summary.json'), JSON.stringify(summary, null, 2));
-  console.log(`[perf-harness] resumen escrito en tmp/perf/summary.json`);
+  console.log(`[perf-harness] resumen escrito en ${path.join(ARTIFACT_DIR, 'summary.json')}`);
   for (const [scenarioId, agg] of Object.entries(summary)) {
     console.log(`\n=== ${scenarioId} ===`);
     for (const [key, s] of Object.entries(agg.timers)) {

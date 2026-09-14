@@ -23,6 +23,29 @@ import path from 'node:path';
 const PORT = Number(process.env.E2E_PORT ?? 4173);
 // 127.0.0.1: evita el problema localhost→::1 (issue #22144 de Playwright)
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+
+// PERF_PROFILE (PLAN-PERFORMANCE §9, decisión 2026-09-14): selector de perfil
+// de build para el baseline de performance. Default `instrumented-profiling`
+// (la señal más completa: render.board + resto de timers). Solo con
+// PERF_BASELINE=1 se instrumenta el export: el e2e funcional nunca queda
+// instrumentado. Se muta process.env para que el env derivado llegue tanto al
+// export (se inlinea al compilar) como a Playwright (que lee EXPO_PUBLIC_PERF_PROFILING
+// para etiquetar buildMode y elegir la ruta de artifacts).
+if (process.env.PERF_BASELINE === '1') {
+  const PERF_PROFILE = process.env.PERF_PROFILE ?? 'instrumented-profiling';
+  if (PERF_PROFILE !== 'instrumented' && PERF_PROFILE !== 'instrumented-profiling') {
+    console.error(`✖ [e2e] PERF_PROFILE inválido: "${PERF_PROFILE}" (usar instrumented | instrumented-profiling)`);
+    process.exit(1);
+  }
+  process.env.PERF_PROFILE = PERF_PROFILE;
+  process.env.EXPO_PUBLIC_PERF_METRICS = '1';
+  if (PERF_PROFILE === 'instrumented-profiling') {
+    process.env.EXPO_PUBLIC_PERF_PROFILING = '1';
+  } else {
+    delete process.env.EXPO_PUBLIC_PERF_PROFILING;
+  }
+  console.log(`→ [e2e] PERF_BASELINE=1 → perfil ${PERF_PROFILE} (export instrumentado)`);
+}
 const passthroughArgs = process.argv.slice(2).filter((arg, i, all) => !(arg === '--' && i === 0));
 
 // Binario de serve resuelto directamente: evita `pnpm exec` (que en Windows

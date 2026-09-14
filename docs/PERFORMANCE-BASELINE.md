@@ -6,24 +6,44 @@ Diagnostica, mas no reemplaza la verificación funcional: `pnpm e2e:web`.
 ## Comando
 
 ```bash
-EXPO_PUBLIC_PERF_METRICS=1 PERF_BASELINE=1 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
+PERF_BASELINE=1 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
 node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
 ```
 
 - El spec está condicionado: sin `PERF_BASELINE=1` los tests la omiten saltean (la suite funcional estándar nunca los corre).
-- `EXPO_PUBLIC_PERF_METRICS=1` : Genera build **instrumentado**, no comparable al release con la experiencia de usuarios reales. Las comparaciones antes/después se hacen instrumentado-vs-instrumentado.
+- **`PERF_PROFILE`** (default `instrumented-profiling`): el orquestador deriva de aquí los envs de export (`EXPO_PUBLIC_PERF_METRICS=1` + `EXPO_PUBLIC_PERF_PROFILING=1`); no hay que escribirlos a mano. `PERF_PROFILE=instrumented` corre el build estándar (sin `render.board`).
 - **No combinar con `CI=1`**: la config de Playwright levantaría su propio server y colisionaría con el del orquestador.
 - Duración con los defaults: ~15-25 min por escenario (155 corridas) → **3-4 h en total**. Correr en máquina idle.
 
+## Perfil por defecto y rutas de artifacts
+
+Con `PERF_BASELINE=1` el default es **`instrumented-profiling`** (decisión
+2026-09-14): es el perfil con la señal más completa (`render.board` + resto de
+timers), así que la corrida de validación habitual solo necesita
+`PERF_BASELINE=1`. Los otros 3 combos se corren solo cuando la comparación lo
+exige (p.ej. replicar baselines históricos v1/v2 en build estándar). Cada
+condición escribe en su propia ruta — **nunca mezclar corridas de
+condiciones distintas**:
+
+| `PERF_PROFILE` | `PERF_THROTTLE` | Ruta artifacts | `buildMode` del envelope |
+|---|---|---|---|
+| `instrumented-profiling` (default) | — | `tmp/perf-profiling/` | `instrumented-profiling` |
+| `instrumented-profiling` (default) | `>1` | `tmp/perf-throttle-profiling/` | `instrumented-profiling` |
+| `instrumented` | — | `tmp/perf/` | `instrumented` |
+| `instrumented` | `>1` | `tmp/perf-throttle/` | `instrumented` |
+
+(`tmp/perf/` conserva el build estándar por continuidad con los baselines v1/v2.)
+
 ## Variante profiling build (`render.board`)
 
-Para obtener la **duración** de renders (`render.board`), React exige un build
-con profiling: `EXPO_PUBLIC_PERF_PROFILING=1` activa en `metro.config.js` el
-alias `react-dom` → `react-dom/profiling`. Introduce overhead (variante de
-medición, NO build de producción representativo — PLAN §2/§3/§9):
+El perfil por defecto (`instrumented-profiling`) ya la incluye. Para correr el
+build estándar (sin `render.board`, comparable contra v1/v2) usar
+`PERF_PROFILE=instrumented`. El alias lo activa `EXPO_PUBLIC_PERF_PROFILING=1`
+en `metro.config.js` (`react-dom` → `react-dom/profiling`). Introduce overhead
+(variante de medición, NO build de producción representativo — PLAN §2/§3/§9):
 
 ```bash
-EXPO_PUBLIC_PERF_METRICS=1 EXPO_PUBLIC_PERF_PROFILING=1 PERF_BASELINE=1 \
+PERF_PROFILE=instrumented PERF_BASELINE=1 \
 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
 node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
 ```
@@ -90,6 +110,7 @@ for(const[game,chunks]of Object.entries(byGame)){
 
 | Variable | Default | Significado |
 |---|---|---|
+| `PERF_PROFILE` | `instrumented-profiling` | Perfil de build (`instrumented` \| `instrumented-profiling`); `e2e.mjs` deriva los envs de export |
 | `PERF_WARMUP` | 1 | Corridas de calentamiento, descartadas (no se escriben) |
 | `PERF_LOTS` | 1 | Lotes independientes de corridas medidas |
 | `PERF_RUNS` | 3 | Corridas medidas por lote |
@@ -99,10 +120,13 @@ for(const[game,chunks]of Object.entries(byGame)){
 
 ## Resultados
 
+La ruta base depende del perfil y del throttle (ver tabla "Perfil por defecto
+y rutas de artifacts"; abajo `<dir>` = esa ruta):
+
 | Ubicación | Contenido |
 |---|---|
-| `tmp/perf/<scenarioId>.jsonl` | 1 línea = 1 run medida, envelope versionado: `schemaVersion`, `scenarioId`, `runId`, `lot`, `seed`, `commit`, `viewport`, `wallMs` + snapshot completo (p50/p95/p99/max por timer) |
-| `tmp/perf/summary.json` | Agregado por escenario: timers (mediana de p95, máximo de p99 entre runs) y contadores (mediana de valor por run) |
+| `<dir>/<scenarioId>.jsonl` | 1 línea = 1 run medida, envelope versionado: `schemaVersion`, `scenarioId`, `runId`, `lot`, `seed`, `commit`, `viewport`, `wallMs` + snapshot completo (p50/p95/p99/max por timer) |
+| `<dir>/summary.json` | Agregado por escenario: timers (mediana de p95, máximo de p99 entre runs) y contadores (mediana de valor por run) |
 | `playwright-report/` / `test-results/` | Reporte HTML y trazas si algún test falla |
 
 Ambos directorios son gitignored (artifacts locales, nunca commitearlos).
@@ -110,9 +134,11 @@ Ambos directorios son gitignored (artifacts locales, nunca commitearlos).
 ### Limpieza entre corridas
 
 - **Corrida completa (los 11 escenarios): no hay que borrar nada manualmente.**
-  Al iniciar cada escenario, el harness trunca su propio `tmp/perf/<scenarioId>.jsonl` y `summary.json` se sobrescribe al final de la corrida.
-- **Corrida parcial (filtro `-g`): sí conviene borrar antes** (`rm -rf tmp/perf`):
+  Al iniciar cada escenario, el harness trunca su propio `<dir>/<scenarioId>.jsonl` y `summary.json` se sobrescribe al final de la corrida.
+- **Corrida parcial (filtro `-g`): sí conviene borrar antes** (`rm -rf <dir>`):
   los `.jsonl` de los escenarios que NO corrieron quedan con datos de corridas anteriores y el `summary.json` los mezclaría con los frescos (contaminación).
+- Cambiar de perfil/throttle **no requiere limpieza**: cada condición escribe
+  en su propia ruta (ver tabla de perfiles).
 
 ## Métricas
 

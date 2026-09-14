@@ -187,9 +187,13 @@ Comandos propuestos, después de crear el spec de performance (SIN `CI=1`:
 e2e.mjs + `CI=1` colisionan —hallazgo §19—; el §9-completado abajo manda):
 
 ```bash
-EXPO_PUBLIC_PERF_METRICS=1 PERF_BASELINE=1 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
+PERF_BASELINE=1 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
 node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
 ```
+
+(Default 2026-09-14: `PERF_PROFILE=instrumented-profiling` implícito — ver
+"Perfil por defecto del harness". El `EXPO_PUBLIC_PERF_METRICS=1` ya no se
+escribe a mano.)
 
 Para export funcional sin instrumentación:
 
@@ -205,6 +209,36 @@ EXPO_ATLAS=true CI=1 \
 pnpm exec expo export --platform web --clear
 pnpm dlx expo-atlas .expo/atlas.jsonl
 ```
+
+### Perfil por defecto del harness (decisión 2026-09-14)
+
+Para no tener que armar a mano el combo de envs de las 4 condiciones
+(estándar/profiling × throttle/sin throttle) en cada corrida:
+
+- **`PERF_PROFILE`** = selector de perfil de build: `instrumented` |
+  `instrumented-profiling`. **Default: `instrumented-profiling`** (decisión del
+  operador: es el perfil que da la señal más completa —`render.board` +
+  resto de timers—; el estándar solo se corre cuando se necesita comparar
+  contra baselines históricos v1/v2 o el throttle sin profiling).
+- `scripts/e2e.mjs` traduce el selector a envs de export **solo con
+  `PERF_BASELINE=1`** (el e2e funcional nunca queda instrumentado):
+  `EXPO_PUBLIC_PERF_METRICS=1` siempre + `EXPO_PUBLIC_PERF_PROFILING=1` si el
+  perfil es `instrumented-profiling`. Con `PERF_PROFILE=instrumented` se
+  elimina explícitamente (un env residual de la shell no puede contaminar).
+- El spec deriva `buildMode` del perfil (trazabilidad del envelope, sin cambio
+  de semántica).
+- **Rutas de artifacts separadas por condición** (extensión de la regla D-WW2
+  de `tmp/perf-throttle/`; los 4 combos ya no comparten directorio y el
+  operador deja de renombrar copias a mano):
+
+| Perfil | Sin throttle | Con throttle |
+|---|---|---|
+| `instrumented` | `tmp/perf/` (continuidad v1/v2) | `tmp/perf-throttle/` |
+| `instrumented-profiling` | `tmp/perf-profiling/` | `tmp/perf-throttle-profiling/` |
+
+- Protocolo por defecto sin envs: `PERF_WARMUP=1 PERF_LOTS=1 PERF_RUNS=3`
+  (el default liviano existente; el default es de **perfil**, no de protocolo —
+  el full 5×30 sigue explícito para baselines versionados).
 
 ### Escenarios versionados
 
@@ -243,18 +277,24 @@ harness estable y tres baselines versionados en `baselines/`:
 | v2 | 2026-09-10/11 | `e839cbe` | instrumented | Réplica de v1: medianas idénticas → reproducibilidad confirmada, sin regresiones |
 | v3 | 2026-09-11 | `300b9f8` | instrumented-profiling | `render.board` en solitario+damas (900/900); referencia para mejoras de render |
 
-Comandos (sin `CI=1`; borrar `tmp/perf` antes de corridas parciales):
+Comandos (sin `CI=1`; borrar `tmp/perf*` antes de corridas parciales):
 
 ```bash
-# Perfil estándar
-EXPO_PUBLIC_PERF_METRICS=1 PERF_BASELINE=1 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
+# Perfil por defecto (instrumented-profiling): una sola env
+PERF_BASELINE=1 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
 node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
-# Variante profiling (duración de renders)
-EXPO_PUBLIC_PERF_METRICS=1 EXPO_PUBLIC_PERF_PROFILING=1 PERF_BASELINE=1 \
-PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
+# Perfil estándar (instrumented), p.ej. para comparar contra v1/v2:
+PERF_PROFILE=instrumented PERF_BASELINE=1 PERF_WARMUP=5 PERF_LOTS=5 PERF_RUNS=30 \
 node scripts/e2e.mjs -- src/core/__e2e__/performance.web.spec.ts
+# Con throttle (artifacts a tmp/perf-throttle[-profiling]/):
+PERF_THROTTLE=4 PERF_BASELINE=1 ... # mismo comando + 1 variable
 # Por juego (mismo rigor por escenario): agregar -g "<juego>", ej. -g "solitario"
 ```
+
+(Los envs `EXPO_PUBLIC_PERF_METRICS=1` y `EXPO_PUBLIC_PERF_PROFILING=1` ya no
+se escriben a mano: `PERF_PROFILE` los deriva — ver "Perfil por defecto del
+harness" más arriba. Los comandos antiguos con envs explícitos siguen
+funcionando.)
 
 El harness imprime `build=instrumented(-profiling)` al inicio: verificar que
 coincida con el perfil deseado antes de dejar correr la suite completa.
@@ -335,7 +375,7 @@ auditar suscriptores, y recién entonces decidir:
 - [ ] Medir publicaciones Zustand por callback rAF y separar cambios de `remainderMs` de cambios semánticos. (Cubierto por el contador de D-WW0; incluye el caso `elapsedMs`-only.)
 - [ ] Medir `advance`, `worldSnapshot`, `present`, `threatsOf` y el cálculo repetido de `floatPos(robot)`. (Nota: `floatPos(robot)` ya está hoisteado —`rules.ts:529`—; el timer lo confirma en vez de asumirlo.)
 - [ ] **D-WW1 corrida E2E solo-wakwak (`-g "wakwak"`) en ambos perfiles** (estándar + profiling) con protocolo completo, comparada contra v1/v2/v3. Requiere D-WW0 para tener señal del lado React.
-- [ ] **D-WW2 throttle automatizado de CPU, rate 4×** (motivado por hitches reportados en móvil real; ref: [Automated Performance Testing with Playwright and Chrome DevTools: A Deep Dive](https://medium.com/@aishahsofea/automated-performance-testing-with-playwright-and-chrome-devtools-a-deep-dive-52e8b240b00d) + docs CDP/Playwright): nueva env `PERF_THROTTLE=4` en `performance.web.spec.ts` — tras `ready`, abrir CDPSession y `Emulation.setCPUThrottlingRate {rate: 4}`; reset a 1 al salir. `e2e.mjs` ya hereda el env, el comando es el mismo + 1 variable. **Disponible en ambos builds** (estándar y profiling — decisión 2026-09-11); artifacts a `tmp/perf-throttle/` (nunca mezclar con `tmp/perf/`). Mide `loop.*`, `jsStall`, `render.board`, `renderFreq` bajo throttle con el mismo protocolo (3×10). Reglas: **throttled solo se compara contra throttled** (nunca contra D-WW1); el presupuesto de stall se reinterpreta (100 ms bajo 4× ≈ 25 ms reales); los conteos por corrida no son comparables (menos ticks por ventana). Bite-check obligatorio: `loop.tick` p95Med debe escalar ~×4 vs D-WW1; si no escala, investigar channel/headless antes de concluir.
+- [ ] **D-WW2 throttle automatizado de CPU, rate 4×** (motivado por hitches reportados en móvil real; ref: [Automated Performance Testing with Playwright and Chrome DevTools: A Deep Dive](https://medium.com/@aishahsofea/automated-performance-testing-with-playwright-and-chrome-devtools-a-deep-dive-52e8b240b00d) + docs CDP/Playwright): nueva env `PERF_THROTTLE=4` en `performance.web.spec.ts` — tras `ready`, abrir CDPSession y `Emulation.setCPUThrottlingRate {rate: 4}`; reset a 1 al salir. `e2e.mjs` ya hereda el env, el comando es el mismo + 1 variable. **Disponible en ambos builds** (estándar y profiling — decisión 2026-09-11); artifacts a `tmp/perf-throttle/` (estándar) o `tmp/perf-throttle-profiling/` (profiling — decisión 2026-09-14; nunca mezclar con corridas sin throttle). Mide `loop.*`, `jsStall`, `render.board`, `renderFreq` bajo throttle con el mismo protocolo (3×10). Reglas: **throttled solo se compara contra throttled** (nunca contra D-WW1); el presupuesto de stall se reinterpreta (100 ms bajo 4× ≈ 25 ms reales); los conteos por corrida no son comparables (menos ticks por ventana). Bite-check obligatorio: `loop.tick` p95Med debe escalar ~×4 vs D-WW1; si no escala, investigar channel/headless antes de concluir.
 - [ ] **D-WW2-B1 atribución por función con dominio `Profiler` (desde el inicio)**: en corridas con throttle, 1 captura por escenario (**primera corrida medida** de cada uno: `Profiler.enable` → `setSamplingInterval(1000 µs)` → `start` antes del `run`, `stop` después) guardada como `<scenarioId>.cpuprofile.json` en `tmp/perf-throttle/` (se versiona dentro del tar). Analizar hot spots del commit de pickup + `deoptReason` por nodo (¿desoptimizaciones en el hot path?). **Prohibido `startPreciseCoverage`** (impide código optimizado y contamina la medición).
 - [ ] **D-WW2 heap-delta (en alcance)**: `Performance.enable` + `getMetrics` (`JSHeapUsedSize`) en dos puntos — post-`ready`/pre-`run` y post-`run`/pre-`exit` — volcados al envelope (`heapUsedBefore`/`heapUsedAfter`) como proxy barato del churn de asignaciones (hipótesis GC).
 - [ ] D-WW2 manual con DevTools (throttle 4×, `Animation Frame Fired`, Bottom-Up, `--trace-gc`) solo si A+B1 no cierran la atribución. B2 (trace completo `.json` a Perfetto vía `browser.startTracing`) queda como opción posterior a considerar, no en este alcance.
@@ -607,6 +647,7 @@ Cada cambio de performance debe poder revertirse sin modificar reglas de juego n
   regresiones; tradeoff mount ~+1 ms documentado; full §5 omitido por
   decisión (el p95 con count=8 mide el mount, más n no lo resuelve).
   Baselines `2026-09-13-cdd72c3-wakwak-postfix*`.
+- Decisión (2026-09-14, harness): `PERF_PROFILE` con default `instrumented-profiling` (aprobado por el operador) — el selector vive en `e2e.mjs` (traduce a envs de export solo con `PERF_BASELINE=1`) y el spec deriva `buildMode` + ruta de artifacts del perfil: `tmp/perf` / `tmp/perf-profiling` / `tmp/perf-throttle` / `tmp/perf-throttle-profiling`. Motivación: evitar armar a mano el combo de envs de las 4 condiciones y el renombre manual de copias del operador (ver MANIFESTs de throttle) al mezclar perfiles en un mismo directorio.
 - Decisión pendiente: `remainderMs`, lazy loading, persistencia y background audio requieren aprobación antes de implementar.
 - Decisión tomada (Fase 0B, dentro del alcance de medición): percentiles nearest-rank; buffer circular de 512 muestras (determinista, sin reservoir aleatorio); sesión mutable se libera en `endPerfSession`; monitor UI queda limitado a WakWak hasta que el baseline justifique extenderlo; `PerfProfiler` gatea el React Profiler sin hooks condicionales.
 
