@@ -25,7 +25,7 @@ describe('store serpiente (T2)', () => {
     store().startRun('test-lose');
     expect(store().game.wrap).toBe(false);
     const events = store().tick(140);
-    expect(events).toEqual(['die']);
+    expect(events).toEqual([{ type: 'die', cause: 'wall', cell: null }]);
     expect(store().game.status).toBe('lost');
   });
 

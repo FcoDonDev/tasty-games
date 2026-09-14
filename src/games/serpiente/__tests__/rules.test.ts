@@ -8,11 +8,12 @@ import {
   setDirection,
   stepMs,
   type GameState,
+  type SerpienteEvent,
 } from '../engine/rules';
 
-function tick(state: GameState, steps = 1): { state: GameState; events: string[] } {
+function tick(state: GameState, steps = 1): { state: GameState; events: SerpienteEvent[] } {
   let current = state;
-  const events: string[] = [];
+  const events: SerpienteEvent[] = [];
   for (let i = 0; i < steps; i++) {
     const result = advance(current, stepMs(current.eaten));
     events.push(...result.events);
@@ -94,7 +95,7 @@ describe('rules serpiente', () => {
     // 3 s de juego antes de chocar: bonus +3.
     const surviving: GameState = { ...state, elapsedMs: 3050 };
     const { state: next, events } = tick(surviving);
-    expect(events).toEqual(['die']);
+    expect(events).toEqual([{ type: 'die', cause: 'wall', cell: null }]);
     expect(next.status).toBe('lost');
     expect(next.score).toBe(3);
   });
@@ -122,7 +123,8 @@ describe('rules serpiente', () => {
       food: toIndex(0, 0),
     });
     const { state: next, events } = tick(state);
-    expect(events).toEqual(['die']);
+    // La causa es la celda del cuerpo contra la que chocó: (6,5).
+    expect(events).toEqual([{ type: 'die', cause: 'self', cell: toIndex(6, 5) }]);
     expect(next.status).toBe('lost');
   });
 

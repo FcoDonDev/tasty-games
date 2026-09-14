@@ -26,7 +26,17 @@ export const MAX_STEPS_PER_FRAME = 8;
 const SPAWN_SAMPLES = 60;
 
 export type GameStatus = 'playing' | 'won' | 'lost';
-export type SerpienteEvent = 'eat' | 'special' | 'die' | 'win';
+
+/**
+ * Evento `die` con payload (B2): `cause` distingue muro (fuera del tablero,
+ * `cell: null`) de auto-colisión (`cell` = celda del cuerpo contra la que
+ * chocó — la "celda causa" para el flash de D16; la cabeza no se movió).
+ */
+export type SerpienteEvent =
+  | 'eat'
+  | 'special'
+  | { type: 'die'; cause: 'wall' | 'self'; cell: number | null }
+  | 'win';
 
 export interface Special {
   cell: number;
@@ -186,15 +196,25 @@ function stepOnce(state: GameState): { state: GameState; events: SerpienteEvent[
         ? { cell: state.special.cell, ttlMs: state.special.ttlMs - cost }
         : null,
   };
-  // -1 = muro con wrap=false (D1).
-  if (next < 0) return { state: endRun(ticked, 'lost'), events: ['die'] };
+  // -1 = muro con wrap=false (D1): la causa está fuera del tablero.
+  if (next < 0) {
+    return {
+      state: endRun(ticked, 'lost'),
+      events: [{ type: 'die', cause: 'wall', cell: null }],
+    };
+  }
   const eatFood = next === state.food;
   const eatSpecial = ticked.special !== null && next === ticked.special.cell;
   const growing = eatFood || eatSpecial;
   // La cola se libera salvo que crezca: el cuerpo a chequear la excluye.
   const body = new Set(state.snake);
   if (!growing) body.delete(state.snake[state.snake.length - 1]);
-  if (body.has(next)) return { state: endRun(ticked, 'lost'), events: ['die'] };
+  if (body.has(next)) {
+    return {
+      state: endRun(ticked, 'lost'),
+      events: [{ type: 'die', cause: 'self', cell: next }],
+    };
+  }
   const snake = growing ? [next, ...state.snake] : [next, ...state.snake.slice(0, -1)];
   let { eaten, score, food, special, rngSeed } = ticked;
   if (eatFood) {

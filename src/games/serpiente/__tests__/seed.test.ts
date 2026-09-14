@@ -22,7 +22,7 @@ describe('seeds serpiente (D12)', () => {
   test('test-lose: un tick muere contra el muro', () => {
     const state = createGameState(seedConfig(parseSerpienteSeed('test-lose')));
     const { state: next, events } = advance(state, stepMs(state.eaten));
-    expect(events).toEqual(['die']);
+    expect(events).toEqual([{ type: 'die', cause: 'wall', cell: null }]);
     expect(next.status).toBe('lost');
   });
 

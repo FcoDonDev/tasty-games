@@ -329,3 +329,20 @@ overhead: early-returns y el `PerfProfiler` ni siquiera monta).
   sostenida, no el primer movimiento (llega el paso previo al giro).
 - T6: reintentar conserva el seed (vuelve a 3990 y regana): se candea el
   reinicio, no el score 0.
+- Revisión crítica post-T7 (2026-09-14, corregida en `feat/serpiente`):
+  - **B1** hooks condicional en JSX (`wrap` leído dentro del ternario
+    `isTouch`) → slice a nivel de componente.
+  - **B2** flash de muerte usaba la cabeza (que no se movió al morir) → el
+    evento `die` ahora lleva payload `{ cause: 'wall'|'self', cell|null }`
+    (patrón `caught` de WakWak); flash en la celda del cuerpo golpeado, y en
+    la cabeza si es muro (la causa queda fuera del tablero).
+  - **B3** ajustes inaccesibles en PC web (gate táctil sobre el setting D1) →
+    modal en todas las plataformas; opciones de control solo en táctil
+    (prop `touch`); RULES.md actualizado; E2E de escritorio nuevo.
+  - **D-a** popup alineado al `score-float` aprobado (deriva en loop,
+    `FloatingPopup`); reduced motion: fade sin deriva.
+  - Pendiente de decisión del usuario (no tocado): D2 tie-break diagonal
+    (hoy horizontal, WakWak vertical), D3 auto-pausa al abrir ajustes, D4
+    a11y de segmentos (labels→testID). P2 anotado para el cierre (prime
+    selectivo, timers popup, clip texto ring, grid 200 views, sync preview
+    V2, remainder híbrido, validación nativa).

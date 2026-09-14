@@ -162,6 +162,30 @@ test('serpiente: Home → jugar → salir', async ({ page }) => {
   await expect(page.getByText('Tasty Games')).toBeVisible();
 });
 
+test('serpiente: ajustes visibles en PC y el borde persiste (D1 sin gate táctil)', async ({ page }) => {
+  test.setTimeout(30_000);
+  await openGame(page);
+
+  await page.getByLabel('serpiente-ajustes', { exact: true }).click();
+  const modal = page.getByLabel('modal-ajustes-serpiente', { exact: true });
+  await expect(modal).toBeVisible();
+  await expect(modal.getByLabel('serpiente-wrap', { exact: true })).toBeVisible();
+  // Sin emulación táctil NO existen las opciones de control (solo wrap).
+  await expect(modal.getByLabel('serpiente-modo-gestos', { exact: true })).toHaveCount(0);
+  await page.getByLabel('serpiente-wrap', { exact: true }).click();
+  await page.getByLabel('cerrar-ajustes-serpiente', { exact: true }).click();
+  await expect(modal).toBeHidden();
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem('preferences');
+        return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+      }),
+    )
+    .toEqual(expect.objectContaining({ 'serpiente.wrap': '0' }));
+});
+
 test.describe('serpiente táctil (emulación móvil, puntero coarse)', () => {
   // Emulación de móvil (sin defaultBrowserType: no es válido a nivel describe)
   test.use({ viewport: { width: 393, height: 851 }, isMobile: true, hasTouch: true });

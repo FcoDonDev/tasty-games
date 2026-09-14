@@ -47,7 +47,8 @@ Comer para crecer y sumar puntos sin chocar. La partida termina al morir
 
 ## Controles
 
-- **PC web (teclado):** flechas + WASD.
+- **PC web (teclado):** flechas + WASD. Los ajustes (⚙, borde atravesar/muro)
+  también están disponibles en PC.
 - **Táctil (nativo y web móvil):** modo configurable (⚙ en el header):
   - **Gestos** (default): swipe en cualquier parte; la dirección se emite al
     cruzar el umbral (24 px), sin esperar a levantar el dedo.

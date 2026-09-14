@@ -21,6 +21,11 @@ export function SettingsButton({ onPress }: { onPress: () => void }) {
 
 interface SettingsModalProps {
   visible: boolean;
+  /**
+   * B3: el modal existe en TODAS las plataformas (el borde es setting de
+   * juego, D1); las opciones de control táctil solo se muestran en táctil.
+   */
+  touch: boolean;
   wrap: boolean;
   mode: ControlMode;
   ring: boolean;
@@ -32,6 +37,7 @@ interface SettingsModalProps {
 
 export function SettingsModal({
   visible,
+  touch,
   wrap,
   mode,
   ring,
@@ -65,42 +71,46 @@ export function SettingsModal({
           {wrap ? <Text style={styles.check}>✓</Text> : null}
         </PressableScale>
 
-        <PressableScale
-          accessibilityLabel="serpiente-modo-gestos"
-          onPress={() => onChangeMode('gestos')}
-          style={[styles.option, mode === 'gestos' && styles.optionActive]}
-        >
-          <View style={styles.optionText}>
-            <Text style={styles.optionTitle}>Gestos</Text>
-            <Text style={styles.optionHint}>Deslizá en cualquier parte de la pantalla</Text>
-          </View>
-          {mode === 'gestos' ? <Text style={styles.check}>✓</Text> : null}
-        </PressableScale>
+        {touch ? (
+          <>
+            <PressableScale
+              accessibilityLabel="serpiente-modo-gestos"
+              onPress={() => onChangeMode('gestos')}
+              style={[styles.option, mode === 'gestos' && styles.optionActive]}
+            >
+              <View style={styles.optionText}>
+                <Text style={styles.optionTitle}>Gestos</Text>
+                <Text style={styles.optionHint}>Deslizá en cualquier parte de la pantalla</Text>
+              </View>
+              {mode === 'gestos' ? <Text style={styles.check}>✓</Text> : null}
+            </PressableScale>
 
-        <PressableScale
-          accessibilityLabel="serpiente-modo-flotante"
-          onPress={() => onChangeMode('flotante')}
-          style={[styles.option, mode === 'flotante' && styles.optionActive]}
-        >
-          <View style={styles.optionText}>
-            <Text style={styles.optionTitle}>Flotante</Text>
-            <Text style={styles.optionHint}>Pad invisible donde apoyes el dedo</Text>
-          </View>
-          {mode === 'flotante' ? <Text style={styles.check}>✓</Text> : null}
-        </PressableScale>
+            <PressableScale
+              accessibilityLabel="serpiente-modo-flotante"
+              onPress={() => onChangeMode('flotante')}
+              style={[styles.option, mode === 'flotante' && styles.optionActive]}
+            >
+              <View style={styles.optionText}>
+                <Text style={styles.optionTitle}>Flotante</Text>
+                <Text style={styles.optionHint}>Pad invisible donde apoyes el dedo</Text>
+              </View>
+              {mode === 'flotante' ? <Text style={styles.check}>✓</Text> : null}
+            </PressableScale>
 
-        {mode === 'flotante' ? (
-          <PressableScale
-            accessibilityLabel="serpiente-anillo-feedback"
-            onPress={() => onChangeRing(!ring)}
-            style={[styles.option, styles.optionSub, ring && styles.optionActive]}
-          >
-            <View style={styles.optionText}>
-              <Text style={styles.optionTitle}>Anillo de feedback</Text>
-              <Text style={styles.optionHint}>Marca el punto de control mientras tocás</Text>
-            </View>
-            {ring ? <Text style={styles.check}>✓</Text> : null}
-          </PressableScale>
+            {mode === 'flotante' ? (
+              <PressableScale
+                accessibilityLabel="serpiente-anillo-feedback"
+                onPress={() => onChangeRing(!ring)}
+                style={[styles.option, styles.optionSub, ring && styles.optionActive]}
+              >
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>Anillo de feedback</Text>
+                  <Text style={styles.optionHint}>Marca el punto de control mientras tocás</Text>
+                </View>
+                {ring ? <Text style={styles.check}>✓</Text> : null}
+              </PressableScale>
+            ) : null}
+          </>
         ) : null}
 
         <PressableScale

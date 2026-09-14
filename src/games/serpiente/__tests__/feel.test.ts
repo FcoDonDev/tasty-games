@@ -12,14 +12,14 @@ describe('feel serpiente (T4)', () => {
   test('popup por evento (D17 score-float)', () => {
     expect(popupForEvent('eat')).toEqual({ text: '+10', color: '#FBBF24' });
     expect(popupForEvent('special')).toEqual({ text: '+50', color: '#C4B5FD' });
-    expect(popupForEvent('die')).toBeNull();
+    expect(popupForEvent({ type: 'die', cause: 'self', cell: null })).toBeNull();
     expect(popupForEvent('win')).toBeNull();
   });
 
   test('hit-stop solo en el especial', () => {
     expect(hitStopForEvent('special')).toBe(SPECIAL_HIT_STOP_MS);
     expect(hitStopForEvent('eat')).toBe(0);
-    expect(hitStopForEvent('die')).toBe(0);
+    expect(hitStopForEvent({ type: 'die', cause: 'wall', cell: null })).toBe(0);
     expect(hitStopForEvent('win')).toBe(0);
   });
 

@@ -8,6 +8,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withRepeat,
   withSequence,
   withTiming,
   type SharedValue,
@@ -104,6 +105,8 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
   const score = useSerpienteStore((s) => s.game.score);
   const eaten = useSerpienteStore((s) => s.game.eaten);
   const elapsedMs = useSerpienteStore((s) => s.game.elapsedMs);
+  // B1: hook a nivel de componente (nunca condicional en el JSX).
+  const wrap = useSerpienteStore((s) => s.wrap);
 
   // Shake de muerte en UI-thread (reduced motion: sin shake).
   const shakeX = useSharedValue(0);
@@ -268,6 +271,29 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
   const handleEvents = useCallback(
     (events: SerpienteEvent[]) => {
       for (const event of events) {
+        if (typeof event === 'object') {
+          // die (B2): flash en la CELDA CAUSA — auto-colisión = celda del
+          // cuerpo contra la que chocó; muro = la cabeza (el muro está fuera).
+          soundExplosion();
+          hapticHeavy();
+          recordEnd(false);
+          const game = useSerpienteStore.getState().game;
+          setDeathCell(event.cell ?? game.snake[0] ?? null);
+          deathUntilRef.current = performance.now() + DEATH_FREEZE_MS;
+          if (!reduced) {
+            shakeX.value = withSequence(
+              withTiming(7, { duration: DEATH_SHAKE_MS }),
+              withTiming(-6, { duration: DEATH_SHAKE_MS }),
+              withTiming(4, { duration: DEATH_SHAKE_MS }),
+              withTiming(-3, { duration: DEATH_SHAKE_MS }),
+              withTiming(0, { duration: DEATH_SHAKE_MS + 10 }),
+            );
+          }
+          if (deathTimerRef.current) clearTimeout(deathTimerRef.current);
+          deathTimerRef.current = setTimeout(() => setDeathCell(null), DEATH_FREEZE_MS + 50);
+          scheduleEnd(END_DELAY_LOST_MS);
+          continue;
+        }
         switch (event) {
           case 'eat': {
             const eatenNow = useSerpienteStore.getState().game.eaten;
@@ -284,28 +310,6 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
             if (popup) spawnPopup(popup.text, popup.color);
             hitStopUntilRef.current =
               Math.max(performance.now(), hitStopUntilRef.current) + hitStopForEvent(event);
-            break;
-          }
-          case 'die': {
-            soundExplosion();
-            hapticHeavy();
-            recordEnd(false);
-            // Flash en la celda causa (D16): la cabeza al morir.
-            const game = useSerpienteStore.getState().game;
-            setDeathCell(game.snake[0] ?? null);
-            deathUntilRef.current = performance.now() + DEATH_FREEZE_MS;
-            if (!reduced) {
-              shakeX.value = withSequence(
-                withTiming(7, { duration: DEATH_SHAKE_MS }),
-                withTiming(-6, { duration: DEATH_SHAKE_MS }),
-                withTiming(4, { duration: DEATH_SHAKE_MS }),
-                withTiming(-3, { duration: DEATH_SHAKE_MS }),
-                withTiming(0, { duration: DEATH_SHAKE_MS + 10 }),
-              );
-            }
-            if (deathTimerRef.current) clearTimeout(deathTimerRef.current);
-            deathTimerRef.current = setTimeout(() => setDeathCell(null), DEATH_FREEZE_MS + 50);
-            scheduleEnd(END_DELAY_LOST_MS);
             break;
           }
           case 'win':
@@ -458,15 +462,7 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
             />
           ) : null}
           {popups.map((popup) => (
-            <Animated.View
-              key={popup.id}
-              entering={reduced ? FadeIn.duration(120) : FadeInUp.duration(160)}
-              exiting={FadeOut.duration(150)}
-              pointerEvents="none"
-              style={[styles.popup, { left: popup.x - 28, top: popup.y - 14 }]}
-            >
-              <Text style={[styles.popupText, { color: popup.color }]}>{popup.text}</Text>
-            </Animated.View>
+            <FloatingPopup key={popup.id} popup={popup} cellSize={cellSize} reduced={reduced} />
           ))}
         </Animated.View>
       ) : null}
@@ -503,23 +499,24 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
                 <View style={styles.pauseBar} />
               </View>
             </PressableScale>
-            {isTouch ? <SettingsButton onPress={() => setSettingsOpen(true)} /> : null}
+            <SettingsButton onPress={() => setSettingsOpen(true)} />
           </>
         }
       />
       {panGesture ? <GestureDetector gesture={panGesture}>{area}</GestureDetector> : area}
-      {isTouch ? (
-        <SettingsModal
-          visible={settingsOpen}
-          wrap={useSerpienteStore((s) => s.wrap)}
-          mode={controlMode}
-          ring={ringEnabled}
-          onChangeWrap={changeWrap}
-          onChangeMode={changeControlMode}
-          onChangeRing={changeRing}
-          onClose={() => setSettingsOpen(false)}
-        />
-      ) : null}
+      {/* B3: ajustes en TODAS las plataformas (D1: el borde es setting de
+          juego); las opciones de control táctil las gatea el propio modal. */}
+      <SettingsModal
+        visible={settingsOpen}
+        touch={isTouch}
+        wrap={wrap}
+        mode={controlMode}
+        ring={ringEnabled}
+        onChangeWrap={changeWrap}
+        onChangeMode={changeControlMode}
+        onChangeRing={changeRing}
+        onClose={() => setSettingsOpen(false)}
+      />
       {paused && status === 'playing' ? (
         <PauseOverlay onResume={() => useSerpienteStore.getState().togglePause()} />
       ) : null}
@@ -534,6 +531,38 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
         />
       ) : null}
     </View>
+  );
+}
+
+/**
+ * Popup de score con el `score-float` aprobado (D17/T5): entrada FadeInUp +
+ * deriva vertical en loop (como `BobbingPopup` del preview). Reduced motion:
+ * fade simple, sin deriva.
+ */
+function FloatingPopup({
+  popup,
+  cellSize,
+  reduced,
+}: {
+  popup: ScorePopup;
+  cellSize: number;
+  reduced: boolean;
+}) {
+  const y = useSharedValue(0);
+  useEffect(() => {
+    if (reduced) return;
+    y.value = withRepeat(withTiming(-cellSize * 0.35, { duration: 750 }), -1, true);
+  }, [y, cellSize, reduced]);
+  const bob = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
+  return (
+    <Animated.View
+      entering={reduced ? FadeIn.duration(120) : FadeInUp.duration(160)}
+      exiting={FadeOut.duration(150)}
+      pointerEvents="none"
+      style={[styles.popup, { left: popup.x - 28, top: popup.y - 14 }, bob]}
+    >
+      <Text style={[styles.popupText, { color: popup.color }]}>{popup.text}</Text>
+    </Animated.View>
   );
 }
 
