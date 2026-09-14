@@ -1,4 +1,4 @@
-import { useSerpienteStore, drainTickStats, setTickStatsEnabled } from '../engine/state';
+import { useSerpienteStore, drainTickStats, getStepProgress, setTickStatsEnabled } from '../engine/state';
 
 function store(): ReturnType<typeof useSerpienteStore.getState> {
   return useSerpienteStore.getState();
@@ -68,6 +68,23 @@ describe('store serpiente (T2)', () => {
     // acumulador) y la serpiente corría cada vez más rápido que D2.
     for (let i = 0; i < 10; i++) store().tick(150);
     expect(store().game.elapsedMs).toBe(10 * 140);
+  });
+
+  test('getStepProgress: fracción del paso en curso (D20)', () => {
+    expect(getStepProgress()).toBe(0);
+    // Mitad del paso (70/140): progreso 0.5, sin publish (estado intacto).
+    store().tick(70);
+    expect(store().game.elapsedMs).toBe(0);
+    expect(getStepProgress()).toBeCloseTo(0.5);
+    // Completa el paso: el sobrante vuelve a ~0.
+    store().tick(70);
+    expect(store().game.elapsedMs).toBe(140);
+    expect(getStepProgress()).toBeLessThan(0.01);
+    // Pausado: 0 (la interpolación no debe correr congelada).
+    store().tick(70);
+    store().togglePause();
+    expect(getStepProgress()).toBe(0);
+    store().togglePause();
   });
 
   test('pausar descarta el acumulado (sin tormenta al reanudar)', () => {

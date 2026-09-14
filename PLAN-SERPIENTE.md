@@ -413,7 +413,13 @@ el acumulador pasa a ser la única fuente de verdad del progreso).
   140) como regresión.
 - [x] D18: `arcAngles` puro + `SpecialRing` arco (Board) + preview + tests.
 - [x] D19: mids + glow en Board, convergencia preview, tests.
-- [ ] D20: interpolación cabeza+cola con `getStepProgress` + congelados.
+- [x] D20: interpolación cabeza+cola con `getStepProgress` + congelados.
+  **Notas**: la cola estática del paso que come es PREDECIBLE sin estado
+  extra (target === comida/especial → cola y su mid no se deslizan); el
+  delta de slide se normaliza a ±1 celda al cruzar el borde (wrap) para no
+  recorrer el tablero. Upstream de cada celda del cuerpo es estable por
+  identidad → memo: solo cabeza/cuello/cola re-renderizan por tick (igual
+  que antes de la interpolación). Reduced motion nunca escribe el progreso.
 - [ ] Verificación estándar: typecheck → test → e2e serpiente/responsive →
   perf render path (`EXPO_PUBLIC_PERF_METRICS=1`, presupuesto §9, seed
   `perf-long` con mids + interpolación). Punto de riesgo a medir:

@@ -10,6 +10,7 @@ import {
   advance,
   createGameState,
   setDirection as setDirectionRule,
+  stepMs,
   type GameState,
   type SerpienteEvent,
 } from './rules';
@@ -69,6 +70,17 @@ export function drainTickStats(): {
  * (aislamiento entre tests). D20 lo expone vía `getStepProgress()`.
  */
 let tickAccumMs = 0;
+
+/**
+ * D20: progreso del paso EN CURSO (0..1) para la interpolación del renderer.
+ * Es `tickAccumMs / stepMs(eaten)` — la misma alcancía del store, única
+ * fuente de verdad (D21). 0 si está pausado/terminado.
+ */
+export function getStepProgress(): number {
+  const { game, paused } = useSerpienteStore.getState();
+  if (paused || game.status !== 'playing') return 0;
+  return Math.min(1, Math.max(0, tickAccumMs) / stepMs(game.eaten));
+}
 
 export const useSerpienteStore = create<SerpienteStore>()((set, get) => ({
   game: createGameState(seedConfig(undefined)),

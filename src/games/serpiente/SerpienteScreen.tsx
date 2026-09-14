@@ -52,7 +52,7 @@ import {
   popupForEvent,
 } from './engine/feel';
 import { SPECIAL_EVERY, type SerpienteEvent } from './engine/rules';
-import { drainTickStats, setTickStatsEnabled, useSerpienteStore } from './engine/state';
+import { drainTickStats, getStepProgress, setTickStatsEnabled, useSerpienteStore } from './engine/state';
 
 const PREF_WRAP = 'serpiente.wrap';
 const PREF_CONTROL = 'serpiente.controlMode';
@@ -115,6 +115,9 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
   // Shake de muerte en UI-thread (reduced motion: sin shake).
   const shakeX = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
+  // D20: progreso del paso en curso (0..1), escrito por el loop rAF; el
+  // renderer interpola cabeza+cola en UI-thread (cero re-renders JS extra).
+  const stepProgress = useSharedValue(0);
 
   // Métricas: FPS UI thread (no-op con gate off) + sesión de resumen.
   usePerfFrameMonitor('serpiente');
@@ -140,6 +143,7 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     setDeathCell(null);
     hitStopUntilRef.current = 0;
     deathUntilRef.current = 0;
+    stepProgress.value = 0;
     shakeX.value = 0;
     if (endTimerRef.current) clearTimeout(endTimerRef.current);
     if (deathTimerRef.current) clearTimeout(deathTimerRef.current);
@@ -382,12 +386,18 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
           handleEvents(tickEvents);
         }
       }
+      // D20: interpolación — el progreso solo corre con partida activa y sin
+      // freeze (pausa/hit-stop/muerte lo dejan en su último valor: sin saltos
+      // de ida y vuelta); reduced motion nunca lo escribe (saltos discretos).
+      if (!store.paused && store.game.status === 'playing' && !frozen && !reduced) {
+        stepProgress.value = getStepProgress();
+      }
       if (rawDt > STALL_BUDGET_MS) perfJsStall('serpiente', rawDt);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [handleEvents]);
+  }, [handleEvents, reduced, stepProgress]);
 
   // --- teclado (PC web): flechas + WASD
   useEffect(() => {
@@ -480,7 +490,7 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
           {/* D-WW0: `render.board` (duración, solo profiling) + `renderFreq:*`
               (frecuencia, instrumentado). No-op con el gate apagado. */}
           <PerfProfiler gameId="serpiente" id="board">
-            <Board cellSize={cellSize} />
+            <Board cellSize={cellSize} stepProgress={stepProgress} />
           </PerfProfiler>
           {deathCell !== null ? (
             <View

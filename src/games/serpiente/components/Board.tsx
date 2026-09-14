@@ -11,7 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 import { perfRenderCount } from '@/core/perf';
-import { DIR_DELTA, GRID_COLS, GRID_ROWS, colOf, rowOf, toIndex, type Direction } from '../engine/grid';
+import { DIR_DELTA, GRID_COLS, GRID_ROWS, colOf, rowOf, stepIndex, toIndex, type Direction } from '../engine/grid';
 import { SPECIAL_TTL_MS } from '../engine/rules';
 import { useSerpienteStore } from '../engine/state';
 
@@ -81,6 +81,12 @@ interface SegmentProps {
   /** D4: identificador en `testID` (selectores E2E), NO en a11y — el lector
    * de pantalla no necesita 100 avisos del cuerpo. */
   testId: string;
+  /** D20: slide interpolado hacia el upstream (px por unidad de progreso).
+   * 0 para los segmentos estáticos. */
+  mDeltaX: number;
+  mDeltaY: number;
+  /** Progreso del paso en curso 0..1 (escrito desde el loop rAF). */
+  progress?: SharedValue<number>;
   children?: ReactNode;
 }
 
@@ -96,12 +102,21 @@ const SnakeSegment = memo(function SnakeSegment({
   pattern,
   amp,
   testId,
+  mDeltaX,
+  mDeltaY,
+  progress,
   children,
 }: SegmentProps) {
   perfRenderCount('serpiente', 'renderFreq:segmento');
   const style = useAnimatedStyle(() => {
     const off = Math.sin(phase.value - anchor * 0.5) * amp;
-    return { transform: [{ translateX: px * off }, { translateY: py * off }] };
+    const p = progress ? progress.value : 0;
+    return {
+      transform: [
+        { translateX: px * off + mDeltaX * p },
+        { translateY: py * off + mDeltaY * p },
+      ],
+    };
   });
   return (
     <Animated.View
@@ -141,13 +156,53 @@ function SnakeLayer({
   snake,
   cell,
   phase,
+  progress,
+  dirNext,
+  wrap,
+  foodCell,
+  specialCell,
 }: {
   snake: number[];
   cell: number;
   phase: SharedValue<number>;
+  /** D20: progreso del paso en curso (puede ser undefined en tests). */
+  progress?: SharedValue<number>;
+  /** Dirección del próximo paso (queued[0] manda, igual que el engine). */
+  dirNext: Direction;
+  wrap: boolean;
+  foodCell: number;
+  specialCell: number | null;
 }) {
   const n = snake.length;
   const centers = snake.map((s) => ({ x: (colOf(s) + 0.5) * cell, y: (rowOf(s) + 0.5) * cell }));
+  const centerOf = (c: number): { x: number; y: number } => ({
+    x: (colOf(c) + 0.5) * cell,
+    y: (rowOf(c) + 0.5) * cell,
+  });
+  /**
+   * D20: delta px de slide entre celdas ADYACENTES del cuerpo. Al cruzar el
+   * borde (wrap) el delta col/row salta a ±(N-1): se normaliza a ±1 para que
+   * el slide visual cruce el borde y no recorra el tablero.
+   */
+  const deltaPx = (from: number, to: number): { x: number; y: number } => {
+    let dc = colOf(to) - colOf(from);
+    let dr = rowOf(to) - rowOf(from);
+    if (dc > 1) dc -= GRID_COLS;
+    else if (dc < -1) dc += GRID_COLS;
+    if (dr > 1) dr -= GRID_ROWS;
+    else if (dr < -1) dr += GRID_ROWS;
+    return { x: dc * cell, y: dr * cell };
+  };
+  const ZERO = { x: 0, y: 0 };
+  // D20: destino del próximo paso. stepIndex < 0 = muro (sin wrap): la cabeza
+  // NO se interpola ese intervalo (descansa en su celda hasta morir).
+  const target = stepIndex(snake[0], dirNext, wrap);
+  const targetC = target >= 0 ? centerOf(target) : null;
+  // ¿El paso EN CURSO come? (predecible: el target es la comida/especial) —
+  // si come, la cola NO se retrae en este intervalo (stepOnce conserva cola).
+  const eats =
+    target >= 0 && (target === foodCell || (specialCell !== null && target === specialCell));
+
   const perpOf = (i: number): { x: number; y: number } => {
     const a = centers[Math.max(0, i - 1)];
     const b = centers[Math.min(n - 1, i + 1)];
@@ -197,15 +252,26 @@ function SnakeLayer({
   });
 
   // D19: cuerpo continuo como SlitherBody (preview) — segmento PUNTO MEDIO
-  // por par contiguo (posición/tamaño promedio, amp 0.12·cell). Identidad
-  // estable por PAR de celdas: el memo hace que por tick solo cambien los
-  // mids de cabeza/cola. Taper por rol (§9.2) se mantiene.
+  // por par contiguo (posición/tamaño promedio, amp 0.12·cell). Taper por
+  // rol (§9.2) se mantiene. D20: cada nodo (segmento O mid) se desliza hacia
+  // su upstream por `progress` — el cuerpo entero fluye con la cabeza.
   const roleSize = (i: number): number =>
     cell * (i === 0 ? HEAD_SIZE : i === n - 1 ? TAIL_SIZE : BODY_SIZE);
   const nodes: ReactNode[] = [];
   snake.forEach((s, i) => {
     const size = roleSize(i);
     const p = perpOf(i);
+    // Slide del segmento: cabeza → target; cuerpo → su upstream (celda i-1).
+    // Cola estática si este paso come (no se libera). Upstream estable por
+    // identidad de celda → memo: solo cabeza/cuello/cola re-renderizan/tick.
+    let mD;
+    if (i === 0) {
+      mD = targetC ? deltaPx(s, target) : ZERO;
+    } else if (i === n - 1 && eats) {
+      mD = ZERO;
+    } else {
+      mD = deltaPx(s, snake[i - 1]);
+    }
     nodes.push(
       <SnakeSegment
         key={`seg-${s}`}
@@ -220,6 +286,9 @@ function SnakeLayer({
         pattern={i !== 0 && i !== n - 1}
         amp={(i === 0 ? 0.04 : 0.1) * cell}
         testId={`serpiente-seg-${s}`}
+        mDeltaX={mD.x}
+        mDeltaY={mD.y}
+        progress={progress}
       >
         {i === 0 ? (
           <View accessibilityLabel="serpiente-cabeza" style={{ flex: 1 }}>
@@ -230,13 +299,20 @@ function SnakeLayer({
     );
     if (i > 0) {
       const prev = snake[i - 1];
+      const cur = { x: (centers[i].x + centers[i - 1].x) / 2, y: (centers[i].y + centers[i - 1].y) / 2 };
+      // Slide del mid: hacia el midpoint upstream (para i-1==0 el upstream
+      // virtual es el target: la cabellera se mantiene pegada a la cabeza).
+      const upA = centers[i - 1];
+      const upB = i - 1 === 0 ? (targetC ?? centers[0]) : centers[i - 2];
+      const mSlide =
+        i === n - 1 && eats ? ZERO : { x: (upA.x + upB.x) / 2 - cur.x, y: (upA.y + upB.y) / 2 - cur.y };
       nodes.push(
         <SnakeSegment
           key={`mid-${prev}-${s}`}
           phase={phase}
           anchor={(prev + s) / 2}
-          cx={(centers[i].x + centers[i - 1].x) / 2}
-          cy={(centers[i].y + centers[i - 1].y) / 2}
+          cx={cur.x}
+          cy={cur.y}
           px={p.x}
           py={p.y}
           size={((size + roleSize(i - 1)) / 2) * 0.98}
@@ -244,6 +320,9 @@ function SnakeLayer({
           pattern={false}
           amp={0.12 * cell}
           testId={`serpiente-mid-${prev}-${s}`}
+          mDeltaX={mSlide.x}
+          mDeltaY={mSlide.y}
+          progress={progress}
         />,
       );
     }
@@ -404,10 +483,18 @@ function threatAhead(snake: number[], dir: Direction, wrap: boolean): boolean {
   return false;
 }
 
-export function Board({ cellSize }: { cellSize: number }) {
+export function Board({
+  cellSize,
+  stepProgress,
+}: {
+  cellSize: number;
+  /** D20: progreso del paso en curso; opcional (tests/jest usan 0). */
+  stepProgress?: SharedValue<number>;
+}) {
   perfRenderCount('serpiente', 'renderFreq:board');
   const snake = useSerpienteStore((s) => s.game.snake);
   const dir = useSerpienteStore((s) => s.game.dir);
+  const queuedFirst = useSerpienteStore((s) => s.game.queued[0] ?? null);
   const wrap = useSerpienteStore((s) => s.game.wrap);
   const status = useSerpienteStore((s) => s.game.status);
   const food = useSerpienteStore((s) => s.game.food);
@@ -433,7 +520,16 @@ export function Board({ cellSize }: { cellSize: number }) {
       accessibilityLabel="tablero-serpiente"
     >
       <BoardGrid cell={cellSize} />
-      <SnakeLayer snake={snake} cell={cellSize} phase={phase} />
+      <SnakeLayer
+        snake={snake}
+        cell={cellSize}
+        phase={phase}
+        progress={stepProgress}
+        dirNext={queuedFirst ?? dir}
+        wrap={wrap}
+        foodCell={food}
+        specialCell={specialCell}
+      />
       <FoodDot food={food} cell={cellSize} />
       {specialCell !== null ? <SpecialRing cell={cellSize} at={specialCell} /> : null}
       {danger ? (
