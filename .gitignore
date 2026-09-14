@@ -56,3 +56,6 @@ example
 
 # scratch personal (no commitear)
 borrame/
+
+# skills locales de opencode
+.opencode/skills/
