@@ -412,7 +412,7 @@ el acumulador pasa a ser la única fuente de verdad del progreso).
   B lo arregla; test de cadencia nominal exacta (10×150 ms → 10 pasos de
   140) como regresión.
 - [x] D18: `arcAngles` puro + `SpecialRing` arco (Board) + preview + tests.
-- [ ] D19: mids + glow en Board, convergencia preview, tests.
+- [x] D19: mids + glow en Board, convergencia preview, tests.
 - [ ] D20: interpolación cabeza+cola con `getStepProgress` + congelados.
 - [ ] Verificación estándar: typecheck → test → e2e serpiente/responsive →
   perf render path (`EXPO_PUBLIC_PERF_METRICS=1`, presupuesto §9, seed

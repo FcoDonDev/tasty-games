@@ -196,38 +196,59 @@ function SnakeLayer({
     );
   });
 
-  return (
-    <>
-      {snake.map((s, i) => {
-        const head = i === 0;
-        const tail = i === n - 1;
-        const size = cell * (head ? HEAD_SIZE : tail ? TAIL_SIZE : BODY_SIZE);
-        const p = perpOf(i);
-        return (
-          <SnakeSegment
-            key={`seg-${s}`}
-            phase={phase}
-            anchor={s}
-            cx={centers[i].x}
-            cy={centers[i].y}
-            px={p.x}
-            py={p.y}
-            size={size}
-            color={head ? HEAD : BODY}
-            pattern={!head && !tail}
-            amp={(head ? 0.04 : 0.1) * cell}
-            testId={`serpiente-seg-${s}`}
-          >
-            {head ? (
-              <View accessibilityLabel="serpiente-cabeza" style={{ flex: 1 }}>
-                {eyes}
-              </View>
-            ) : null}
-          </SnakeSegment>
-        );
-      })}
-    </>
-  );
+  // D19: cuerpo continuo como SlitherBody (preview) — segmento PUNTO MEDIO
+  // por par contiguo (posición/tamaño promedio, amp 0.12·cell). Identidad
+  // estable por PAR de celdas: el memo hace que por tick solo cambien los
+  // mids de cabeza/cola. Taper por rol (§9.2) se mantiene.
+  const roleSize = (i: number): number =>
+    cell * (i === 0 ? HEAD_SIZE : i === n - 1 ? TAIL_SIZE : BODY_SIZE);
+  const nodes: ReactNode[] = [];
+  snake.forEach((s, i) => {
+    const size = roleSize(i);
+    const p = perpOf(i);
+    nodes.push(
+      <SnakeSegment
+        key={`seg-${s}`}
+        phase={phase}
+        anchor={s}
+        cx={centers[i].x}
+        cy={centers[i].y}
+        px={p.x}
+        py={p.y}
+        size={size}
+        color={i === 0 ? HEAD : BODY}
+        pattern={i !== 0 && i !== n - 1}
+        amp={(i === 0 ? 0.04 : 0.1) * cell}
+        testId={`serpiente-seg-${s}`}
+      >
+        {i === 0 ? (
+          <View accessibilityLabel="serpiente-cabeza" style={{ flex: 1 }}>
+            {eyes}
+          </View>
+        ) : null}
+      </SnakeSegment>,
+    );
+    if (i > 0) {
+      const prev = snake[i - 1];
+      nodes.push(
+        <SnakeSegment
+          key={`mid-${prev}-${s}`}
+          phase={phase}
+          anchor={(prev + s) / 2}
+          cx={(centers[i].x + centers[i - 1].x) / 2}
+          cy={(centers[i].y + centers[i - 1].y) / 2}
+          px={p.x}
+          py={p.y}
+          size={((size + roleSize(i - 1)) / 2) * 0.98}
+          color={BODY}
+          pattern={false}
+          amp={0.12 * cell}
+          testId={`serpiente-mid-${prev}-${s}`}
+        />,
+      );
+    }
+  });
+  return <>{nodes}</>;
 }
 
 const FoodDot = memo(function FoodDot({ food, cell }: { food: number; cell: number }) {
@@ -255,6 +276,11 @@ const FoodDot = memo(function FoodDot({ food, cell }: { food: number; cell: numb
           height: d,
           borderRadius: d / 2,
           backgroundColor: FOOD,
+          // D19: glow focalizado de la comida (como PulsingFood en la preview)
+          shadowColor: FOOD,
+          shadowOpacity: 0.9,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 0 },
         },
         style,
       ]}

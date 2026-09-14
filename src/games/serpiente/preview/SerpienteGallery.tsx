@@ -18,7 +18,7 @@ const VERSIONS = [
   {
     id: 'V2',
     title: 'V2 · Escamas arcade',
-    points: ['Cuerpo continuo con escamas, cero glow (más barato)', 'HUD flotante + chip violeta', 'Ojos direccionales + ring en el especial'],
+    points: ['Cuerpo continuo con escamas, glow focalizado (comida/especial)', 'HUD flotante + chip violeta', 'Ojos direccionales + ring que se consume (D18)'],
   },
   {
     id: 'V3',

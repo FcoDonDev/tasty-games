@@ -37,6 +37,9 @@ describe('Board serpiente (T3, §9.2)', () => {
     expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 10)}`)).toBeOnTheScreen();
     expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 9)}`)).toBeOnTheScreen();
     expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 8)}`)).toBeOnTheScreen();
+    // D19: midpoints de continuidad entre pares contiguos (par = [i-1, i]).
+    expect(screen.getByTestId(`serpiente-mid-${toIndex(10, 10)}-${toIndex(10, 9)}`)).toBeOnTheScreen();
+    expect(screen.getByTestId(`serpiente-mid-${toIndex(10, 9)}-${toIndex(10, 8)}`)).toBeOnTheScreen();
     expect(screen.getByLabelText('serpiente-comida')).toBeOnTheScreen();
   });
 
@@ -50,6 +53,9 @@ describe('Board serpiente (T3, §9.2)', () => {
     // Nueva cabeza en (10,11); la vieja cola (10,8) desapareció.
     expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 11)}`)).toBeOnTheScreen();
     expect(screen.queryByTestId(`serpiente-seg-${toIndex(10, 8)}`)).toBeNull();
+    // D19: el mid de la cola vieja se libera; los del cuerpo persisten.
+    expect(screen.getByTestId(`serpiente-mid-${toIndex(10, 11)}-${toIndex(10, 10)}`)).toBeOnTheScreen();
+    expect(screen.queryByTestId(`serpiente-mid-${toIndex(10, 9)}-${toIndex(10, 8)}`)).toBeNull();
     // El cuerpo conserva sus celdas.
     expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 10)}`)).toBeOnTheScreen();
     expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 9)}`)).toBeOnTheScreen();
