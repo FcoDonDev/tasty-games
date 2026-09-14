@@ -356,3 +356,67 @@ overhead: early-returns y el `PerfProfiler` ni siquiera monta).
     con solo 200 Views tintadas (las 200 transparentes fuera).
   - Quedan para el cierre (no código correctivo): M5 sync/etiqueta preview
     V2, M6 remainder híbrido → ROADMAP, M7 validación nativa → ROADMAP.
+
+## 10. Polish ronda 2 (2026-09-14, aprobado por el usuario)
+
+Motivación: cierre de pendientes del review + nueva decisión de fluidez
+(movimiento interpolado, al estilo WakWak). Todos los alcances aprobados
+explícitamente: ring solo arco, glow comida+especial, interpolación F2
+(cabeza+cola), remainderMs opción B (aplicado junto a la interpolación —
+el acumulador pasa a ser la única fuente de verdad del progreso).
+
+### Decisiones
+
+- **D18 · Ring consumiéndose**: fuera el texto "7s"; el anillo se depleta
+  como arco de progreso (fracción = `ttlMs / SPECIAL_TTL_MS`) con receta
+  de dos mitades + rotación (Views, sin SVG/Skia — ADR 0001). Granularidad
+  del publish (~140 ms) → salto ~2.8°/publish, invisible. Helper puro
+  `arcAngles(ttlMs)` para unit tests. `accessibilityLabel` anuncia los
+  segundos (el texto visible muere, el anuncio a11y queda). Reduced motion:
+  mismo arco (es estático por publish, sin loop). Converger la pieza en
+  `preview/fx.tsx` + caption de la galería.
+- **D19 · Cuerpo continuo + glow (acerca el render real a V2)**: segmento
+  PUNTO MEDIO por par contiguo (posición promedio, tamaño promedio de
+  vecinos ×0.98, amp 0.12·cell — igual que `SlitherBody` de la preview;
+  taper por rol §9.2 se mantiene). Glow focalizado: `FoodDot` ámbar +
+  punto del especial violeta (shadowRadius 8). Sin glow en cuerpo/cabeza
+  (V2). Mids con `testID` (D4: fuera de a11y), identidad estable por par
+  de celdas → memo: solo cabeza/cola generan/eliminan mids por tick.
+- **D20 · Movimiento interpolado F2 (cabeza + cola)**: engine intacto
+  (saltos discretos D8); el renderer desliza en UI-thread con Reanimated.
+  Cabeza: `lerp(celda → stepIndex(cabeza, dir), progreso)` — al publicar
+  el paso, la celda destino pasa a ser la lógica: continuidad sin saltos.
+  Cola: `lerp(cola → snake[n-2], progreso)`; si la serpiente creció (comió)
+  la cola no se retrae (delta de longitud en el renderer). Progreso:
+  `getStepProgress()` = `tickAccumMs / stepMs(eaten)` escrito en un
+  SharedValue desde el loop rAF existente (cero re-renders JS extra);
+  congelado en pausa / hit-stop / muerte; reduced motion → saltos como
+  hoy. testIDs/labels anclados a la celda LÓGICA (E2E `readHeadCell`
+  intacto).
+- **D21 · remainderMs opción B**: `advance` devuelve
+  `{ state, events, leftoverMs }`; fuera el campo `remainderMs` del
+  GameState; `store.tick` guarda `leftoverMs` en `tickAccumMs`. Engine
+  autocontenido (portable), GameState sin campo "a medias", y el
+  acumulador alimenta D20.
+- **Validación nativa**: sin cambios — sigue documentada en
+  ROADMAP/README como hasta ahora (deuda conocida, no trabajo de este
+  lote).
+
+### Checklist
+
+- [x] D21: `advance` → `leftoverMs`, store/GameState/tests ajustados.
+  **Hallazgo**: el híbrido previo contaba el sobrante DOS veces tras cada
+  publish (`advance` sumaba `state.remainderMs + tickAccumMs`, y el store ya
+  tenía el sobrante en `tickAccumMs`) → la serpiente corría levemente más
+  rápido que el D2 nominal (error ~leftover/paso, hasta ~10-20%). La opción
+  B lo arregla; test de cadencia nominal exacta (10×150 ms → 10 pasos de
+  140) como regresión.
+- [ ] D18: `arcAngles` puro + `SpecialRing` arco (Board) + preview + tests.
+- [ ] D19: mids + glow en Board, convergencia preview, tests.
+- [ ] D20: interpolación cabeza+cola con `getStepProgress` + congelados.
+- [ ] Verificación estándar: typecheck → test → e2e serpiente/responsive →
+  perf render path (`EXPO_PUBLIC_PERF_METRICS=1`, presupuesto §9, seed
+  `perf-long` con mids + interpolación). Punto de riesgo a medir:
+  duplicación de Views del cuerpo (~800 en victoria).
+- [ ] Docs de cierre: README/RULES del juego (sección render), caption de
+  preview, hallazgos → GOTCHAS/ROADMAP, PLAN eliminado en el commit final.

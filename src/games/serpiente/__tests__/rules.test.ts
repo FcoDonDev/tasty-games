@@ -198,16 +198,20 @@ describe('rules serpiente', () => {
     expect(next.score).toBe(3990 + SCORE_FOOD + 2);
   });
 
-  test('tope 8 pasos por frame (anti-espiral)', () => {
+  test('tope 8 pasos por frame (anti-espiral) y sobrante en leftoverMs (D21)', () => {
     const state = createGameState({ rngSeed: 7, wrap: true, food: toIndex(0, 0) });
-    const { state: next } = advance(state, 100000);
+    const { state: next, leftoverMs } = advance(state, 100000);
     expect(next.elapsedMs).toBe(8 * 140);
-    expect(next.remainderMs).toBe(100000 - 8 * 140);
+    expect(leftoverMs).toBe(100000 - 8 * 140);
   });
 
-  test('sin pasos pendientes devuelve la misma referencia', () => {
+  test('sin pasos pendientes devuelve la misma referencia (con leftover informado)', () => {
     const state = createGameState({ rngSeed: 7 });
     expect(advance(state, 0).state).toBe(state);
+    // D21: aún sin paso, el sobrante sale en leftoverMs (el llamador acumula).
+    const noStep = advance(state, 100);
+    expect(noStep.state).toBe(state);
+    expect(noStep.leftoverMs).toBe(100);
     const dead: GameState = { ...state, status: 'lost' };
     expect(advance(dead, 5000).state).toBe(dead);
   });

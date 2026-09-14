@@ -60,12 +60,13 @@ export function drainTickStats(): {
 }
 
 /**
- * Acumulador de fracciones de ms entre frames (D8/§9.3): `advance` solo
- * persiste `remainderMs` cuando corre ≥1 paso, así que el resto lo acumula el
- * store. Sin esto, frames de 16 ms contra pasos de 140 ms jamás avanzarían.
- * Se publica (`set()`) solo cuando el juego cambia: cero re-renders por
- * frames sin paso. Se descarta al pausar/terminar (sin tormenta al reanudar)
- * y al iniciar una run (aislamiento entre tests).
+ * Acumulador de fracciones de ms entre frames (D8/D21): `advance` consume
+ * `dtMs` en pasos y devuelve el sobrante (`leftoverMs`) — el store es la
+ * ÚNICA fuente de verdad del tiempo fraccionario (D21). Sin esto, frames de
+ * 16 ms contra pasos de 140 ms jamás avanzarían. Se publica (`set()`) solo
+ * cuando el juego cambia: cero re-renders por frames sin paso. Se descarta
+ * al pausar/terminar (sin tormenta al reanudar) y al iniciar una run
+ * (aislamiento entre tests). D20 lo expone vía `getStepProgress()`.
  */
 let tickAccumMs = 0;
 
@@ -102,8 +103,10 @@ export const useSerpienteStore = create<SerpienteStore>()((set, get) => ({
       if (advanceSamples.length >= MAX_TICK_SAMPLES) advanceSamples.shift();
       advanceSamples.push(performance.now() - t0);
     }
+    // D21: el sobrante es SIEMPRE del resultado (publicado o no); así el
+    // acumulador no se cuenta doble contra un campo del estado.
+    tickAccumMs = result.leftoverMs;
     if (result.state !== game) {
-      tickAccumMs = result.state.remainderMs;
       if (collect) tickPublished += 1;
       set(() => ({ game: result.state }));
     }

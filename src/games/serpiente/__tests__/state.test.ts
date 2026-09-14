@@ -62,6 +62,14 @@ describe('store serpiente (T2)', () => {
     expect(store().game.elapsedMs).toBe(140);
   });
 
+  test('cadencia nominal exacta (regresión: el sobrante no se cuenta doble, D21)', () => {
+    // Ciclos de 150 ms (10 de sobrante por paso de 140): 10 ticks → 10 pasos.
+    // Con el bug pre-D21 el sobrante se sumaba dos veces (state.remainderMs +
+    // acumulador) y la serpiente corría cada vez más rápido que D2.
+    for (let i = 0; i < 10; i++) store().tick(150);
+    expect(store().game.elapsedMs).toBe(10 * 140);
+  });
+
   test('pausar descarta el acumulado (sin tormenta al reanudar)', () => {
     store().tick(100);
     const before = store().game;

@@ -53,7 +53,6 @@ export interface GameState {
   eaten: number;
   score: number;
   elapsedMs: number;
-  remainderMs: number;
   wrap: boolean;
   status: GameStatus;
   /** Estado serializable del PRNG (sin closures). */
@@ -156,7 +155,6 @@ export function createGameState(config: SerpienteConfig = {}): GameState {
     eaten: config.eaten ?? 0,
     score: config.score ?? 0,
     elapsedMs: 0,
-    remainderMs: 0,
     wrap: config.wrap ?? true,
     status: 'playing',
     rngSeed,
@@ -244,28 +242,29 @@ function stepOnce(state: GameState): { state: GameState; events: SerpienteEvent[
 }
 
 /**
- * Núcleo puro con ticks fijos (D8): acumula `dtMs` en `remainderMs` y avanza
- * de a `stepMs(eaten)` con tope `MAX_STEPS_PER_FRAME` por llamada. Sin pasos
- * pendientes devuelve la MISMA referencia (el store no publica).
- *
- * Contrato de `remainderMs`: solo se persiste cuando corre ≥1 paso. Con un dt
- * menor al paso (p. ej. frames de 16 ms vs paso de 140 ms) NO acumula: la
- * acumulación vive en el llamador (`store.tick`), que así publica solo cuando
- * el juego cambia (§9.1) en vez de un set() por frame.
+ * Núcleo puro con ticks fijos (D8, D21): consume `dtMs` en pasos de
+ * `stepMs(eaten)` (tope `MAX_STEPS_PER_FRAME`) y devuelve el sobrante en
+ * `leftoverMs` — la acumulación de fracciones de frame vive SOLO en el
+ * llamador (`store.tick`): frames de 16 ms contra pasos de 140 ms suman
+ * hasta completar un paso. Sin pasos devuelve la MISMA referencia (el store
+ * no publica) pero siempre informa `leftoverMs`.
  */
-export function advance(state: GameState, dtMs: number): { state: GameState; events: SerpienteEvent[] } {
-  if (state.status !== 'playing') return { state, events: [] };
+export function advance(
+  state: GameState,
+  dtMs: number,
+): { state: GameState; events: SerpienteEvent[]; leftoverMs: number } {
+  if (state.status !== 'playing') return { state, events: [], leftoverMs: Math.max(0, dtMs) };
   const events: SerpienteEvent[] = [];
   let current = state;
-  let remainder = current.remainderMs + Math.max(0, dtMs);
+  let leftover = Math.max(0, dtMs);
   let guard = 0;
-  while (current.status === 'playing' && remainder >= stepMs(current.eaten) && guard < MAX_STEPS_PER_FRAME) {
-    remainder -= stepMs(current.eaten);
+  while (current.status === 'playing' && leftover >= stepMs(current.eaten) && guard < MAX_STEPS_PER_FRAME) {
+    leftover -= stepMs(current.eaten);
     const result = stepOnce(current);
     events.push(...result.events);
     current = result.state;
     guard += 1;
   }
-  if (current === state) return { state, events };
-  return { state: { ...current, remainderMs: remainder }, events };
+  if (current === state) return { state, events: [], leftoverMs: leftover };
+  return { state: current, events, leftoverMs: leftover };
 }
