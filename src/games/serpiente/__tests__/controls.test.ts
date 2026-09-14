@@ -34,6 +34,8 @@ describe('controls serpiente', () => {
     expect(swipeToDirection(5, 5)).toBeUndefined();
     expect(swipeToDirection(SWIPE_MIN_DISTANCE, 0)).toBe('right');
     expect(swipeToDirection(SWIPE_MIN_DISTANCE - 1, 0)).toBeUndefined();
+    // Diagonal perfecta: empate → vertical (homologado con WakWak).
+    expect(swipeToDirection(50, 50)).toBe('down');
   });
 
   test('gesto flotante: emite al cruzar el umbral y re-centra', () => {
@@ -48,9 +50,9 @@ describe('controls serpiente', () => {
     // Perpendicular inmediata con un mini-swipe (histéresis fresca).
     drag = updateFloatingDrag(drag, drag.ox, drag.oy + FLOAT_THRESHOLD);
     expect(drag.dir).toBe('down');
-    // Diagonal: eje dominante (empate → horizontal, igual que swipe).
+    // Diagonal: eje dominante (empate → vertical, homologado con WakWak).
     drag = beginFloatingDrag(0, 0);
     drag = updateFloatingDrag(drag, 50, 50);
-    expect(drag.dir).toBe('right');
+    expect(drag.dir).toBe('down');
   });
 });

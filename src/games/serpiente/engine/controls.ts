@@ -28,9 +28,12 @@ export const SWIPE_MIN_DISTANCE = 24;
 /** Umbral del gesto flotante (re-centrado por commit). */
 export const FLOAT_THRESHOLD = 24;
 
-/** Eje dominante del delta (empate → vertical). */
+/**
+ * Eje dominante del delta. Empate de diagonal → VERTICAL, homologado con
+ * WakWak (`controls.ts`, mismo criterio `|dx| > |dy|`).
+ */
 function dominantDirection(dx: number, dy: number): Direction {
-  return Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
 }
 
 /** Desplazamiento (dx, dy) en px → dirección dominante, o `undefined`. */

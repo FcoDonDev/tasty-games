@@ -99,6 +99,8 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
   const deathUntilRef = useRef(0);
   const endTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deathTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** D3: la pausa la puso ABRIR ajustes (para reanudar sola al cerrar). */
+  const autoPausedRef = useRef(false);
 
   const paused = useSerpienteStore((s) => s.paused);
   const status = useSerpienteStore((s) => s.game.status);
@@ -225,6 +227,27 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
   const changeRing = useCallback((ring: boolean) => {
     setRingEnabled(ring);
     void preferencesRepository.set(PREF_RING, ring ? '1' : '0');
+  }, []);
+
+  // --- D3: abrir ajustes pausa la partida (sin inputs accidentales mientras
+  // se configura); si la pausa la puso el modal, se reanuda sola al cerrar.
+  const openSettings = useCallback(() => {
+    const store = useSerpienteStore.getState();
+    if (store.game.status === 'playing' && !store.paused) {
+      store.togglePause();
+      autoPausedRef.current = true;
+    } else {
+      autoPausedRef.current = false;
+    }
+    setSettingsOpen(true);
+  }, []);
+
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
+    if (!autoPausedRef.current) return;
+    autoPausedRef.current = false;
+    const store = useSerpienteStore.getState();
+    if (store.paused && store.game.status === 'playing') store.togglePause();
   }, []);
 
   // --- popup de score (D17 `score-float`): spawn discreto por evento, cap 5
@@ -499,7 +522,7 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
                 <View style={styles.pauseBar} />
               </View>
             </PressableScale>
-            <SettingsButton onPress={() => setSettingsOpen(true)} />
+            <SettingsButton onPress={openSettings} />
           </>
         }
       />
@@ -515,9 +538,9 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
         onChangeWrap={changeWrap}
         onChangeMode={changeControlMode}
         onChangeRing={changeRing}
-        onClose={() => setSettingsOpen(false)}
+        onClose={closeSettings}
       />
-      {paused && status === 'playing' ? (
+      {paused && status === 'playing' && !settingsOpen ? (
         <PauseOverlay onResume={() => useSerpienteStore.getState().togglePause()} />
       ) : null}
       {endVisible ? (

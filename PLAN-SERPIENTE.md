@@ -341,8 +341,9 @@ overhead: early-returns y el `PerfProfiler` ni siquiera monta).
     (prop `touch`); RULES.md actualizado; E2E de escritorio nuevo.
   - **D-a** popup alineado al `score-float` aprobado (deriva en loop,
     `FloatingPopup`); reduced motion: fade sin deriva.
-  - Pendiente de decisión del usuario (no tocado): D2 tie-break diagonal
-    (hoy horizontal, WakWak vertical), D3 auto-pausa al abrir ajustes, D4
-    a11y de segmentos (labels→testID). P2 anotado para el cierre (prime
-    selectivo, timers popup, clip texto ring, grid 200 views, sync preview
-    V2, remainder híbrido, validación nativa).
+  - **D2 resuelto (2026-09-14)**: tie-break de diagonal homologado con WakWak
+    (`|dx| > |dy|`, empate → vertical); tests actualizados.
+  - **D3 resuelto (2026-09-14)**: abrir ajustes pausa la partida y (si la
+    pausa la puso el modal) se reanuda sola al cerrar; PauseOverlay oculto
+    mientras el modal está abierto (conflicto zIndex 60); E2E candea
+    congelamiento + reanudación.

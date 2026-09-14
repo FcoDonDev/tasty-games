@@ -162,19 +162,25 @@ test('serpiente: Home → jugar → salir', async ({ page }) => {
   await expect(page.getByText('Tasty Games')).toBeVisible();
 });
 
-test('serpiente: ajustes visibles en PC y el borde persiste (D1 sin gate táctil)', async ({ page }) => {
+test('serpiente: ajustes visibles en PC, auto-pausa y el borde persiste (D1/D3)', async ({ page }) => {
   test.setTimeout(30_000);
   await openGame(page);
 
   await page.getByLabel('serpiente-ajustes', { exact: true }).click();
   const modal = page.getByLabel('modal-ajustes-serpiente', { exact: true });
   await expect(modal).toBeVisible();
+  // D3: abrir ajustes pausa la partida (cabeza congelada).
+  const frozen = await headCell(page);
+  await page.waitForTimeout(1200);
+  expect(await headCell(page)).toBe(frozen);
   await expect(modal.getByLabel('serpiente-wrap', { exact: true })).toBeVisible();
   // Sin emulación táctil NO existen las opciones de control (solo wrap).
   await expect(modal.getByLabel('serpiente-modo-gestos', { exact: true })).toHaveCount(0);
   await page.getByLabel('serpiente-wrap', { exact: true }).click();
   await page.getByLabel('cerrar-ajustes-serpiente', { exact: true }).click();
   await expect(modal).toBeHidden();
+  // D3: la pausa la puso el modal → se reanuda sola al cerrar.
+  await expect.poll(async () => headCell(page), { timeout: 10_000 }).not.toBe(frozen);
 
   await expect
     .poll(async () =>
