@@ -180,24 +180,29 @@ function SnakeLayer({
     y: (rowOf(c) + 0.5) * cell,
   });
   /**
-   * D20: delta px de slide entre celdas ADYACENTES del cuerpo. Al cruzar el
-   * borde (wrap) el delta col/row salta a ±(N-1): se normaliza a ±1 para que
-   * el slide visual cruce el borde y no recorra el tablero.
+   * D20: delta px de slide entre celdas ADYACENTES del cuerpo. Si el par
+   * CRUZA la costura del wrap (delta crudo ±(N-1)), el nodo DESCANSA ese
+   * intervalo (delta 0): interpolar lo haría salir por un borde y "desarmar"
+   * la serpiente (hallazgo del usuario 2026-09-14). El nodo teletransporta
+   * al publicar el paso — salto discreto localizado en la costura, como
+   * WakWak en los túneles.
    */
   const deltaPx = (from: number, to: number): { x: number; y: number } => {
-    let dc = colOf(to) - colOf(from);
-    let dr = rowOf(to) - rowOf(from);
-    if (dc > 1) dc -= GRID_COLS;
-    else if (dc < -1) dc += GRID_COLS;
-    if (dr > 1) dr -= GRID_ROWS;
-    else if (dr < -1) dr += GRID_ROWS;
+    const dc = colOf(to) - colOf(from);
+    const dr = rowOf(to) - rowOf(from);
+    if (Math.abs(dc) > 1 || Math.abs(dr) > 1) return ZERO;
     return { x: dc * cell, y: dr * cell };
   };
+  const isCrossing = (from: number, to: number): boolean =>
+    Math.abs(colOf(to) - colOf(from)) > 1 || Math.abs(rowOf(to) - rowOf(from)) > 1;
   const ZERO = { x: 0, y: 0 };
   // D20: destino del próximo paso. stepIndex < 0 = muro (sin wrap): la cabeza
   // NO se interpola ese intervalo (descansa en su celda hasta morir).
   const target = stepIndex(snake[0], dirNext, wrap);
   const targetC = target >= 0 ? centerOf(target) : null;
+  // ¿La cabeza cruza la costura en este paso? Su mid del cuello también
+  // descansa (el midpoint virtual cabeza→target no existe en el tablero).
+  const headCrosses = target >= 0 && isCrossing(snake[0], target);
   // ¿El paso EN CURSO come? (predecible: el target es la comida/especial) —
   // si come, la cola NO se retrae en este intervalo (stepOnce conserva cola).
   const eats =
@@ -255,10 +260,13 @@ function SnakeLayer({
   // por par contiguo (posición/tamaño promedio, amp 0.12·cell). Taper por
   // rol (§9.2) se mantiene. D20: cada nodo (segmento O mid) se desliza hacia
   // su upstream por `progress` — el cuerpo entero fluye con la cabeza.
+  // Z-order (hallazgo del usuario 2026-09-14): se itera COLA→CABEZA igual
+  // que SlitherBody para que la cabeza quede ENCIMA del cuello y su mid.
   const roleSize = (i: number): number =>
     cell * (i === 0 ? HEAD_SIZE : i === n - 1 ? TAIL_SIZE : BODY_SIZE);
   const nodes: ReactNode[] = [];
-  snake.forEach((s, i) => {
+  for (let i = n - 1; i >= 0; i--) {
+    const s = snake[i];
     const size = roleSize(i);
     const p = perpOf(i);
     // Slide del segmento: cabeza → target; cuerpo → su upstream (celda i-1).
@@ -297,15 +305,22 @@ function SnakeLayer({
         ) : null}
       </SnakeSegment>,
     );
-    if (i > 0) {
+    // Mid de continuidad solo para pares IN-BOARD: un par que cruza la
+    // costura del wrap tendría su midpoint en el centro del tablero
+    // (promedio de bordes opuestos) — ahí la costura muestra un hueco.
+    if (i > 0 && !isCrossing(snake[i - 1], s)) {
       const prev = snake[i - 1];
       const cur = { x: (centers[i].x + centers[i - 1].x) / 2, y: (centers[i].y + centers[i - 1].y) / 2 };
       // Slide del mid: hacia el midpoint upstream (para i-1==0 el upstream
       // virtual es el target: la cabellera se mantiene pegada a la cabeza).
+      // Si la cabeza cruza la costura, ese midpoint virtual no existe: descansa.
       const upA = centers[i - 1];
       const upB = i - 1 === 0 ? (targetC ?? centers[0]) : centers[i - 2];
+      const neckMidFrozen = i === 1 && headCrosses;
       const mSlide =
-        i === n - 1 && eats ? ZERO : { x: (upA.x + upB.x) / 2 - cur.x, y: (upA.y + upB.y) / 2 - cur.y };
+        (i === n - 1 && eats) || neckMidFrozen
+          ? ZERO
+          : { x: (upA.x + upB.x) / 2 - cur.x, y: (upA.y + upB.y) / 2 - cur.y };
       nodes.push(
         <SnakeSegment
           key={`mid-${prev}-${s}`}
@@ -326,7 +341,7 @@ function SnakeLayer({
         />,
       );
     }
-  });
+  }
   return <>{nodes}</>;
 }
 

@@ -420,6 +420,16 @@ el acumulador pasa a ser la única fuente de verdad del progreso).
   recorrer el tablero. Upstream de cada celda del cuerpo es estable por
   identidad → memo: solo cabeza/cuello/cola re-renderizan por tick (igual
   que antes de la interpolación). Reduced motion nunca escribe el progreso.
+  **Fix del usuario (2026-09-14)**: al cruzar la costura del wrap la
+  serpiente "se desarmaba": (1) el slide normalizado hacía que la cabeza
+  saliera por un borde y reapareciera del otro — ahora un nodo cuyo par
+  (nodo→upstream) cruza la costura DESCANSA ese intervalo y teletransporta
+  al publicar el paso (salto discreto localizado, estilo túneles de WakWak);
+  (2) el mid de un par wrapped-adjacente caía en el CENTRO del tablero
+  (promedio de bordes opuestos) — los pares que cruzan la costura no
+  renderizan mid (hueco en la costura). (3) Z-order: la iteración era
+  cabeza-primero → el cuello pintaba ENCIMA de la cabeza; ahora cola→
+  cabeza como `SlitherBody` (cabeza encima del cuello y su mid).
 - [x] Verificación estándar: typecheck → test → e2e serpiente/responsive →
   perf render path (`EXPO_PUBLIC_PERF_METRICS=1`, presupuesto §9, seed
   `perf-long` con mids + interpolación). Punto de riesgo a medir:

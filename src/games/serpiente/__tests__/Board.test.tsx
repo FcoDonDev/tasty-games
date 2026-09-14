@@ -61,6 +61,24 @@ describe('Board serpiente (T3, §9.2)', () => {
     expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 9)}`)).toBeOnTheScreen();
   });
 
+  it('cuerpo que cruza la costura del wrap: sin mid en el par cruzado (D20-fix)', async () => {
+    const view = await render(<Board cellSize={10} />);
+    // Cabeza ya cruzada: (5,0) con cuello en (5,19) — par wrapped-adjacente.
+    useSerpienteStore.setState({
+      game: {
+        ...useSerpienteStore.getState().game,
+        snake: [toIndex(5, 0), toIndex(5, 19), toIndex(5, 18)],
+        dir: 'right',
+        queued: [],
+      },
+    });
+    await view.rerender(<Board cellSize={10} />);
+    // El mid del par cruzado NO existe (su promedio caería en el centro).
+    expect(screen.queryByTestId(`serpiente-mid-${toIndex(5, 0)}-${toIndex(5, 19)}`)).toBeNull();
+    // El mid del cuerpo in-board sigue (key = par [upstream, propio]).
+    expect(screen.getByTestId(`serpiente-mid-${toIndex(5, 19)}-${toIndex(5, 18)}`)).toBeOnTheScreen();
+  });
+
   it('sin especial no hay ring; con 5 comidas aparece', async () => {
     const view = await render(<Board cellSize={10} />);
     expect(screen.queryByLabelText('serpiente-especial')).toBeNull();
