@@ -99,6 +99,8 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
   const deathUntilRef = useRef(0);
   const endTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deathTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Timers de limpieza de popups (P2/M2): se cancelan al desmontar. */
+  const popupTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   /** D3: la pausa la puso ABRIR ajustes (para reanudar sola al cerrar). */
   const autoPausedRef = useRef(false);
 
@@ -149,18 +151,26 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     restart();
   }, [restart]);
 
-  // --- limpieza de timers al desmontar
+  // --- limpieza de timers al desmontar (incluye los de popups: P2/M2, evita
+  // setState tras desmontar si se sale de la partida justo al aparecer uno)
   useEffect(
     () => () => {
       if (endTimerRef.current) clearTimeout(endTimerRef.current);
       if (deathTimerRef.current) clearTimeout(deathTimerRef.current);
+      for (const timer of popupTimersRef.current) clearTimeout(timer);
+      popupTimersRef.current = [];
     },
     [],
   );
 
-  // --- prime de audio en idle (GOTCHAS): el primer play no paga la creación
+  // --- prime de audio en idle (GOTCHAS): el primer play no paga la creación.
+  // Selectivo (P2/M1): solo los 4 players que usa serpiente; `soundCombo`
+  // reutiliza el player de `pickup` (no hay id 'combo').
   useEffect(() => {
-    const id = setTimeout(() => primeAudioPlayers(), 0);
+    const id = setTimeout(
+      () => primeAudioPlayers(['pickup', 'powerUp', 'explosion', 'gameWin']),
+      0,
+    );
     return () => clearTimeout(id);
   }, []);
 
@@ -267,7 +277,11 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
         color,
       },
     ]);
-    setTimeout(() => setPopups((prev) => prev.filter((p) => p.id !== id)), 800);
+    const timer = setTimeout(() => {
+      setPopups((prev) => prev.filter((p) => p.id !== id));
+      popupTimersRef.current = popupTimersRef.current.filter((t) => t !== timer);
+    }, 800);
+    popupTimersRef.current.push(timer);
   }, []);
 
   // --- fin de partida: récord una sola vez + overlay diferido

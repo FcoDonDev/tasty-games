@@ -347,3 +347,12 @@ overhead: early-returns y el `PerfProfiler` ni siquiera monta).
     pausa la puso el modal) se reanuda sola al cerrar; PauseOverlay oculto
     mientras el modal está abierto (conflicto zIndex 60); E2E candea
     congelamiento + reanudación.
+  - **D4 + P2 resueltos (2026-09-14)**: D4 segmentos por `testID` (a11y solo
+    cabeza/comida/especial/tablero; RNW → `data-testid`, E2E lee data-testid);
+    M1 prime selectivo (`['pickup','powerUp','explosion','gameWin']` —
+    `soundCombo` reutiliza pickup, no hay id 'combo'); M2 timers de popups
+    cancelados al desmontar (ref array); M3 texto del ring a `ring - 16`
+    (dentro del contenedor — el clip real era en la última fila); M4 damero
+    con solo 200 Views tintadas (las 200 transparentes fuera).
+  - Quedan para el cierre (no código correctivo): M5 sync/etiqueta preview
+    V2, M6 remainder híbrido → ROADMAP, M7 validación nativa → ROADMAP.

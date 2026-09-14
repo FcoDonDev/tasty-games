@@ -13,9 +13,10 @@ describe('Board serpiente (T3, §9.2)', () => {
     await render(<Board cellSize={10} />);
     expect(screen.getByLabelText('tablero-serpiente')).toBeOnTheScreen();
     expect(screen.getByLabelText('serpiente-cabeza')).toBeOnTheScreen();
-    expect(screen.getByLabelText(`serpiente-seg-${toIndex(10, 10)}`)).toBeOnTheScreen();
-    expect(screen.getByLabelText(`serpiente-seg-${toIndex(10, 9)}`)).toBeOnTheScreen();
-    expect(screen.getByLabelText(`serpiente-seg-${toIndex(10, 8)}`)).toBeOnTheScreen();
+    // D4: los segmentos viven en testID (a11y solo cabeza/comida/tablero).
+    expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 10)}`)).toBeOnTheScreen();
+    expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 9)}`)).toBeOnTheScreen();
+    expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 8)}`)).toBeOnTheScreen();
     expect(screen.getByLabelText('serpiente-comida')).toBeOnTheScreen();
   });
 
@@ -27,11 +28,11 @@ describe('Board serpiente (T3, §9.2)', () => {
     useSerpienteStore.getState().tick(140);
     await view.rerender(<Board cellSize={10} />);
     // Nueva cabeza en (10,11); la vieja cola (10,8) desapareció.
-    expect(screen.getByLabelText(`serpiente-seg-${toIndex(10, 11)}`)).toBeOnTheScreen();
-    expect(screen.queryByLabelText(`serpiente-seg-${toIndex(10, 8)}`)).toBeNull();
+    expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 11)}`)).toBeOnTheScreen();
+    expect(screen.queryByTestId(`serpiente-seg-${toIndex(10, 8)}`)).toBeNull();
     // El cuerpo conserva sus celdas.
-    expect(screen.getByLabelText(`serpiente-seg-${toIndex(10, 10)}`)).toBeOnTheScreen();
-    expect(screen.getByLabelText(`serpiente-seg-${toIndex(10, 9)}`)).toBeOnTheScreen();
+    expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 10)}`)).toBeOnTheScreen();
+    expect(screen.getByTestId(`serpiente-seg-${toIndex(10, 9)}`)).toBeOnTheScreen();
   });
 
   it('sin especial no hay ring; con 5 comidas aparece', async () => {

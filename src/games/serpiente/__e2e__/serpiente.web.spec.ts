@@ -22,6 +22,7 @@ async function openGame(page: Page, seed?: string): Promise<void> {
 
 /**
  * Celda de la cabeza: el segmento ancestro lleva `serpiente-seg-<celda>`.
+ * D4: los segmentos usan `testID` (RNW → `data-testid`), no aria-label.
  * Lectura ATÓMICA en un solo evaluate sobre el tablero (estable): resolver el
  * locator y leer en dos pasos pierde la carrera contra los ticks de React
  * (cada 140 ms el nodo se reemplaza y el desatachado pierde sus ancestros —
@@ -30,8 +31,8 @@ async function openGame(page: Page, seed?: string): Promise<void> {
 async function readHeadCell(page: Page): Promise<number | null> {
   return page.getByLabel('tablero-serpiente', { exact: true }).evaluate((board) => {
     const head = board.querySelector('[aria-label="serpiente-cabeza"]');
-    const seg = head?.closest('[aria-label^="serpiente-seg-"]');
-    const match = seg?.getAttribute('aria-label')?.match(/serpiente-seg-(\d+)/);
+    const seg = head?.closest('[data-testid^="serpiente-seg-"]');
+    const match = seg?.getAttribute('data-testid')?.match(/serpiente-seg-(\d+)/);
     return match ? Number(match[1]) : null;
   });
 }
@@ -57,12 +58,11 @@ test('serpiente: flechas cambian la dirección (cabeza baja con ArrowDown)', asy
 
   const before = await headCell(page);
   await page.keyboard.press('ArrowDown');
+  // Poll por FILA: un `not.toBe(cell)` se resuelve con un avance a la derecha
+  // (dirección default) antes de que el giro se aplique (buffer de 1 tick).
   await expect
-    .poll(async () => headCell(page), { timeout: 10_000 })
-    .not.toBe(before);
-  const after = await headCell(page);
-  // Bajó al menos una fila (misma columna o giro posterior, pero avanzó).
-  expect(rowOf(after)).toBeGreaterThan(rowOf(before));
+    .poll(async () => rowOf(await headCell(page)), { timeout: 10_000 })
+    .toBeGreaterThan(rowOf(before));
 });
 
 test('serpiente: WASD también dirige (s = abajo)', async ({ page }) => {
@@ -71,8 +71,10 @@ test('serpiente: WASD también dirige (s = abajo)', async ({ page }) => {
 
   const before = await headCell(page);
   await page.keyboard.press('s');
-  await expect.poll(async () => headCell(page), { timeout: 10_000 }).not.toBe(before);
-  expect(rowOf(await headCell(page))).toBeGreaterThan(rowOf(before));
+  // Poll por fila (ver test anterior: carrera del buffer de 1 tick).
+  await expect
+    .poll(async () => rowOf(await headCell(page)), { timeout: 10_000 })
+    .toBeGreaterThan(rowOf(before));
 });
 
 test('serpiente: pausa congela la simulación y se reanuda', async ({ page }) => {

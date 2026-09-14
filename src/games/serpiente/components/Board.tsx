@@ -43,8 +43,10 @@ const TAIL_SIZE = 0.72;
 
 const BoardGrid = memo(function BoardGrid({ cell }: { cell: number }) {
   const cells: ReactNode[] = [];
+  // Damero: solo las celdas TINTADAS (200); las otras 200 transparentes que
+  // solo consumían Views quedan fuera (P2/M4).
   for (let i = 0; i < GRID_COLS * GRID_ROWS; i++) {
-    const checker = (rowOf(i) + colOf(i)) % 2 === 0;
+    if ((rowOf(i) + colOf(i)) % 2 !== 0) continue;
     cells.push(
       <View
         key={`g-${i}`}
@@ -54,7 +56,7 @@ const BoardGrid = memo(function BoardGrid({ cell }: { cell: number }) {
           top: rowOf(i) * cell,
           width: cell,
           height: cell,
-          backgroundColor: checker ? 'rgba(255,255,255,0.022)' : 'transparent',
+          backgroundColor: 'rgba(255,255,255,0.022)',
         }}
       />,
     );
@@ -75,7 +77,9 @@ interface SegmentProps {
   color: string;
   pattern: boolean;
   amp: number;
-  label: string;
+  /** D4: identificador en `testID` (selectores E2E), NO en a11y — el lector
+   * de pantalla no necesita 100 avisos del cuerpo. */
+  testId: string;
   children?: ReactNode;
 }
 
@@ -90,7 +94,7 @@ const SnakeSegment = memo(function SnakeSegment({
   color,
   pattern,
   amp,
-  label,
+  testId,
   children,
 }: SegmentProps) {
   perfRenderCount('serpiente', 'renderFreq:segmento');
@@ -100,7 +104,7 @@ const SnakeSegment = memo(function SnakeSegment({
   });
   return (
     <Animated.View
-      accessibilityLabel={label}
+      testID={testId}
       style={[
         {
           position: 'absolute',
@@ -211,7 +215,7 @@ function SnakeLayer({
             color={head ? HEAD : BODY}
             pattern={!head && !tail}
             amp={(head ? 0.04 : 0.1) * cell}
-            label={`serpiente-seg-${s}`}
+            testId={`serpiente-seg-${s}`}
           >
             {head ? (
               <View accessibilityLabel="serpiente-cabeza" style={{ flex: 1 }}>
@@ -290,7 +294,9 @@ function SpecialRing({ cell, at }: { cell: number; at: number }) {
       />
       <View style={{ width: d, height: d, borderRadius: d / 2, backgroundColor: SPECIAL }} />
       <View accessibilityLabel={`serpiente-especial-${secs}s`}>
-        <Animated.Text style={{ position: 'absolute', top: ring - 4, color: SPECIAL, fontSize: 11, fontWeight: '800' }}>
+        {/* M3: texto dentro del anillo — nacidos en la última fila lo dejaban
+            a ~4px del borde inferior del tablero (clip potencial). */}
+        <Animated.Text style={{ position: 'absolute', top: ring - 16, color: SPECIAL, fontSize: 11, fontWeight: '800' }}>
           {secs}s
         </Animated.Text>
       </View>
