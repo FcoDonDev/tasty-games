@@ -420,9 +420,25 @@ el acumulador pasa a ser la única fuente de verdad del progreso).
   recorrer el tablero. Upstream de cada celda del cuerpo es estable por
   identidad → memo: solo cabeza/cuello/cola re-renderizan por tick (igual
   que antes de la interpolación). Reduced motion nunca escribe el progreso.
-- [ ] Verificación estándar: typecheck → test → e2e serpiente/responsive →
+- [x] Verificación estándar: typecheck → test → e2e serpiente/responsive →
   perf render path (`EXPO_PUBLIC_PERF_METRICS=1`, presupuesto §9, seed
   `perf-long` con mids + interpolación). Punto de riesgo a medir:
   duplicación de Views del cuerpo (~800 en victoria).
+  **Resultados (2026-09-14)**: typecheck ✓ · 415/415 tests ✓ · e2e funcional
+  55/55 (14 perf skip) ✓ · baselines serpiente ✓ (`tmp/perf/summary.json`):
+  `loop.advance` p95 **0.1 ms** (presupuesto ≤0.5, con 100 segs + mids +
+  deltas); `loop.tick` p95 0.1/p99 0.2 ms; `uiFrame.maxDt` p95 16.8 ms con
+  **0 frames dropeados** (active/paused; long: 1 frame dropeado por stall
+  del harness); `renderFreq:segmento` med 292/run en long (≈ mount 199 +
+  ~6/tick): el memo aguanta la interpolación.
+  **Hallazgos del harness (arreglados en `performance.web.spec.ts`)**:
+  (1) tras morir, el EndOverlay cubre el HUD → el harness salía por el botón
+  tapado y el click colgaba 180 s: ahora espera `modal-fin-<id>` OR
+  `salir-<id>` (.or) y sale por `fin-salir-<id>` si hay overlay. (2) la tabla
+  resumen explotaba (JSON.parse '') con el JSONL vacío de un escenario
+  abortado: filter(Boolean). (3) `CI=1` + orquestador: playwright NO reutiliza
+  el server del orquestador (`reuseExistingServer:!CI`) → conflicto de puerto;
+  el comando de baselines va sin CI (E2E_PORT aparte sí). Migrar (3) a
+  docs/GOTCHAS.md al cierre.
 - [ ] Docs de cierre: README/RULES del juego (sección render), caption de
   preview, hallazgos → GOTCHAS/ROADMAP, PLAN eliminado en el commit final.

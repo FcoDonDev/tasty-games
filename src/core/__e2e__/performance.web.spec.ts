@@ -493,8 +493,20 @@ for (const scenario of SCENARIOS) {
 
       // Salir por SPA (no reload): desmonta la pantalla → endPerfSession +
       // escritura en idle; navegar con goto mataría el idle callback pendiente.
-      const exit = page.getByLabel(`salir-${scenario.gameId}`, { exact: true });
-      if (await exit.count()) await exit.click();
+      // Si la partida terminó, el EndOverlay cubre el HUD: se sale por SU
+      // botón (fin-salir-<id>); si sigue viva, por el salir del HUD.
+      const endModal = page.getByLabel(`modal-fin-${scenario.gameId}`, { exact: true });
+      const endExit = page.getByLabel(`fin-salir-${scenario.gameId}`, { exact: true });
+      const hudExit = page.getByLabel(`salir-${scenario.gameId}`, { exact: true });
+      await endModal
+        .or(hudExit)
+        .first()
+        .waitFor({ state: 'visible', timeout: 15_000 });
+      if (await endModal.isVisible()) {
+        await endExit.click();
+      } else if ((await hudExit.count()) > 0) {
+        await hudExit.click();
+      }
       await expect(page.getByText('Tasty Games')).toBeVisible({ timeout: 10_000 });
 
       const snapshot = await readSnapshot(page, scenario.gameId);
@@ -559,7 +571,9 @@ test.afterAll(async () => {
     const file = path.join(ARTIFACT_DIR, `${scenario.id}.jsonl`);
     let lines: string[] = [];
     try {
-      lines = readFileSync(file, 'utf8').trim().split('\n');
+      // filter(Boolean): un escenario abortado deja el JSONL vacío; una
+      // línea vacía haría explotar el JSON.parse de abajo (hallazgo D20-run).
+      lines = readFileSync(file, 'utf8').trim().split('\n').filter(Boolean);
     } catch {
       continue;
     }
