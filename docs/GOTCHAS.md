@@ -248,3 +248,50 @@ background están en `AGENTS.md`, no acá.
 - **apple-touch-icon sin transparencia**: iOS aplasta los PNG con alpha a
   negro al usarlo como icono de home. Aplanar sobre el fondo de marca
   (#0F172A) y exportar en RGB (PIL: `convert('RGB')` tras paste).
+
+## Serpiente (PLAN-SERPIENTE, patrón ADR 0014)
+
+- **Unit de timing con dt REALISTA de frame, no solo pasos exactos**: un test
+  que avanza con `stepMs` exacto esconde bugs de acumulación (en serpiente el
+  engine perdía las fracciones de frames de 16 ms contra pasos de 140 ms y
+  nada avanzaba — pasó typecheck y todos los tests "exactos"). Agregar siempre
+  un test de cadencia con dts chicos (ej. 9×16 ms).
+- **Sobrante del timestep: UNA sola fuente de verdad** — si `advance` acumula
+  en el estado Y el llamador lleva su propio acumulador, el sobrante se
+  cuenta doble y el juego corre más rápido que la nominal. El sobrante sale
+  del RESULTADO (`leftoverMs`) y lo guarda el llamador (ADR 0014).
+- **Lecturas de DOM en E2E: ATÓMICAS en un solo `evaluate`** — resolver el
+  locator y leer en dos pasos pierde la carrera contra los commits de React
+  (el nodo se reemplaza y `closest` del desatachado devuelve null). Dentro de
+  un evaluate no hay commits (JS single-thread).
+- **Asserts de dirección con latencia**: poll por variable de estado (fila)
+  y no `not.toBe(celda)` — el buffer de input de 1 tick resuelve el poll con
+  el paso PREVIO al giro y el assert posterior mide la celda equivocada.
+- **Labels duplicados → strict violation (Playwright y RNTL)**: un
+  `accessibilityLabel` debe ser único en pantalla. Y un wrapper que solo lleva
+  el label sin tamaño (absolute/0×0) no es clickeable ni "visible": darle
+  `flex: 1` o dimensiones reales.
+- **Eventos discretos con payload** (patrón `caught` de wakwak): si un
+  evento necesita la POSICIÓN de la causa (ej. `die`), el engine la manda en
+  el payload — inferirla del estado posterior (la cabeza "no se movió al
+  morir") produce flashes/presentaciones en la celda equivocada.
+- **Perf harness (`performance.web.spec.ts`)**:
+  - Tras morir, el EndOverlay tapa el botón salir del HUD: salir con
+    `.or()` entre `modal-fin-<id>` y `salir-<id>` (elegir `fin-salir-<id>`
+    si hay overlay) — si no, el click cuelga hasta el timeout.
+  - La tabla resumen explota con `JSON.parse('')` si un escenario abortó y
+    dejó el JSONL vacío: `filter(Boolean)` al leerlo.
+  - `CI=1` + orquestador `scripts/e2e.mjs`: Playwright NO reutiliza el server
+    del orquestador (`reuseExistingServer: !process.env.CI`) → conflicto de
+    puerto. El comando de baselines va SIN `CI` (el puerto aparte vía
+    `E2E_PORT` sí, para worktrees paralelos).
+- **Mock de Reanimated en Jest** (`__mocks__/react-native-reanimated.js`):
+  extenderlo por juego (builders `FadeIn/Up/Out`, `withSequence` → último
+  timing, `useReducedMotion` → false) — ojo: el glob `*.ts*` NO muestra los
+  mocks `.js` preexistentes; listar con `ls __mocks__/` directo.
+- **Render toroidal** (wrap de Snake, ADR 0014): el clip `overflow:'hidden'`
+  va SOLO en el contenido del tablero (damero+cuerpo+comida); anillos/
+  vignettes/popups quedan fuera (asoman del borde). Las gemelas de la
+  costura van SIN `accessibilityLabel` (solo la base candea a11y); el
+  midpoint de un par que cruza la costura es un ALIAS torus (0 o W) — el
+  promedio de las celdas lógicas cae en el centro del tablero.

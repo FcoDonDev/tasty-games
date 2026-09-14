@@ -78,6 +78,21 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
       requeriría pasar "rode de robo" como fase al flip, mismo patrón del
       reparto) — solo si se percibe como vacío al robar
 
+## Serpiente — deuda diferida (cierre de PLAN-SERPIENTE)
+
+- [ ] **Validación nativa** (requiere toolchain Android, [ADR 0003](adr/0003-e2e-android-dev-build.md)):
+  haptics `hapticHeavy`/`hapticCombo` (Medium) en device, prime selectivo de
+  audio, y los dos modos táctiles (swipe sobre HUD + control flotante con
+  anillo). Todo validado solo en web a la fecha.
+- [ ] **Baselines de performance completas** ([ADR 0011](adr/0011-metricas-performance.md)):
+  corrieron las instrumentadas estándar (3 escenarios, `tmp/perf/`);
+  faltan las variantes throttle CPU ×4 (`PERF_THROTTLE=4`) y build con
+  profiling (`EXPO_PUBLIC_PERF_PROFILING=1`) para `render.board`.
+- [ ] **PoC Skia aislado (opcional)**: si se evalúan excepciones futuras a
+  [ADR 0001](adr/0001-render-sin-skia.md), hacerlo como V4 en la galería
+  `/serpiente-preview` (mismo mock, medible con perf metrics) — no
+  reescribiendo el juego en producción. Ver ADR 0014 §Consecuencias.
+
 ## Deudas técnicas conocidas
 
 - [ ] **Personalizar los iconos PWA**: hoy son escalados de

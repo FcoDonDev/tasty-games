@@ -41,7 +41,7 @@ Todo juego nuevo implementa un `GameDefinition` (`src/core/types.ts`) para regis
 
 Los engines (`rules.ts`, `deck.ts`, `board.ts`, `layout.ts`) son **funciones puras sin UI**: ahí vive el riesgo y ahí van los tests. La lógica de timing que depende del reloj (ej: timeout del mismatch en memorice) vive en la pantalla, no en el store, para que los tests sean deterministas.
 
-**Juegos en tiempo real (wakwak, [ADR 0010](adr/0010-wakwak-motor-agnostico.md)):** el núcleo expone `advance(state, dtMs)` por ticks fijos y un **puerto de presentación** (`renderer/types.ts`) que los adaptadores de render implementan — solo `renderer/` importa la librería de render; el loop rAF vive en el adaptador y la lógica sigue siendo pura y testeable. Referencia para cualquier futuro juego continuo.
+**Juegos en tiempo real (wakwak, [ADR 0010](adr/0010-wakwak-motor-agnostico.md); serpiente, [ADR 0014](adr/0014-realtime-timestep-interpolacion.md)):** wakwak usa núcleo con puerto de presentación (`renderer/types.ts`); serpiente estableció el patrón alternativo para acción fluida: `advance` con timestep fijo que devuelve `leftoverMs` (el acumulador de fracciones vive SOLO en el store), publicación solo si el estado cambió, y **interpolación de renderer en UI-thread** (el engine intacto desliza el visual hacia su posición upstream) con render toroidal en el wrap. Referencia para cualquier futuro juego continuo.
 
 ## Persistencia dual y migraciones
 
