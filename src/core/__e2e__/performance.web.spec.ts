@@ -54,6 +54,10 @@ const VIEWPORT = (process.env.PERF_VIEWPORT ?? '360x640').split('x').map(Number)
 // build profiling del estándar — los 4 combos nunca comparten directorio.
 const THROTTLE = Number(process.env.PERF_THROTTLE ?? 0);
 
+// PLAN-SAFARI-WEBKIT: el harness de perf corre en Chromium (CDP para throttle/
+// profile/heap); WebKit queda para la suite funcional y specs de diagnóstico.
+const BROWSER = process.env.E2E_BROWSER === 'webkit' ? 'webkit' : 'chromium';
+
 const ARTIFACT_DIR = path.resolve(
   process.cwd(),
   THROTTLE > 1 ? 'tmp/perf-throttle' : 'tmp/perf',
@@ -96,6 +100,8 @@ interface RunEnvelope {
   buildMode: 'instrumented' | 'instrumented-profiling';
   commit: string;
   viewport: string;
+  /** PLAN-SAFARI-WEBKIT: motor de medición (aditivo; 'chromium' histórico). */
+  browser: 'chromium' | 'webkit';
   wallMs: number;
   snapshot: PerfSnapshot | null;
   /** D-WW2: rate de throttle CDP (ausente = sin throttle). Campos aditivos. */
@@ -531,6 +537,7 @@ for (const scenario of SCENARIOS) {
         buildMode: PROFILING_BUILD ? 'instrumented-profiling' : 'instrumented',
         commit: COMMIT,
         viewport: `${VIEWPORT[0]}x${VIEWPORT[1]}`,
+        browser: BROWSER,
         wallMs: Date.now() - started,
         snapshot,
         ...(THROTTLE > 1 ? { throttle: THROTTLE } : {}),
@@ -555,6 +562,12 @@ test.beforeAll(() => {
   );
   if (PROFILING_BUILD && process.env.EXPO_PUBLIC_PERF_METRICS !== '1') {
     throw new Error('EXPO_PUBLIC_PERF_PROFILING=1 exige EXPO_PUBLIC_PERF_METRICS=1 (sin gate el Profiler no registra)');
+  }
+  // PLAN-SAFARI-WEBKIT: CDP (throttle/profile/heap) solo existe en Chromium.
+  if (BROWSER !== 'chromium' && THROTTLE > 1) {
+    throw new Error(
+      `PERF_THROTTLE usa CDP (Emulation.setCPUThrottlingRate), no disponible en ${BROWSER}. Correr el harness de perf en Chromium.`,
+    );
   }
   // Consistencia del selector (decisión 2026-09-14): PERF_PROFILE manda; un
   // env residual de la shell no puede contradecirlo.

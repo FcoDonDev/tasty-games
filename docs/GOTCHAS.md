@@ -295,3 +295,27 @@ background están en `AGENTS.md`, no acá.
   costura van SIN `accessibilityLabel` (solo la base candea a11y); el
   midpoint de un par que cruza la costura es un ALIAS torus (0 o W) — el
   promedio de las celdas lógicas cae en el centro del tablero.
+- **WebKit de Playwright ≠ Safari de Apple** (PLAN-SAFARI-WEBKIT): el build
+  `webkit` de Playwright en Linux es WebKitGTK — mismo motor, packaging
+  distinto. Limitaciones documentadas: 2-5× más lento, sin GPU (software
+  rendering), codecs de medios limitados (WAV OK; video/codec propietario no),
+  y features dependientes de plataforma pueden diferir (Playwright #31017).
+  Sirve para atribuir bugs de *motor* (autoplay policy, `AbortError` de
+  `play()`, GC de JavaScriptCore); la validación final exige Safari real.
+  Además: sin `install-deps webkit` (sudo) falla el launch con error de
+  librerías; en Wayland nativo corre limpio, en X11 sin GPU puede requerir
+  workarounds de sandbox. Uso: `E2E_BROWSER=webkit node scripts/e2e.mjs -- ...`
+  (proyecto env-gated en playwright.config.ts; la suite estándar sigue en
+  Chromium).
+- **Autoplay de audio en WebKit/Safari: rechazo intermitente `NotAllowedError`**
+  (PLAN-SAFARI-WEBKIT): WebKit otorga la reproducción POR ELEMENTO y rechaza
+  los `play()` que ocurren fuera del call-stack de un gesto (p.ej. desde un
+  loop rAF) de forma intermitente — el síntoma es "el sonido no suena en cada
+  evento". Remedio estándar: desbloquear cada elemento con un play() muteado
+  DENTRO de un gesto real (`unlockAudioForWeb()` en `sound.ts`, llamada desde
+  keydown/pan.onBegin). Ojo: el unlock NO debe hacer play()+pause() síncrono —
+  el pause interrumpe el play y genera `AbortError` propio; play() muteado sin
+  pause basta (el elemento queda habilitado). expo-audio web descarta la
+  promesa de `play()` (no se puede catchear desde la API) — el diagnóstico se
+  hace envolviendo `HTMLMediaElement.prototype.play` vía `addInitScript` en el
+  spec (`safari-diag.web.spec.ts`), nunca en la app.

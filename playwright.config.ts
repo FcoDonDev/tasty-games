@@ -4,6 +4,11 @@ import { defineConfig } from '@playwright/test';
 const PORT = Number(process.env.E2E_PORT ?? 4173);
 const BASE_URL = `http://localhost:${PORT}`;
 
+// PLAN-SAFARI-WEBKIT: motor de diagnóstico opcional. E2E_BROWSER=webkit corre
+// contra el build de WebKit de Playwright (motor de Safari; NO Safari idéntico
+// — ver docs/GOTCHAS.md). Default (sin env): Chromium, como siempre.
+const BROWSER = process.env.E2E_BROWSER === 'webkit' ? 'webkit' : 'chromium';
+
 export default defineConfig({
   // Default headless; ver la UI: pnpm exec playwright test --headed | --ui | --debug
   // Solo flujos web por juego, en __e2e__ de cada src/games/<id>/
@@ -20,6 +25,7 @@ export default defineConfig({
     // Trazas al fallar: inspeccionables con pnpm exec playwright show-report
     trace: 'retain-on-failure',
   },
+  projects: [{ name: BROWSER, use: { browserName: BROWSER } }],
   webServer: {
     // Export estático + serve: más determinista que el dev server de Metro
     command: `pnpm exec expo export --platform web --output-dir dist && pnpm exec serve dist -l ${PORT} --single`,

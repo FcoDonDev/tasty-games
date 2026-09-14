@@ -19,7 +19,7 @@ import { PerfProfiler } from '@/core/perf/PerfProfiler';
 import { usePerfFrameMonitor } from '@/core/perf/usePerfFrameMonitor';
 import { useIsTouchDevice } from '@/core/ui/useIsTouchDevice';
 import { hapticCombo, hapticGameWin, hapticSelection } from '@/core/ui/haptics';
-import { soundCombo, soundExplosion, soundGameWin, soundHit, soundPickup, soundPowerUp } from '@/core/ui/sound';
+import { soundCombo, soundExplosion, soundGameWin, soundHit, soundPickup, soundPowerUp, unlockAudioForWeb } from '@/core/ui/sound';
 import { useContainerSize } from '@/core/ui/useContainerSize';
 import type { GameScreenProps } from '@/core/types';
 import { ControlSettingsButton, ControlSettingsModal, type ControlMode } from './components/ControlSettings';
@@ -443,6 +443,8 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
       const dir = KEY_DIRS[event.key.toLowerCase()];
       if (!dir) return;
       event.preventDefault();
+      // desbloqueo autoplay WebKit dentro del gesto (PLAN-SAFARI-WEBKIT F4)
+      unlockAudioForWeb();
       useWakWakStore.getState().setDirection(dir);
     };
     window.addEventListener('keydown', onKey);
@@ -465,6 +467,8 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
       let emitted = false;
       return pan
         .onBegin(() => {
+          // desbloqueo autoplay WebKit dentro del gesto (PLAN-SAFARI-WEBKIT F4)
+          unlockAudioForWeb();
           emitted = false;
         })
         .onUpdate((event) => {
@@ -482,6 +486,8 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     let lastDir: Direction | null = null;
     return pan
       .onBegin((event) => {
+        // desbloqueo autoplay WebKit dentro del gesto (PLAN-SAFARI-WEBKIT F4)
+        unlockAudioForWeb();
         drag = beginFloatingDrag(event.x, event.y);
         lastDir = null;
         if (ringEnabled) {

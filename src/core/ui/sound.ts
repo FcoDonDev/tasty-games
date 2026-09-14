@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { useAppStore } from '@/core/stores/useAppStore';
 
 // Assets: require() se resuelve a número de módulo Metro; wav es asset nativo.
@@ -84,6 +85,35 @@ export function primeAudioPlayers(ids?: SoundId[]): void {
     return;
   }
   (Object.keys(SOURCES) as SoundId[]).forEach(ensurePlayer);
+}
+
+let webUnlocked = false;
+
+/**
+ * Desbloqueo de autoplay WebKit/Safari (PLAN-SAFARI-WEBKIT Fase 4): la
+ * política de WebKit otorga la reproducción POR ELEMENTO y rechaza
+ * intermitentemente los play() que ocurren fuera del call-stack de un gesto
+ * (NotAllowedError — el síntoma "no suena en cada comida"). El remedio
+ * estándar es reproducir cada elemento una vez (muteado) DENTRO de un gesto:
+ * el elemento queda habilitado para toda la sesión. Llamar desde handlers de
+ * gesto reales (keydown, pan.onBegin); es idempotente y no-op en nativo.
+ */
+export function unlockAudioForWeb(): void {
+  if (Platform.OS !== 'web' || webUnlocked) return;
+  webUnlocked = true;
+  (Object.keys(SOURCES) as SoundId[]).forEach((id) => {
+    const player = ensurePlayer(id);
+    if (!player) return;
+    try {
+      const volume = player.volume;
+      player.volume = 0;
+      player.seekTo(0);
+      player.play();
+      player.volume = volume;
+    } catch {
+      // desbloqueo best-effort: si falla, los plays normales lo intentan
+    }
+  });
 }
 
 /** Pluck corto al robar del stock. */
