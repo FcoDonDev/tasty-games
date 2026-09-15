@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { Asset } from 'expo-asset';
 import { useAppStore } from '@/core/stores/useAppStore';
 
 // Assets: require() se resuelve a número de módulo Metro; wav es asset nativo.
@@ -64,6 +65,11 @@ function ensurePlayer(id: SoundId): Player | null {
 
 function play(id: SoundId): void {
   if (!useAppStore.getState().soundOn) return;
+  // Ruta primaria en web (PLAN-SAFARI-WEBKIT Fase 5): Web Audio con buffers
+  // decodificados — latencia ~0 y plays imposibles de omitir (HTMLMediaElement
+  // en WebKit-iOS suena desfasado y descarta plays encadenados). Si el buffer
+  // aún no cargó o no hay AudioContext, cae a la ruta de elements.
+  if (playWebAudio(id)) return;
   const player = ensurePlayer(id);
   if (!player) return;
 
@@ -74,33 +80,124 @@ function play(id: SoundId): void {
   player.play();
 }
 
+// === Ruta Web Audio (solo web) ===
+
+const WEB_VOLUME = 0.5;
+
+type AudioContextCtor = new () => AudioContext;
+
+let webCtx: AudioContext | null = null;
+let webLoadingStarted = false;
+const webBuffers: Partial<Record<SoundId, AudioBuffer>> = {};
+
+function getWebAudioContext(): AudioContext | null {
+  if (Platform.OS !== 'web') return null;
+  if (webCtx) return webCtx;
+  const g = globalThis as { AudioContext?: AudioContextCtor; webkitAudioContext?: AudioContextCtor };
+  const Ctor = g.AudioContext ?? g.webkitAudioContext;
+  if (!Ctor) return null;
+  try {
+    webCtx = new Ctor();
+  } catch {
+    webCtx = null;
+  }
+  return webCtx;
+}
+
+/**
+ * Carga (fetch → decodeAudioData) de los buffers indicados, fire-and-forget:
+ * el decode falla silencioso por sonido y ese sonido cae a la ruta de
+ * elements. Se puede llamar pre-gesto (el contexto nace suspended; la carga
+ * no depende de él) y es idempotente.
+ */
+function loadWebBuffers(ctx: AudioContext, ids: SoundId[]): void {
+  ids.forEach((id) => {
+    if (webBuffers[id]) return;
+    try {
+      const uri = Asset.fromModule(SOURCES[id]).uri;
+      if (!uri) return;
+      void fetch(uri)
+        .then((res) => res.arrayBuffer())
+        .then((ab) => ctx.decodeAudioData(ab))
+        .then((buffer) => {
+          webBuffers[id] = buffer;
+        })
+        .catch(() => {
+          // buffer no disponible: ese sonido usa la ruta de elements
+        });
+    } catch {
+      // Asset no resoluble: ese sonido usa la ruta de elements
+    }
+  });
+}
+
+/** Reproduce con BufferSource (rate 1 = pitch original). false si no hay ctx/buffer. */
+function playWebAudio(id: SoundId, rate = 1): boolean {
+  const buffer = webBuffers[id];
+  if (!webCtx || !buffer) return false;
+  try {
+    const source = webCtx.createBufferSource();
+    source.buffer = buffer;
+    if (rate !== 1) source.playbackRate.value = rate;
+    const gain = webCtx.createGain();
+    gain.gain.value = WEB_VOLUME;
+    source.connect(gain);
+    gain.connect(webCtx.destination);
+    source.start(0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Precalienta el módulo de audio y crea los players indicados (o todos) sin
  * reproducir: el primer play() de la sesión no paga la creación del player.
  * Llamar en idle (post-primer render de la pantalla del juego).
  */
 export function primeAudioPlayers(ids?: SoundId[]): void {
-  if (ids) {
-    ids.forEach(ensurePlayer);
-    return;
-  }
-  (Object.keys(SOURCES) as SoundId[]).forEach(ensurePlayer);
+  const target = ids ?? (Object.keys(SOURCES) as SoundId[]);
+  target.forEach(ensurePlayer);
+  // web: arranca la carga de buffers en idle (primeAudioPlayers corre
+  // post-primer render, pre-gesto) — el decode está listo antes del primer
+  // gesto, así el primer play ya sale por Web Audio sin esperar red.
+  const ctx = getWebAudioContext();
+  if (ctx) loadWebBuffers(ctx, target);
 }
 
 let webUnlocked = false;
 
 /**
- * Desbloqueo de autoplay WebKit/Safari (PLAN-SAFARI-WEBKIT Fase 4): la
- * política de WebKit otorga la reproducción POR ELEMENTO y rechaza
- * intermitentemente los play() que ocurren fuera del call-stack de un gesto
- * (NotAllowedError — el síntoma "no suena en cada comida"). El remedio
- * estándar es reproducir cada elemento una vez (muteado) DENTRO de un gesto:
- * el elemento queda habilitado para toda la sesión. Llamar desde handlers de
- * gesto reales (keydown, pan.onBegin); es idempotente y no-op en nativo.
+ * Desbloqueo de audio en web (PLAN-SAFARI-WEBKIT Fases 4-5). Dos capas:
+ *
+ * 1. Web Audio (ruta primaria): un solo AudioContext desbloqueado con
+ *    resume() dentro del gesto habilita TODOS los buffers de la sesión —
+ *    sin política por-elemento, sin latencia ni omisión en iOS WebKit.
+ * 2. Elements (fallback): la política de WebKit otorga la reproducción POR
+ *    ELEMENTO y rechaza intermitentemente los play() fuera del call-stack
+ *    del gesto (NotAllowedError); reproducir cada elemento una vez (muteado)
+ *    DENTRO del gesto lo habilita para toda la sesión.
+ *
+ * Llamar desde handlers de gesto reales (keydown, pan.onBegin); idempotente,
+ * no-op en nativo.
  */
 export function unlockAudioForWeb(): void {
   if (Platform.OS !== 'web' || webUnlocked) return;
   webUnlocked = true;
+  const ctx = getWebAudioContext();
+  if (ctx) {
+    // resume() dentro del gesto: la llamada única que desbloquea la ruta
+    // Web Audio; loading de buffers por si primeAudioPlayers no corrió.
+    try {
+      void ctx.resume().catch(() => {
+        // resume fallido: la ruta de elements sigue disponible
+      });
+    } catch {
+      // resume no soportado: fallback a elements
+    }
+    loadWebBuffers(ctx, Object.keys(SOURCES) as SoundId[]);
+  }
+  // capa 2: unlock por elemento para el fallback (ruta expo-audio)
   (Object.keys(SOURCES) as SoundId[]).forEach((id) => {
     const player = ensurePlayer(id);
     if (!player) return;
@@ -158,6 +255,8 @@ export function soundHit(): void {
  */
 export function soundExplosion(): void {
   if (!useAppStore.getState().soundOn) return;
+  // hit con rate grave (PLAN-WAK-POLISH F5): pitch abajo sin asset nuevo
+  if (playWebAudio('explosion', 0.7)) return;
   const player = ensurePlayer('explosion');
   if (!player) return;
   try {
@@ -176,10 +275,12 @@ export function soundExplosion(): void {
  */
 export function soundCombo(chain: number): void {
   if (!useAppStore.getState().soundOn) return;
+  const rate = Math.min(2, 1 + 0.12 * Math.max(0, Math.floor(chain) - 1));
+  // pickup con rate creciente (pitch sube con la cadena, 1..8+)
+  if (playWebAudio('pickup', rate)) return;
   const player = ensurePlayer('pickup');
   if (!player) return;
   try {
-    const rate = Math.min(2, 1 + 0.12 * Math.max(0, Math.floor(chain) - 1));
     (player as unknown as { setPlaybackRate?: (rate: number) => void }).setPlaybackRate?.(rate);
   } catch {
     // rate no soportado: pitch por defecto

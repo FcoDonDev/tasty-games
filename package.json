@@ -6,6 +6,7 @@
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "29.5.14",
     "expo": "~57.0.19",
+    "expo-asset": "~57.0.17",
     "expo-audio": "~57.0.4",
     "expo-constants": "~57.0.17",
     "expo-file-system": "~57.0.6",

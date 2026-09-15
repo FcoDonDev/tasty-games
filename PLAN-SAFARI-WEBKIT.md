@@ -1,7 +1,7 @@
 # Plan: depuración Safari/WebKit — mini-bloques y audio en WakWak
 
 **Fecha de propuesta:** 2026-09-14
-**Estado:** en ejecución (decisiones aprobadas por el operador)
+**Estado:** en ejecución — Fase 5 activa (validación iOS real fallida post-Fase 4)
 **Síntomas reportados (Safari real, post I-WW-1):**
 1. "steps" / mini-bloques periódicos en el gameplay (WakWak, web móvil).
 2. El audio de "comida" (pickup) no suena en cada comida de la aspiradora.
@@ -137,11 +137,58 @@ software) y de magnitud menor a la reportada por el usuario en Safari real.
 - [x] Fix jank: sin cambio de código — los stalls WebKitGTK son leves (26-59 ms) y Chromium está limpio; la medición en Safari real usa los contadores existentes (`jsStall.*`, `uiFrame.*` con `EXPO_PUBLIC_PERF_METRICS=1`).
 - [x] Verificación estándar: typecheck → test → e2e Chromium completo (regresión).
 - [x] Validación WebKit: diagnóstico re-corrido post-fix → **0 rechazos de play()** (todas las condiciones).
-- [ ] Validación final en Safari real (operador) con Web Inspector si se pide.
+- [x] Validación final en Safari real (operador): **FALLIDA** — síntomas persisten en iPhone (ver Fase 5).
 
 **Criterios de aceptación**
 
 - [ ] Ambos síntomas resueltos o atribuidos con plan definido (Safari real).
+- [x] Sin regresión funcional en Chromium (suite completa verde).
+
+### Fase 5 — Validación iOS real + ruta Web Audio (H6)
+
+**Resultado de la validación en dispositivo (operador, 2026-09-15)**: en un
+iPhone, tanto Safari como Chrome presentan los mismos síntomas (mini-saltos,
+sonido de "comida" desfasado y omitido). Chrome-iOS renderiza con **WebKit**
+(Apple exige WebKit a todo browser iOS; la excepción DMA sigue sin materializarse
+a la fecha — jun 2026). Conclusión: el problema es del **motor WebKit-iOS**, no
+del app-browser.
+
+**Investigación (búsquedas 2026-09-15)**: `HTMLAudioElement` (la ruta que usa
+expo-audio en web) es notoriamente deficitaria en iOS WebKit: retraso 100ms–1s
+en `play()`, seek lento, descarte de plays encadenados y buffering deshabilitado
+por política. El remedio estándar documentado (MDN "Audio for Web Games" y
+múltiples reportes con WKWebView/iPhone: 500-1000ms resueltos cambiando de
+ruta) es la **Web Audio API** (`AudioContext` + buffers decodificados +
+`BufferSourceNode.start()`): latencia ~0, sin lock por elemento, plays
+imposibles de omitir.
+
+**Nueva hipótesis H6 — audio**: la ruta `HTMLMediaElement` de expo-audio en
+WebKit-iOS es la causa de ambos síntomas reportados (latencia/omisión de audio
++ posible jank por trabajo main-thread de los media elements). Nota: H3 quedó
+refutada en WebKitGTK, pero iOS puede comportarse distinto — se re-mide tras el
+cambio: si los mini-saltos desaparecen, H6 causó ambos; si persisten, es GC de
+JSC (H4) y conecta con D-WW del PLAN-PERFORMANCE.
+
+**Tareas**
+
+- [x] Ruta Web Audio en `src/core/ui/sound.ts` (solo web): `AudioContext`
+  singleton + fetch→`decodeAudioData` de los 8 sonidos en el primer gesto +
+  `BufferSource.start()` por reproducción. `unlockAudioForWeb` pasa a crear y
+  `resume()` el contexto en gesto. Fallback a la ruta de elements (expo-audio)
+  si no hay `AudioContext` o falla el decode. Nativo intacto; juegos intactos.
+  Dependencia `expo-asset` agregada vía `expo install` (resuelve las URIs de
+  los assets en web; plugin en app.json es el standard del install).
+- [x] Tests unitarios de la nueva ruta (mock de `AudioContext`/fetch; 12 en
+  `sound.test.ts`) + verificación estándar completa (424 tests, e2e Chromium 59/59).
+- [x] Validación WebKit: diagnóstico re-corrido (`E2E_BROWSER=webkit`, 4/4) —
+  0 rechazos; los plays reales ya no tocan media elements (playCalls de
+  elements 13→9: 8 del unlock + 1 fallback por decode en vuelo).
+- [ ] Validación en iPhone real (operador): cada "comida" suena sin desfase, en Safari y Chrome iOS.
+- [ ] Re-medición de stalls: si persisten en iOS, Safari-Mac + Web Inspector + `EXPO_PUBLIC_PERF_METRICS=1` → `perf-metrics-wakwak` → decidir GC de JSC (D-WW) o cerrar.
+
+**Criterios de aceptación**
+
+- [x] Ambos síntomas resueltos o atribuidos con plan definido.
 - [x] Sin regresión funcional en Chromium (suite completa verde).
 
 ## 6. Riesgos y rollback
@@ -162,4 +209,6 @@ software) y de magnitud menor a la reportada por el usuario en Safari real.
 - (Fase 2) Lección del unlock: play()+pause() síncrono genera `AbortError` propio ("interrupted by a call to pause()") — el unlock debe ser play() muteado SIN pause (el elemento queda habilitado igual; el sonido muteado termina solo).
 - (Fase 3) **H3 refutada**: stalls de gameplay idénticos con/sin audio (3-7 por 20s, 26-59 ms) — el seek del media element no causa los mini-bloques en WebKitGTK. Chromium: 0 stalls en gameplay con el mismo sondeo. Los stalls residuales de WebKitGTK se atribuyen al motor (JSC GC / rendering software); magnitud menor a la reportada en Safari real → la medición en Safari real usa los contadores existentes (`jsStall.*`, `uiFrame.maxDt`) con `EXPO_PUBLIC_PERF_METRICS=1`.
 - (Fase 4) Post-fix en WebKit: 0 rechazos de play() en todas las condiciones (audio ON/OFF, 13-15 playCalls). El desbloqueo por elemento dentro del primer gesto (keydown/pan.onBegin) es el remedio estándar de la política WebKit (expo#34669).
-- Pendiente del operador: (a) validar en Safari real que cada "comida" suena post-fix; (b) si los mini-bloques persisten en Safari real, correr dev server con `EXPO_PUBLIC_PERF_METRICS=1` en Safari y reportar `jsStall.count`/`uiFrame.maxDt` del snapshot (`localStorage['perf-metrics-wakwak']`) — eso decide si se ataca GC de JSC (conecta con D-WW del PLAN-PERFORMANCE).
+- (Fase 5) **Validación iOS real fallida**: síntomas idénticos en Safari Y Chrome del mismo iPhone → el problema es del motor WebKit-iOS (Chrome-iOS = WebKit por regla de Apple; DMA sin ejecución efectiva a la fecha). El fix de Fase 4 (unlock por elemento) resolvió los rechazos de `play()` en desktop, pero NO la latencia/omisión ni los saltos en iOS.
+- (Fase 5) **H6 propuesta**: la ruta `HTMLMediaElement` de expo-audio en web es el cuello en iOS WebKit (elementos con retraso/descarte documentados; Web Audio API es el remedio estándar con latencia ~0). El unlock por elemento sigue siendo necesario pero insuficiente.
+- Pendiente del operador (Fase 5): validar post-migración en iPhone; si los mini-saltos persisten, Safari-Mac + Web Inspector + `EXPO_PUBLIC_PERF_METRICS=1` → `perf-metrics-wakwak` → decidir GC de JSC (D-WW).
