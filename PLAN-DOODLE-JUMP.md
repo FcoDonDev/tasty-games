@@ -273,18 +273,20 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
       stats de tick, shoot/drag/key + tests + `rules-perf.test.ts`
 - [x] T5 — Seeds E2E (sentinelas `test-win` torre central, `test-lose`
       monstruo en eje) + tests
-- [ ] T6 — Pantalla: render Reanimated (`.get()/.set()`), loop rAF,
+- [x] T6 — Pantalla: render Reanimated (`.get()/.set()`), loop rAF,
       gestos drag+tap, teclado web (D7), audio/haptics (D10/D11),
       popups, overlays pausa/fin, auto-pausa; calibración de tuning en
       playtest
-- [ ] T7 — Integración: GameDefinition + registro + récord vía
+- [x] T7 — Integración: GameDefinition + registro + récord vía
       `onGameEnd` (verificar orden score DESC con `won:false`) + RULES.md
       + ayuda in-app (`rules`) + README.md del juego
-- [ ] T8 — E2E web: `doodle-jump.web.spec.ts` (arranque y labels;
+- [x] T8 — E2E web: `doodle-jump.web.spec.ts` (arranque y labels;
       test-win: ascenso sin input + disparo + récord; test-lose: muerte
       y overlay; responsive 360×640)
-- [ ] T9 — Verificación estándar completa: `pnpm typecheck` →
-      `pnpm test` → `node scripts/e2e.mjs` (suite entera verde)
+- [x] T9 — Verificación estándar completa: `pnpm typecheck` →
+      `pnpm test` → `node scripts/e2e.mjs` (suite entera verde:
+      typecheck ✓, 474 tests unit ✓, E2E 66 passed + 14 perf-skips ✓;
+      specs doodle-jump 7/7 en corrida filtrada)
 - [ ] T10 — Cierre: migrar hallazgos (GOTCHAS/ADR/ROADMAP si corresponde),
       eliminar este PLAN en el commit final
 
