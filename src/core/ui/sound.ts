@@ -135,6 +135,19 @@ function loadWebBuffers(ctx: AudioContext, ids: SoundId[]): void {
 function playWebAudio(id: SoundId, rate = 1): boolean {
   const buffer = webBuffers[id];
   if (!webCtx || !buffer) return false;
+  // Contexto suspendido (desbloqueo aún no corrido): el BufferSource nacería
+  // inaudible; intenta resume (fire-and-forget) y cae a la ruta de elements
+  // para ese sonido — el siguiente play ya sale por Web Audio.
+  if (webCtx.state === 'suspended') {
+    try {
+      void webCtx.resume().catch(() => {
+        // resume sin gesto: solo elements disponibles para este play
+      });
+    } catch {
+      // resume no soportado: fallback a elements
+    }
+    return false;
+  }
   try {
     const source = webCtx.createBufferSource();
     source.buffer = buffer;
@@ -211,6 +224,27 @@ export function unlockAudioForWeb(): void {
       // desbloqueo best-effort: si falla, los plays normales lo intentan
     }
   });
+}
+
+/**
+ * Enganche del desbloqueo a nivel de app (web): el primer pointerdown o
+ * keydown de la sesión corre unlockAudioForWeb dentro del call-stack del
+ * gesto, cubriendo a TODOS los juegos sin que cada pantalla tenga que
+ * llamarlo. Los listeners son once (y el unlock es idempotente), así que el
+ * handler se desarma solo después del primer gesto real.
+ */
+export function installAudioUnlockForWeb(): void {
+  if (Platform.OS !== 'web') return;
+  const doc = (globalThis as { document?: Document }).document;
+  if (!doc?.addEventListener) return;
+  const handler = () => unlockAudioForWeb();
+  try {
+    doc.addEventListener('pointerdown', handler, { once: true });
+    doc.addEventListener('keydown', handler, { once: true });
+    doc.addEventListener('touchstart', handler, { once: true, passive: true });
+  } catch {
+    // entorno sin DOM real: el enganche por pantalla sigue disponible
+  }
 }
 
 /** Pluck corto al robar del stock. */

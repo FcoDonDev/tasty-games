@@ -10,6 +10,7 @@ App de juegos 2D simples (Web + Android) con Expo SDK 57 / Expo Router / React N
 - Verificación: `pnpm typecheck` (tsc --noEmit) → `pnpm test` (jest, preset jest-expo). Un solo test: `pnpm test -- <patron>`.
 - Verificar build web sin dev server: `CI=1 pnpm exec expo export --platform web` (genera `dist/`, ya gitignored).
 - E2E web: `pnpm e2e:web` (orquestador único: export → serve :4173 → Playwright → cleanup). Tras bump de `@playwright/test` re-instalar binarios: `pnpm exec playwright install chromium`.
+- Diagnóstico WebKit/Safari (no es verificación estándar): `E2E_BROWSER=webkit node scripts/e2e.mjs -- -g "<spec>"` (proyecto env-gated; la suite estándar corre solo-Chromium). WebKitGTK degrada la PRIMERA corrida de un proceso fresco (H5): calentar antes de medir.
 - Android dev build requiere Java 17 + Android SDK/ADB — **no están instalados en este entorno**; `pnpm android` fallará hasta instalarlos.
 
 ## Arquitectura

@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@/core/ui/ThemeProvider';
 import { disableWebTextSelection } from '@/core/ui/webNoSelect';
+import { installAudioUnlockForWeb } from '@/core/ui/sound';
 import { useAppStore } from '@/core/stores/useAppStore';
 import { lockPortrait } from '@/core/orientation';
 
@@ -15,6 +16,10 @@ export default function RootLayout() {
     // Web: mata la selección de texto nativa del navegador (Safari/iOS dispara
     // "Look Up"/copiar-pegar al tocar cartas o textos de los juegos).
     disableWebTextSelection();
+    // Web: desbloqueo de audio a nivel app (PLAN-SAFARI-WEBKIT): el primer
+    // gesto de la sesión desbloquea la ruta Web Audio + elements para todos
+    // los juegos, sin enganches por pantalla.
+    installAudioUnlockForWeb();
     void hydrate();
     // La app base (Home, ajustes) queda en portrait; los juegos con
     // supportsLandscape liberan la rotación en app/juego/[id].tsx.

@@ -74,11 +74,20 @@ class MockGain {
   }
 }
 
+const ctxState = { state: 'suspended' as string };
+
 function makeMockAudioContext() {
+  ctxState.state = 'suspended';
   return {
-    state: 'suspended',
+    get state() {
+      return ctxState.state;
+    },
     destination: { mockDestination: true },
-    resume: jest.fn(() => Promise.resolve()),
+    resume: jest.fn(() => {
+      // como el Web Audio real: el resume pasa el contexto a running
+      ctxState.state = 'running';
+      return Promise.resolve();
+    }),
     decodeAudioData: jest.fn((ab: ArrayBuffer) => Promise.resolve({ fakeBuffer: true, bytes: ab.byteLength })),
     createBufferSource: () => new MockSource(),
     createGain: () => new MockGain(),
@@ -95,6 +104,7 @@ const flush = async () => {
 
 describe('sound (web)', () => {
   let unlockAudioForWeb: () => void;
+  let installAudioUnlockForWeb: () => void;
   let primeAudioPlayers: (ids?: string[]) => void;
   let soundPickup: () => void;
   let soundCombo: (chain: number) => void;
@@ -106,6 +116,7 @@ describe('sound (web)', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('../sound');
     unlockAudioForWeb = mod.unlockAudioForWeb;
+    installAudioUnlockForWeb = mod.installAudioUnlockForWeb;
     primeAudioPlayers = mod.primeAudioPlayers;
     soundPickup = mod.soundPickup;
     soundCombo = mod.soundCombo;
@@ -219,6 +230,39 @@ describe('sound (web)', () => {
       primeAudioPlayers();
       expect(mockFetch).toHaveBeenCalledTimes(8);
       expect(currentCtx.resume).not.toHaveBeenCalled(); // la carga no depende del resume
+    });
+
+    it('ctx suspendido: intenta resume y cae a elements (no suena BufferSource mudo)', () => {
+      unlockAudioForWeb(); // crea el ctx (suspended en el mock)
+      soundPickup(); // buffers en vuelo, pero el guard por estado igual protege
+      expect(mockStarted.length).toBe(0);
+      expect(mockPlayCalls.length).toBe(9); // fallback al element del pickup
+    });
+  });
+
+  describe('installAudioUnlockForWeb', () => {
+    it('registra listeners once que disparan el unlock en el primer gesto', () => {
+      const listeners: Map<string, EventListener> = new Map();
+      const docMock = {
+        addEventListener: (type: string, handler: EventListener) => {
+          listeners.set(type, handler);
+        },
+      };
+      (globalThis as any).document = docMock;
+      installAudioUnlockForWeb();
+      expect(listeners.has('pointerdown')).toBe(true);
+      expect(listeners.has('keydown')).toBe(true);
+      expect(listeners.has('touchstart')).toBe(true);
+      // el handler del primer gesto desbloquea: resume + carga + unlock elementos
+      listeners.get('pointerdown')!(new Event('pointerdown'));
+      expect(currentCtx.resume).toHaveBeenCalledTimes(1);
+      expect(mockPlayCalls.length).toBe(8);
+      delete (globalThis as any).document;
+    });
+
+    it('sin document disponible no rompe', () => {
+      delete (globalThis as any).document;
+      expect(() => installAudioUnlockForWeb()).not.toThrow();
     });
   });
 });

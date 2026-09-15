@@ -100,6 +100,8 @@ src/games/wakwak/
   feedback opcional, `wakwak.floatingRing`). La matemática de gestos es pura en
   `engine/controls.ts`; todo pasa por `setDirection` (buffer del engine). Haptic
   de selección por dirección; sonidos vía wrapper `core/ui/sound.ts`. El
+  desbloqueo de autoplay es centralizado a nivel app (ADR 0015): la pantalla
+  no engancha el unlock.
   D-pad visible fue eliminado (ganaba espacio al tablero); el E2E input es el
   teclado en desktop y swipe real (CDP) en el spec táctil con emulación móvil.
 - **Layout responsive (ADR 0004):** celda = `min(ancho/19, alto/21)` medido con

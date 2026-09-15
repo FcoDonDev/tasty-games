@@ -319,3 +319,29 @@ background están en `AGENTS.md`, no acá.
   promesa de `play()` (no se puede catchear desde la API) — el diagnóstico se
   hace envolviendo `HTMLMediaElement.prototype.play` vía `addInitScript` en el
   spec (`safari-diag.web.spec.ts`), nunca en la app.
+- **Audio web: `HTMLMediaElement` en iOS WebKit es intrínsecamente deficitario**
+  (PLAN-SAFARI-WEBKIT F5): el unlock por elemento resuelve los rechazos
+  (`NotAllowedError`) pero NO la latencia/omisión en iPhone — la ruta de
+  elements suena 100ms–1s tarde y descarta plays encadenados (documentado
+  en SO/MDN; reproducido en Safari y Chrome iOS, que ambos renderizan con
+  WebKit). Remedio definitivo (ADR 0015): ruta primaria Web Audio
+  (`AudioContext` + buffers decodificados + `BufferSource.start()`) en
+  `sound.ts`, con fallback a elements. Dos gotchas de la implementación:
+  (1) un `BufferSource` sobre un ctx suspendido suena mudo SIN error — el
+  router de `playWebAudio` chequea `ctx.state === 'suspended'`, intenta
+  `resume()` y cae a elements; (2) el `resume()` del mock de tests debe
+  cambiar `state` a `'running'` como hace el browser real.
+- **Audio web: desbloqueo centralizado, no por pantalla** (ADR 0015): el
+  unlock por pantalla (WakWak) dejaba a los demás juegos con el ctx
+  suspendido (silencio total). `installAudioUnlockForWeb()` en
+  `app/_layout.tsx` instala listeners `once` de pointerdown/keydown/
+  touchstart en `document` — el primer gesto real de la sesión desbloquea
+  para todos los juegos. Los listeners de documento (fase burbuja) corren
+  DESPUÉS de los handlers de React/gestos: el sonido del primer gesto puede
+  salir por el fallback de elements (guard del ctx suspendido lo cubre).
+- **WebKitGTK corre degradado en la primera corrida de un proceso fresco**
+  (H5, PLAN-SAFARI-WEBKIT): cold falla con score 0 (rAF barely corre), warm
+  pasa siempre (patrón del issue Playwright #41044: throttling/JIT warmup).
+  Implicación: TODA medición o test de gameplay en WebKit exige warm-up
+  previo; un flake "score 0" como primer test de una corrida WebKit es
+  warmup, no bug del juego.

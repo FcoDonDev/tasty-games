@@ -128,3 +128,11 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
         drag (los PileCard internos ya saltan por memo).
       - Guardado debounceado del estado en curso: mover a idle solo si la medición
         en dispositivo muestra jank (web/nativo es µs hoy).
+- [ ] **Audio/jank iOS web (PLAN-SAFARI-WEBKIT F5, ADR 0015)**: validar en
+      iPhone real que cada SFX suena inmediato tras la migración a Web Audio;
+      si los mini-saltos persisten, medir con Safari-Mac + Web Inspector +
+      `EXPO_PUBLIC_PERF_METRICS=1` (`perf-metrics-wakwak`): los contadores
+      `jsStall.*`/`uiFrame.maxDt` deciden si se ataca GC de JavaScriptCore
+      (conecta con D-WW del PLAN-PERFORMANCE) o se cierra como límite del
+      motor. Los stalls residuales de WebKitGTK (32-41 por 20s en corridas
+      con carga de máquina) quedan atribuidos al motor y sin attack.
