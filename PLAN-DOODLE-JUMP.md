@@ -258,7 +258,7 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
 
 ## 4. Checklist de tareas (orden de ejecución)
 
-- [ ] T1 — Engine puro núcleo: física con sub-pasos fijos (D9), colisión
+- [x] T1 — Engine puro núcleo: física con sub-pasos fijos (D9), colisión
       plataforma, wrap, springs, cámara (D-cámara), generación seedeada
       con test de alcanzabilidad + `tuning.ts` + `rules.test.ts` +
       `tuning.test.ts`
@@ -332,6 +332,33 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
   expo-animation: release build; aquí: export + viewport 360×640).
 
 ## 7. Notas/hallazgos
+
+### T1 (engine puro) — hallazgos de implementación
+
+- **Bug de cámara detectado en TDD**: la primera fórmula
+  (`camY = max(camY, y - línea)` invertía la dirección del scroll — la
+  cámara "bajaba" mientras el Doodler subía). La regla correcta: camY es el
+  tope de la vista en coords y-down; subir = camY DECRECE;
+  `camY = min(camY, doodler.y - CAM_LINE·WORLD_H)` y el test candea
+  monotonicidad no-creciente (no no-decreciente). Coordenadas y-down
+  invierten la intuición de "subir": candear dirección, no solo magnitud.
+- **El test de alcanzabilidad por simulación ciega era una premisa
+  falsa**: sin input horizontal el Doodler rebota en una sola plataforma
+  para siempre (el apex no cruza la línea de cámara), y un "walker"
+  aleatorio con drag muere tarde o temprano. El invariant reales son
+  (a) gap estructural de la generación (test de secuencia completa por
+  seed/banda) y (b) sobrevivencia validada por sentinela E2E, no por
+  simulación ciega.
+- **Partición de dt**: el harness del test debe acumular `leftoverMs`
+  entre llamadas de `advance`; de lo contrario el "determinismo por
+  partición" falla aunque el engine sea correcto (el sobrante es propiedad
+  del llamador, D21 del repo).
+- Los setups de muerte deben anular la generación además de vaciar
+  plataformas (`nextSpawnY: -700`): solo quitar plataformas deja que el
+  generador repueble el mundo en el primer sub-paso.
+- Cap efectivo de monstruos: el guard de spawn usa el conteo vivo
+  (`monstersOut.length < MAX_MONSTERS`); la limpieza bajo cámara corre en
+  el mismo sub-paso, así que el techo real por ventana es estable.
 
 ### Revisión crítica (sept. 2026) — hallazgos aplicados a esta versión
 
