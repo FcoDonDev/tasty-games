@@ -23,8 +23,10 @@ cuando el Doodler cae por debajo de la vista o toca un monstruo.
 - **R8 — Monstruos**: estático y móvil. Muerte por contacto, SALVO:
   aplaste (cayendo sobre la cabeza → rebote + muerte del monstruo) o hat
   activo (los atraviesa letales).
-- **R9 — Disparo**: tap en el área de juego (Espacio/↑ en web); bala recta
-  hacia arriba; máx 3 activas; mata por contacto.
+- **R9 — Disparo**: tap en el área de juego (Espacio/↑ en web); bala
+  horizontal según `facing` ("nose ball" del original, sale de la nariz);
+  despawn al salir de la vista (tope de cámara O bordes laterales, sin
+  wrap); máx 3 activas; mata por contacto.
 - **R10 — Dificultad**: escalada por bandas de 1000 u (gaps más anchos, más
   plataformas azules/marrones, más monstruos desde los 800 u).
 - **R11 — Récord**: `won: false` siempre; score = metros (más es mejor).

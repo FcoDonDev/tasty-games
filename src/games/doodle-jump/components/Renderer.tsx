@@ -11,7 +11,7 @@
  */
 
 import { memo, useEffect, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -21,17 +21,21 @@ import { platformX, monsterX, type Bullet, type Monster, type Platform } from '.
 import {
   DOODLER_H,
   DOODLER_W,
+  MAX_BULLETS,
+  MAX_MONSTERS,
   MONSTER_H,
   MONSTER_W,
   PLATFORM_H,
+  PLATFORM_POOL,
   PLATFORM_W,
   WORLD_H,
   WORLD_W,
 } from '../engine/tuning';
 
-export const PLATFORM_POOL = 22;
-export const MONSTER_POOL = 4;
-export const BULLET_POOL = 3;
+/** Capacidad de render derivada del tuning (candea tuning.test.ts, R0/R6). */
+export { PLATFORM_POOL };
+export const MONSTER_POOL = MAX_MONSTERS + 1;
+export const BULLET_POOL = MAX_BULLETS;
 
 export interface Slot {
   x: SharedValue<number>;
@@ -149,14 +153,24 @@ const PlatformSlot = memo(function PlatformSlot({
     >
       {entity?.spring ? (
         <View
-          style={[styles.spring, { width: w * 0.45, height: h * 1.3, top: -h * 1.3 }]}
+          style={[styles.spring, { width: w * 0.45, height: h * 1.2, top: -h * 1.2 }]}
           pointerEvents="none"
         >
           <View style={[styles.springBar, { width: w * 0.45 }]} />
           <View style={[styles.springBar, { width: w * 0.45 }]} />
         </View>
       ) : null}
-      {entity?.hat ? <Text style={[styles.hat, { fontSize: h * 2.2, top: -h * 2.4 }]}>🧢</Text> : null}
+      {entity?.hat ? (
+        // Sombrero propeller dibujado con Views (D13/ui-ux: sin emoji —
+        // glifo de fuente inconsistente entre plataformas).
+        <View
+          style={[styles.hat, { top: -h * 2.2 }]}
+          pointerEvents="none"
+        >
+          <View style={[styles.hatBlade, { width: w * 0.62, height: 2.5 * scale }]} />
+          <View style={[styles.hatCap, { width: w * 0.4, height: h * 1.2 }]} />
+        </View>
+      ) : null}
     </SlotNode>
   );
 });
@@ -202,13 +216,14 @@ const BulletSlot = memo(function BulletSlot({
   entity: Bullet | null;
   scale: number;
 }) {
+  // "Nose ball" (D3): elipse horizontal — se lea como proyectil lanzado.
   return (
     <SlotNode
       slots={slots}
       index={index}
       scale={scale}
-      width={6}
-      height={6}
+      width={8}
+      height={5}
       color={INK}
       round
     />
@@ -321,11 +336,6 @@ export function Renderer({
   );
 }
 
-/** Escala del mundo: `min(cw / WORLD_W, ch / WORLD_H)` (D5) — la calcula la pantalla. */
-export function computeScale(width: number, height: number): number {
-  return Math.max(0, Math.min(width / WORLD_W, height / WORLD_H));
-}
-
 const styles = StyleSheet.create({
   entity: {
     position: 'absolute',
@@ -343,10 +353,6 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     backgroundColor: '#90A4AE',
   },
-  hat: {
-    position: 'absolute',
-    left: '20%',
-  },
   eyeRow: {
     position: 'absolute',
     top: '22%',
@@ -354,13 +360,29 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: '18%',
+    gap: 4,
   },
   eye: {
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#FFFFFF',
+  },
+  hat: {
+    position: 'absolute',
+    left: '30%',
+    alignItems: 'center',
+  },
+  hatBlade: {
+    borderRadius: 2,
+    backgroundColor: '#90A4AE',
+  },
+  hatCap: {
+    backgroundColor: '#EC407A',
+    borderTopLeftRadius: 99,
+    borderTopRightRadius: 99,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
   },
   body: {
     flex: 1,

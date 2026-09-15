@@ -83,8 +83,19 @@ test('doodle-jump: test-lose — monstruo en el eje mata y persiste récord (won
   await expect(page.getByLabel('doodle-jump-doodler', { exact: true })).toBeVisible();
 });
 
-test('doodle-jump: pausa congela al Doodler y se reanuda', async ({ page }) => {
-  test.setTimeout(60_000);
+test('doodle-jump: perf-long — mundo denso renderiza con score alto (R0: pool cubre banda alta)', async ({ page }) => {
+  test.setTimeout(30_000);
+  await openGame(page, 'perf-long');
+
+  // Fixture de performance: height 20000 → score 2000 m desde el arranque.
+  await expect(page.getByLabel('doodle-jump-score', { exact: true })).toHaveText(/2\s?000\s?m/, { timeout: 10_000 });
+  // El Doodler rebota determinista en la primera plataforma: sigue vivo y visible.
+  await expect(page.getByLabel('doodle-jump-doodler', { exact: true })).toBeVisible();
+  // Sin monster/blank-corruption: el overlay de fin NO aparece (auto-rebote estable).
+  await expect(page.getByLabel('overlay-fin', { exact: true })).toBeHidden({ timeout: 8_000 });
+});
+
+test('doodle-jump: pausa congela al Doodler y se reanuda', async ({ page }) => {  test.setTimeout(60_000);
   await openGame(page, 'test-win');
 
   await page.getByLabel('doodle-jump-pausa', { exact: true }).click();

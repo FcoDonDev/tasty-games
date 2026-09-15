@@ -91,6 +91,8 @@ export interface Bullet {
   /** Centro. */
   x: number;
   y: number;
+  /** Velocidad horizontal (D3): ±BULLET_SPEED según facing del disparo. */
+  vx: number;
 }
 
 export interface Doodler {
@@ -330,7 +332,10 @@ export function createGameState(config: DoodleJumpConfig = {}): GameState {
 
 // --- inputs discretos (entre frames; los eventos salen para audio) ---
 
-/** Disparo: bala recta hacia arriba; anulado con hat activo (D12). */
+/**
+ * Disparo (D3): bala horizontal según `facing` ("nose ball" del original);
+ * anulado con hat activo (D12).
+ */
 export function shoot(state: GameState): { state: GameState; events: DoodleJumpEvent[] } {
   if (
     state.status !== 'playing' ||
@@ -340,7 +345,12 @@ export function shoot(state: GameState): { state: GameState; events: DoodleJumpE
     return { state, events: [] };
   }
   const id = state.nextId;
-  const bullet: Bullet = { id, x: state.doodler.x, y: state.doodler.y - DOODLER_H / 2 - 4 };
+  const bullet: Bullet = {
+    id,
+    x: state.doodler.x + state.doodler.facing * (DOODLER_W / 2 + 4),
+    y: state.doodler.y - DOODLER_H / 2 - 4,
+    vx: state.doodler.facing * BULLET_SPEED,
+  };
   return {
     state: { ...state, bullets: [...state.bullets, bullet], nextId: id + 1 },
     events: ['shoot'],
@@ -446,7 +456,11 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
       events.push('kill');
       continue;
     }
-    if (vyOut > 0 && prevBottom <= m.y - MONSTER_H / 2 + 2) {
+    // Aplaste (R4/T14): la tolerancia escala con el desplazamiento vertical
+    // del PROPIO sub-paso — con caídas rápidas el cruce puede saltarse
+    // varios u por sub-paso y una tolerancia fija lo lee como muerte.
+    const squishTolerance = Math.abs(doodler.vy) * dtS + 2;
+    if (vyOut > 0 && prevBottom <= m.y - MONSTER_H / 2 + squishTolerance) {
       monsters = monsters.filter((q) => q.id !== m.id);
       vyOut = -JUMP_V;
       y = m.y - MONSTER_H / 2 - DOODLER_H / 2;
@@ -465,26 +479,28 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
     };
   }
 
-  // 5) Balas: suben, matan por contacto y despawn sobre el tope de cámara.
+  // 5) Balas (D3): "nose ball" — viaja HORIZONTAL según vx a altura
+  //    constante (fiel al original); mata por contacto y despawn al salir
+  //    de la vista (bordes laterales: sin wrap).
   let bullets = state.bullets;
   if (bullets.length > 0) {
     const alive: Bullet[] = [];
     for (const b of bullets) {
-      const by = b.y - BULLET_SPEED * dtS;
+      const bx = b.x + b.vx * dtS;
       let killed = false;
       for (const m of monsters) {
         const mx = monsterX(m);
         if (
-          Math.abs(b.x - mx) < MONSTER_W / 2 &&
-          by >= m.y - MONSTER_H / 2 &&
-          by <= m.y + MONSTER_H / 2
+          Math.abs(bx - mx) < MONSTER_W / 2 + 3 &&
+          b.y >= m.y - MONSTER_H / 2 &&
+          b.y <= m.y + MONSTER_H / 2
         ) {
           monsters = monsters.filter((q) => q.id !== m.id);
           events.push('kill');
           break;
         }
       }
-      if (by > state.camY) alive.push({ ...b, y: by });
+      if (bx > 0 && bx < WORLD_W) alive.push({ ...b, x: bx });
     }
     bullets = alive;
   }

@@ -36,8 +36,8 @@ export const DRAG_MAX_DELTA = 24;
 export const CAM_LINE = 0.4;
 
 /** Generación: separación vertical entre plataformas. */
-export const MIN_GAP = 30;
-export const MAX_GAP_BASE = 55;
+export const MIN_GAP = 48;
+export const MAX_GAP_BASE = 85;
 export const MAX_GAP_STEP = 4;
 /** Banda de altura que define cada tramo de dificultad. */
 export const DIFFICULTY_BAND = 1000;
@@ -51,6 +51,9 @@ export const DOODLER_W = 24;
 export const DOODLER_H = 24;
 export const MONSTER_W = 26;
 export const MONSTER_H = 26;
+/** Bala ("nose ball"): elipse horizontal de render (la colisión es puntual). */
+export const BULLET_W = 8;
+export const BULLET_H = 5;
 
 /** Oscilaciones: plataformas azules y monstruos móviles (seno, rad). */
 export const BLUE_AMP = 45;
@@ -74,4 +77,11 @@ export const START_Y = WORLD_H * 0.85;
 
 /** Margen de limpieza de entidades bajo la cámara y de spawn por encima. */
 export const CLEAN_MARGIN = 40;
-export const SPAWN_AHEAD = WORLD_H;
+export const SPAWN_AHEAD = 320;
+/**
+ * Pool de render para plataformas (R0): el span vivo de entidades
+ * (CLEAN_MARGIN + WORLD_H + SPAWN_AHEAD) dividido por el gap mínimo debe
+ * caber SIEMPRE — candea `tuning.test.ts`. Un span mayor deja plataformas
+ * del engine sin nodo de render ("escenario en blanco" del playtest).
+ */
+export const PLATFORM_POOL = 24;

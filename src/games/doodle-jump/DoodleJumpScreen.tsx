@@ -46,7 +46,17 @@ import {
 } from './components/Renderer';
 import { monsterX, platformX, type DoodleJumpEvent } from './engine/rules';
 import { drainTickStats, getGame, setTickStatsEnabled, useDoodleJumpStore } from './engine/state';
-import { DOODLER_H, MONSTER_H, WORLD_H, WORLD_W } from './engine/tuning';
+import {
+  BULLET_H,
+  BULLET_W,
+  DOODLER_H,
+  DOODLER_W,
+  MONSTER_H,
+  MONSTER_W,
+  PLATFORM_W,
+  WORLD_H,
+  WORLD_W,
+} from './engine/tuning';
 
 /** Presupuesto de frame: dt > 25 ms = stall del loop rAF (JS thread). */
 const STALL_BUDGET_MS = 25;
@@ -215,11 +225,13 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
           hapticHeavy();
           recordEnd();
           if (!reduced) {
-            shakeX.value = withSequence(
-              withTiming(7, { duration: DEATH_SHAKE_MS }),
-              withTiming(-6, { duration: DEATH_SHAKE_MS }),
-              withTiming(4, { duration: DEATH_SHAKE_MS }),
-              withTiming(0, { duration: DEATH_SHAKE_MS + 10 }),
+            shakeX.set(
+              withSequence(
+                withTiming(7, { duration: DEATH_SHAKE_MS }),
+                withTiming(-6, { duration: DEATH_SHAKE_MS }),
+                withTiming(4, { duration: DEATH_SHAKE_MS }),
+                withTiming(0, { duration: DEATH_SHAKE_MS + 10 }),
+              ),
             );
           }
           scheduleEnd(END_DELAY_LOST_MS);
@@ -260,21 +272,21 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       const g = getGame();
       const doodlerSlot = slots.doodler.current;
       if (doodlerSlot) {
-        doodlerSlot.x.set(g.doodler.x * s - (24 * s) / 2);
-        doodlerSlot.y.set((g.doodler.y - g.camY) * s - (24 * s) / 2);
+        doodlerSlot.x.set(g.doodler.x * s - (DOODLER_W * s) / 2);
+        doodlerSlot.y.set((g.doodler.y - g.camY) * s - (DOODLER_H * s) / 2);
         doodlerSlot.flip.set(g.doodler.facing);
         doodlerSlot.opacity.set(1);
         // Copia de wrap: visible solo cerca del borde (riesgo §6).
         const mirrorX = g.doodler.x < WORLD_W / 2 ? g.doodler.x + WORLD_W : g.doodler.x - WORLD_W;
-        const near = g.doodler.x < 24 || g.doodler.x > WORLD_W - 24;
-        doodlerSlot.twinX.set(mirrorX * s - (24 * s) / 2);
-        doodlerSlot.twinY.set((g.doodler.y - g.camY) * s - (24 * s) / 2);
+        const near = g.doodler.x < DOODLER_W || g.doodler.x > WORLD_W - DOODLER_W;
+        doodlerSlot.twinX.set(mirrorX * s - (DOODLER_W * s) / 2);
+        doodlerSlot.twinY.set((g.doodler.y - g.camY) * s - (DOODLER_H * s) / 2);
         doodlerSlot.twinOpacity.set(near ? 1 : 0);
       }
       g.platforms.forEach((p, i) => {
         const slot = slots.platforms[i];
         if (!slot) return;
-        slot.x.set(platformX(p) * s - (64 * s) / 2);
+        slot.x.set(platformX(p) * s - (PLATFORM_W * s) / 2);
         slot.y.set((p.y - g.camY) * s);
         slot.opacity.set(1);
       });
@@ -285,8 +297,8 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       g.monsters.forEach((m, i) => {
         const slot = slots.monsters[i];
         if (!slot) return;
-        slot.x.set(monsterX(m) * s - (26 * s) / 2);
-        slot.y.set((m.y - g.camY) * s - (26 * s) / 2);
+        slot.x.set(monsterX(m) * s - (MONSTER_W * s) / 2);
+        slot.y.set((m.y - g.camY) * s - (MONSTER_H * s) / 2);
         slot.opacity.set(1);
       });
       for (let i = g.monsters.length; i < MONSTER_POOL; i++) {
@@ -296,8 +308,8 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       g.bullets.forEach((b, i) => {
         const slot = slots.bullets[i];
         if (!slot) return;
-        slot.x.set(b.x * s - 3 * s);
-        slot.y.set((b.y - g.camY) * s);
+        slot.x.set(b.x * s - (BULLET_W * s) / 2);
+        slot.y.set((b.y - g.camY) * s - (BULLET_H * s) / 2);
         slot.opacity.set(1);
       });
       for (let i = g.bullets.length; i < BULLET_POOL; i++) {
@@ -318,10 +330,12 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       const dt = Math.min(100, rawDt);
       last = now;
       const store = useDoodleJumpStore.getState();
-      const game = getGame();
-      if (!store.paused && game.status === 'playing') {
+      if (!store.paused && getGame().status === 'playing') {
         handleEvents(store.tick(dt));
       }
+      // Estado DESPUÉS del tick (R3): tick reasigna el módulo `game` —
+      // capturarlo antes era un snapshot pre-tick (sync con lag).
+      const game = getGame();
       const s = scaleRef.current;
       if (s > 0) renderFrame(s);
       // Sync de escena: React solo re-renderiza si cambió el set de entidades.
@@ -375,7 +389,10 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
     };
   }, [handleEvents]);
 
-  // --- gesto: drag continuo mueve / tap rápido dispara (D2/D3)
+  // --- gesto: drag continuo mueve / tap rápido dispara (D2/D3).
+  // `Exclusive` (revisión RNGH sept-2026): con `Simultaneous`, un drag
+  // rápido <280 ms que activó el Pan podía disparar el Tap al soltar.
+  // Exclusive da prioridad al Pan; el tap solo dispara si el Pan falló.
   const gesture = useMemo(() => {
     let lastX = 0;
     const pan = Gesture.Pan()
@@ -393,12 +410,13 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       });
     const tap = Gesture.Tap()
       .runOnJS(true)
+      .maxDistance(TAP_MAX_DISTANCE) // umbral drag-vs-tap explícito (v1 implícito)
       .maxDuration(TAP_MAX_DURATION_MS)
       .onEnd(() => {
         const events = useDoodleJumpStore.getState().shootNow();
         if (events.length > 0) handleEvents(events);
       });
-    return Gesture.Simultaneous(pan, tap);
+    return Gesture.Exclusive(pan, tap);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleEvents]);
 
@@ -503,7 +521,7 @@ function FloatingPopup({ popup, reduced }: { popup: ScorePopup; reduced: boolean
   const y = useSharedValue(0);
   useEffect(() => {
     if (reduced) return;
-    y.value = withRepeat(withTiming(-26, { duration: 750 }), -1, true);
+    y.set(withRepeat(withTiming(-26, { duration: 750 }), -1, true));
   }, [y, reduced]);
   const bob = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
   return (
@@ -560,14 +578,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D8D2BC',
     borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     flexDirection: 'row',
-    gap: 3,
+    gap: 4,
   },
   pauseBar: {
     width: 4,
-    height: 14,
+    height: 20,
     backgroundColor: '#6D6753',
     borderRadius: 1,
   },

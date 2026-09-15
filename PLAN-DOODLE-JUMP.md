@@ -1,6 +1,7 @@
 # PLAN-DOODLE-JUMP
 
-Estado: **planificación aprobada (revisión crítica aplicada), implementación pendiente.**
+Estado: **remediación implementada (T11-T16 verdes); pendiente playtest de
+cierre (T17) y migración de hallazgos (T10).**
 Rama: `feat/doodle-jump` (creada desde `main` @ `0d15f3b`).
 
 ## 1. Contexto y objetivo
@@ -31,7 +32,7 @@ rediseñarse (D8), no copiarse tal cual.
 |---|---|---|---|
 | D1 | Alcance v1 | **Completo**: plataformas verde/azul/marrón + springs + propeller hat + 2 monstruos (estático y móvil) con disparo y aplaste tipo Mario | Core+power-ups sin enemigos (~50% menos alcance); ultra-mínima solo plataformas fijas |
 | D2 | Controles | **Drag continuo = mover** (delta relativo, tipo joystick invisible); **tap rápido (sin arrastre) = disparar**. Un solo gesto en todo el área de juego | Touch por mitades + teclado web; tilt real (expo-sensors) en nativo — exige permisos y dos paradigmas |
-| D3 | Disparo apuntado | Descartado tap-sobre-monstruo (targets minúsculos a 360×640); el disparo sale recto hacia arriba (fiel al original en móvil) | Tap al monstruo dispara hacia él |
+| D3 | Disparo apuntado | Descartado tap-sobre-monstruo (targets minúsculos a 360×640). **Dirección: horizontal según `facing`** del Doodler (fiel al original — el muñeco dispara hacia donde mira; la dirección cambia con el movimiento). Revisa la decisión v0 ("recto hacia arriba") tras el playtest del 15-9: un disparo vertical no sirve contra monstruos laterales y no es el comportamiento del original | Tap al monstruo dispara hacia él; disparo hacia el punto de tap (web) — más control pero diverge del original y complica móvil |
 | D4 | Récords | **`won: false` siempre** (endless: no hay victoria); `score` = altura máxima alcanzada en metros. Convención "más es mejor" ✓ | `won: true` si supera récord previo (mezcla semántica ganar/récord) |
 | D5 | Física/scroll | **Mundo lógico fijo** (360×640 unidades) + escala de render con `useContainerSize` → física determinista independiente del dispositivo, comparable entre seeds E2E | Coordenadas del contenedor real (gameplay varía por pantalla, seeds no comparables) |
 | D6 | Amenazas v1 | 2 monstruos: estático (aplastable/disparable) y móvil. **Sin UFO ni black hole** (fase 2, ver §8) | Set completo con UFO (abducción) y black hole (absorción) |
@@ -107,9 +108,10 @@ src/games/doodle-jump/
   (oscilación horizontal senoidal). Spawn anclado a la generación de
   plataformas (probabilidad por banda); máx `MAX_MONSTERS` simultáneos en
   ventana de cámara.
-- **Disparo**: `shoot()` desde el store/gesto; bala recta hacia arriba
-  (~700 u/s), máx `MAX_BULLETS` activas, despawn al salir de cámara;
-  colisión bala-monstruo lo elimina (evento `'kill'`).
+- **Disparo** (D3): `shoot()` desde el store/gesto; bala **horizontal según
+  `facing`** (~700 u/s), máx `MAX_BULLETS` activas, despawn al salir de
+  cámara (tope O bordes laterales); colisión bala-monstruo lo elimina
+  (evento `'kill'`).
 - **Eventos discretos**: `{type:'die'}`, `'bounce'`, `'spring'`, `'hat'`,
   `'shoot'`, `'kill'` — sonido/haptics espejo de serpiente.
 - **API**: `createGameState(config)`, `advance(game, dtMs) → {state,
@@ -128,7 +130,8 @@ invariantes (§3.3) candean relaciones, no valores exactos:
 | `JUMP_V` | 560 u/s | `maxJump = JUMP_V²/(2·GRAVITY) ≈ 112 u` |
 | `SPRING_V` | 820 u/s | `springJump ≈ 240 u` > `maxGap` |
 | `MAX_GAP_FACTOR` | 0.8 · maxJump | todo gap ≤ factor (alcanzabilidad) |
-| `MIN_GAP` | 30 u | ≥ 0 |
+| `MIN_GAP` | 48 u (v1: 30 — retuneada, ver R2) | ≥ 0 |
+| `MAX_GAP_BASE` | 85 u (v1: 55 — retuneada, ver R2) | ≤ `MAX_JUMP_MARGIN·maxJump` (89.6) |
 | `HAT_MS` | 2000 | — |
 | `HAT_VY` | -160 u/s | ascenso sostenido |
 | `BULLET_SPEED` / `MAX_BULLETS` | 700 u/s / 3 | — |
@@ -137,6 +140,8 @@ invariantes (§3.3) candean relaciones, no valores exactos:
 | `DRAG_CLAMP_VX` | 520 u/s | anti-teletransporte |
 | `STEP_MS` / `MAX_SUBSTEPS` | 8 / 8 | estabilidad + determinismo |
 | `CAM_LINE` | 0.4 · WORLD_H | cámara solo sube |
+| `SPAWN_AHEAD` | 320 u (v1: 640 — retuneada, ver R2) | > ascenso máx por ventana (hat: 160 u/s·100 ms guard = 16 u/frame) |
+| `PLATFORM_POOL` | 24 (v1: 22 — insuficiente, ver R0) | ≥ plataformas vivas máx (span vivo / MIN_GAP) |
 | Dificultad | bandas cada 1000 u | gaps/monstruos ↑ monotónico |
 
 ### 3.3 Tests de invariantes (nuevo — hallazgo de la revisión)
@@ -287,6 +292,31 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
       `pnpm test` → `node scripts/e2e.mjs` (suite entera verde:
       typecheck ✓, 474 tests unit ✓, E2E 66 passed + 14 perf-skips ✓;
       specs doodle-jump 7/7 en corrida filtrada)
+- [x] T11 — R1: disparo direccional según facing (`Bullet.vx`, avance
+      x+y, despawn horizontal, colisión con `bx`); RULES.md R9 + tests
+      *(refinamiento del plan aplicado: la bala viaja horizontal a ALTURA
+      CONSTANTE — "nose ball" sin gravedad, fiel al original; la bala v1
+      subía mientras avanzaba y no golpeaba al lado)*
+- [x] T12 — R2: retuning (`MIN_GAP 48`, `MAX_GAP_BASE 85`,
+      `SPAWN_AHEAD 320`) + `PLATFORM_POOL 24` + ajuste de invariantes de
+      `tuning.test.ts` (span vivo / gap peor caso ≤ pool)
+- [x] T13 — R3+R5+revisión: fix referencia stale en el frame; offsets/magic
+      numbers por constantes de tuning; sombrero dibujado con Views (no
+      emoji); gap fijo en ojos; spring alineado al borde de colisión; bala
+      offset de centro; gestos `Gesture.Exclusive(pan, tap)` +
+      `maxDistance` del tap; botón pausa ≥ 44 px con hitSlop; `.set()`
+      consistente; `computeScale` muerto eliminado
+- [x] T14 — R4: tolerancia de aplaste escalada al desplazamiento del
+      sub-paso + test de aplaste rápido
+- [x] T15 — R6: test anti-regresión de capacidad (invariante
+      `(CLEAN_MARGIN+WORLD_H+SPAWN_AHEAD)/MIN_GAP ≤ PLATFORM_POOL` en
+      `tuning.test.ts`)
+- [x] T16 — E2E: smoke `perf-long` (mundo denso banda alta, score 2000 m
+      desde arranque); verificación estándar completa verde: typecheck ✓,
+      478 tests unit ✓, `node scripts/e2e.mjs` 67 passed ✓ (specs
+      doodle-jump 8/8)
+- [ ] T17 — Playtest manual del usuario (los 4 síntomas + feel del
+      retuning) — cierre del plan (T10)
 - [ ] T10 — Cierre: migrar hallazgos (GOTCHAS/ADR/ROADMAP si corresponde),
       eliminar este PLAN en el commit final
 
@@ -324,7 +354,16 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
   (`overlayAnimation`) y reciclar plataformas; medir con
   `EXPO_PUBLIC_PERF_METRICS=1` (baseline→fix→delta si hay jank); escalar a
   Skia SOLO si las métricas lo justifican (el skill lo reserva para
-  escenas enormes; aquí hay ~15 nodos).
+  escenas enormes; tras R2 hay ~15-21 nodos vivos, bajo presupuesto).
+- **Nativo pendiente de medición** (revisión sept-2026): las escrituras de
+  shared values desde el rAF JS son asíncronas cross-thread en nativo;
+  el diseño actual (D8) está verificado en web y es barato (benchmark
+  Expo), pero ANTES de afirmar "perf OK en Android viejo" hay que medir
+  con ADR 0011 en dispositivo real. Alternativas si fallara: snapshot
+  único del frame en 1 shared value + worklets por entidad, o
+  `useFrameCallback` (no implementar sin métrica). También: gestos con
+  `runOnJS(true)` cruzan a JS por evento de gesto — aceptable (eventos
+  discretos, no por frame), medir en dispositivo.
 - **Wrap-around visual**: durante el cruce se renderizan DOS copias del
   Doodler (nodo extra pre-creado con opacity condicionada al cruce) para
   no teletransportarlo visualmente; verificación puntual con
@@ -408,9 +447,120 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
 - **Decisiones confirmadas en la revisión**: D13 (doodle sketch con
   Views), D14 (sin ajustes v1) y D11 confirmada (score = altura pura).
 
+### Playtest manual (15-sept-2026) + análisis post-implementación — hallazgos que definen la fase de remediación
+
+Síntomas reportados por el usuario tras un playtest breve: disparo fijo
+vertical, escenario que "se corrompe" (queda en blanco mientras los popups
+de potenciadores siguen apareciendo), potenciadores deformados y problemas
+generales de ubicación. Análisis del código (con números):
+
+- **R0 — CRÍTICO: overflow del pool de plataformas (causa raíz del
+  escenario en blanco)**. Span de entidades vivas = limpieza bajo
+  `camY+692` y generación hasta `camY-SPAWN_AHEAD` → 1332 u (v1). Con gaps
+  v1 [30, 55] (prom 42.5) hay **~31 plataformas vivas** (peor caso 44) y
+  `PLATFORM_POOL=22`. El array se ordena de abajo hacia arriba: los
+  índices ≥ 22 son las plataformas NUEVAS de arriba — justo donde va el
+  jugador. Existen en el engine (colisionan, dan spring/hat → popup) pero
+  el Renderer no las monta → "corrupción", escenario que se vacía y
+  potenciadores que se recolectan sin verse. La torre `test-win` (gap 89 ≈
+  15 vivas) no lo pisa: por eso el E2E quedó verde. *Remediación: R2
+  (retuning) + pool 24 + test anti-regresión (R6).*
+- **R1 — Disparo solo vertical**: `shoot()` crea bala `{x,y}` y `advance`
+  la mueve solo vertical. Decisión del usuario: **facing** (D3 revisada).
+- **R3 — Referencia stale del estado en el frame del loop**: `const game =
+  getGame()` se captura ANTES de `tick(dt)` y `tick` reasigna el módulo
+  `game`; el sync de escena (`key`/`setScene`) usa el estado pre-tick
+  (lag de 1 frame). Inofensivo hoy, pero fragilidad real si se toca el
+  renderer.
+- **R4 — Aplaste con tolerancia insuficiente**: exige
+  `prevBottom <= m.y - MONSTER_H/2 + 2`; con caída ~1000 u/s el Doodler
+  baja ~8 u por sub-paso de 8 ms > 2 → cruces rápidos se leen como muerte
+  en vez de aplaste. Escalar la tolerancia al desplazamiento del propio
+  sub-paso.
+- **R5 — Visual**: (a) sombrero = emoji 🧢 con fontSize derivado — glifo de
+  fuente, inconsistente (debe ser dibujado con Views, D13); (b) `gap:
+  '18%'` porcentual en los ojos de monstruos (frágil en RNW); (c) spring
+  dibujado flotando encima vs colisión en el borde superior; (d) bala sin
+  offset de medio alto (`-3*s`); (e) números mágicos duplicados en la
+  pantalla (24/64/26/3) en vez de constantes de tuning (con
+  imports sin usar).
+- **R6 — Falta test anti-regresión de capacidad**: subir con hat/springs a
+  20000 u y assertion `platforms.length ≤ PLATFORM_POOL` en todo momento
+  (candea R0/R2 para siempre).
+- Otras debilidades menores catalogadas: `computeScale` exportado sin uso
+  (la pantalla recalcula inline); disparo con Espacio sin auto-fuego
+  (`!event.repeat` — decisión válida a revisar con facing); monstruo
+  spawneado a mitad de gap puede quedar en trayectoria obligada (mitigable
+  con disparo/aplaste, aceptable).
+
+**Decisiones del usuario (15-sept-2026)**: R1 → horizontal según facing;
+R2 → opción recomendada (retuning de gaps + SPAWN_AHEAD + pool, no solo
+agrandar el pool).
+
+### Revisión técnica con skills + web (15-sept-2026) — refinamientos al plan
+
+- **Fidelidad al original confirmada con fuentes** (GameFAQs iOS FAQ,
+  Fandom Doodle Jump Wiki, Play Store): el disparo sale "de la nariz"
+  (horizontal según facing) ✓ D3 revisada; el hat "no permite disparar y
+  destruye enemigos al atravesarlos" ✓ D12 exacta; brown = caes al
+  instante ✓; dificultad = gaps más anchos arriba ✓. Diferencias v1
+  aceptadas y documentadas: (a) monstruos del original aguantan 2-4
+  disparos — v1 los mata de 1 (simplicidad; el aplaste sigue siendo 1);
+  (b) en algunas versiones se puede APUNTAR al tap ("laser") — D3
+  descartó apuntado. **Ideas para fase 2** (→ §8): marcador del récord
+  propio "dibujado en el margen del papel" (mecánica firma del original),
+  trampolín/backflip.
+- **Hilo de escritura del render (skill expo-animation + docs
+  Reanimated)**: escribir shared values desde el rAF JS es asíncrono
+  cross-thread en nativo (JSI, sin bridge, pero cada write es un mensaje)
+  — en web es directo. Con ~30 writes/frame el costo es bajo (benchmark
+  Expo SDK 55: 10-100 views bajo presupuesto). **Decisión: mantener el
+  diseño D8 actual; NO migrar el loop a `useFrameCallback`/worklet** (el
+  engine/zustand/sonido viven en JS; por frame habría `scheduleOnRN` —
+  anti-patrón). Queda pendiente de medición nativa con ADR 0011 si algún
+  día hay dispositivo: alternativa documentada (1 shared value snapshot
+  del frame + worklets por entidad, o frame callback en UI thread). Nota
+  en §6/ROADMAP.
+- **Escrituras `.value` vs `.set()`**: alinear todo a `.set()` /
+  asignación para iniciar animaciones; los READS en worklets de
+  `useAnimatedStyle` son el uso correcto. Cambio de estilo, no de
+  comportamiento (T13).
+- **Composición de gestos Pan+Tap (docs RNGH)**: con `Gesture.Simultaneous`
+  un drag rápido de <280 ms que termina tras pasar el umbral del Pan puede
+  disparar el Tap (disparo accidental al terminar de dirigir). Remediación
+  (T13): `Gesture.Exclusive(pan, tap)` con prioridad del Pan + `.maxDist(
+  TAP_MAX_DISTANCE)` explícito en el Tap (hoy el umbral es implícito).
+  Verificado en E2E con drag escalonado.
+- **Checks ui-ux-pro-max aplicables**: emoji como icono estructural
+  prohibido → refuerza R5a (sombrero dibujado con Views, no 🧢); botón
+  pausa ~35×30 px < target 44 → agrandar o `hitSlop` (T13); feedback de
+  press ya cubierto por `PressableScale`; dark mode: paleta del papel es
+  light fija (decisión D13 "papel es papel") — verificar contraste de
+  overlays en playtest, no bloquea.
+- **Performance adicional revisada**: re-render React de la escena al
+  cambiar el set de ids (~1-2 Hz, todos los nodos del pool re-renderizan
+  por shift de índice) — aceptable; si perf-metrics lo señala, diff por id
+  de entidad. El build del key-string por frame (map/join sobre ~30
+  items) es churn menor — tolerable. Cámara/pool tras R2: ~15-21 nodos
+  vivos, muy por debajo del presupuesto del benchmark (10-100 views
+  < frame budget).
+- **Referencias**: [useFrameCallback](https://docs.swmansion.com/react-native-reanimated/docs/advanced/useFrameCallback),
+  [Shared values](https://docs.swmansion.com/react-native-reanimated/docs/core/useSharedValue),
+  [Gesture composition](https://docs.swmansion.com/react-native-gesture-handler/docs/legacy-gestures/gesture-composition),
+  [benchmark Expo animaciones](https://expo.dev/blog/the-real-cost-of-react-native-animations-benchmarking-every-approach),
+  [Doodle Jump FAQ (iOS)](https://gamefaqs.gamespot.com/iphone/969788-doodle-jump/faqs/69666),
+  [Doodle Jump Wiki](https://doodlejumpsky.fandom.com/wiki/Doodle_Jump_(game)).
+
 ## 8. Fuera de alcance v1 (fase 2 candidata — ROADMAP al cierre)
 
-- UFO (abducción), black hole (absorción), trampolín, spring shoes,
-  escudo, cohete, plataformas gris (vertical) y amarillo-rojo (explota),
-  tilt nativo (expo-sensors), sheet de ajustes/sensibilidad de drag,
-  temas visuales, misiones/logros.
+- UFO (abducción), black hole (absorción), trampolín (con backflip que
+  anula disparo), spring shoes, escudo, cohete, plataformas gris
+  (vertical) y amarillo-rojo (explota), tilt nativo (expo-sensors), sheet
+  de ajustes/sensibilidad de drag, temas visuales, misiones/logros.
+- **Marcador de récord "dibujado en el margen del papel"** (mecánica firma
+  del original: el mejor score propio aparece garabateado en el margen a
+  la altura que alcanzaste — motivación para superarlo).
+- Monstruos multi-golpe (2-4 disparos según tamaño, fiel al original;
+  v1 mata de 1).
+- Apuntado de disparo al tap (versiones con "laser"); medir si aporta
+  frente a facing.

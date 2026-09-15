@@ -6,6 +6,7 @@
 
 import {
   BULLET_SPEED,
+  CLEAN_MARGIN,
   DRAG_MAX_DELTA,
   GRAVITY,
   JUMP_V,
@@ -15,10 +16,13 @@ import {
   MAX_SUBSTEPS,
   MIN_GAP,
   MONSTER_START_HEIGHT,
+  PLATFORM_POOL,
   PLATFORM_W,
+  SPAWN_AHEAD,
   SPRING_V,
   SPRING_PROB,
   STEP_MS,
+  WORLD_H,
   WORLD_W,
 } from '../engine/tuning';
 import { maxJumpHeight, maxGapFor, blueProbFor, brownProbFor, monsterProbFor } from '../engine/rules';
@@ -66,5 +70,15 @@ describe('tuning doodle-jump: invariantes', () => {
 
   test('la base de gap respeta el margen de salto', () => {
     expect(MAX_GAP_BASE).toBeGreaterThan(MIN_GAP);
+  });
+
+  test('el pool de render cubre el peor caso de plataformas vivas (R0/R6)', () => {
+    // Span vivo: limpieza bajo (camY+WORLD_H+CLEAN_MARGIN) y generación
+    // hasta (camY-SPAWN_AHEAD). Con gap mínimo, el peor caso divide el
+    // span por MIN_GAP — un pool menor deja plataformas del engine sin
+    // nodo de render ("escenario en blanco" del playtest 15-9).
+    const span = CLEAN_MARGIN + WORLD_H + SPAWN_AHEAD;
+    const worstCaseLive = Math.ceil(span / MIN_GAP) + 1;
+    expect(PLATFORM_POOL).toBeGreaterThanOrEqual(worstCaseLive);
   });
 });

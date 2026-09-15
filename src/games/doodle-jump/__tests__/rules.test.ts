@@ -282,10 +282,12 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
 
   test('disparo mata al monstruo por contacto (evento kill)', () => {
     const base = createGameState({ rngSeed: 7 });
-    const monsterY = base.doodler.y - 150;
+    // Monstruo al LADO del Doodler, a la altura de la nariz: la bala
+    // horizontal lo alcanza (D3 revisada).
+    const bulletY = base.doodler.y - DOODLER_H / 2 - 4;
     const setup: GameState = {
       ...base,
-      monsters: [{ id: 50, kind: 'static', x: WORLD_W / 2, y: monsterY, phase: 0 }],
+      monsters: [{ id: 50, kind: 'static', x: base.doodler.x + 120, y: bulletY, phase: 0 }],
     };
     const { state: fired } = shoot(setup);
     expect(fired.bullets).toHaveLength(1);
@@ -302,6 +304,60 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
       state = result.state;
     }
     expect(state.bullets).toHaveLength(MAX_BULLETS);
+  });
+
+  test('disparo horizontal según facing (D3 revisada)', () => {
+    const base = createGameState({ rngSeed: 7 });
+    // Mirando a la derecha: la bala sale por la nariz y avanza +x.
+    const right: GameState = { ...base, doodler: { ...base.doodler, facing: 1 } };
+    const shotRight = shoot(right).state;
+    expect(shotRight.bullets).toHaveLength(1);
+    const b0 = shotRight.bullets[0];
+    expect(b0.vx).toBeGreaterThan(0);
+    expect(b0.x).toBeGreaterThan(right.doodler.x);
+    const { state: after } = run(shotRight, 32);
+    const b1 = after.bullets[0];
+    if (!b1) throw new Error('bala despawneara antes de tiempo');
+    expect(b1.x).toBeGreaterThan(b0.x); // avanzó horizontal
+    expect(b1.y).toBe(b0.y); // altura constante ("nose ball", sin gravedad)
+    // Mirando a la izquierda: vx negativo y sale hacia -x.
+    const left: GameState = { ...base, doodler: { ...base.doodler, facing: -1 } };
+    const shotLeft = shoot(left).state;
+    expect(shotLeft.bullets[0].vx).toBeLessThan(0);
+    expect(shotLeft.bullets[0].x).toBeLessThan(left.doodler.x);
+  });
+
+  test('la bala despawnea al salir por el borde lateral (sin wrap, D3)', () => {
+    const base = createGameState({ rngSeed: 7 });
+    const left: GameState = {
+      ...base,
+      doodler: { ...base.doodler, facing: -1 },
+      platforms: [],
+      nextSpawnY: -700,
+    };
+    const { state: fired } = shoot(left);
+    // 300 ms: la bala sale del borde (~235 ms) y el Doodler sigue vivo.
+    const { state: after } = run(fired, 300);
+    expect(after.bullets).toHaveLength(0);
+    expect(after.status).toBe('playing');
+  });
+
+  test('aplaste con caída rápida: la tolerancia escala con el sub-paso (R4)', () => {
+    const base = createGameState({ rngSeed: 7 });
+    // Caída RÁPIDA (vy 900 u/s): cruza ~7 u por sub-paso de 8 ms — una
+    // tolerancia fija de 2 u leía el cruce como muerte en vez de aplaste.
+    const monsterY = base.doodler.y;
+    const setup: GameState = {
+      ...base,
+      doodler: { ...base.doodler, y: monsterY - 120, vy: 900 },
+      monsters: [{ id: 50, kind: 'static', x: WORLD_W / 2, y: monsterY, phase: 0 }],
+      platforms: [],
+      nextSpawnY: -700,
+    };
+    const { state: after, events } = run(setup, 300);
+    expect(events).toContain('kill');
+    expect(after.monsters.some((m) => m.id === 50)).toBe(false);
+    expect(after.status).toBe('playing'); // el aplaste lo salvó
   });
 
   test('aplaste tipo Mario: cayendo sobre la cabeza lo mata y rebota (D12)', () => {
