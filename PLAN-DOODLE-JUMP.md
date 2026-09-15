@@ -262,13 +262,16 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
       plataforma, wrap, springs, cámara (D-cámara), generación seedeada
       con test de alcanzabilidad + `tuning.ts` + `rules.test.ts` +
       `tuning.test.ts`
-- [ ] T2 — Power-up propeller hat + eventos + plataforma azul/marrón +
-      tests de regresión
-- [ ] T3 — Monstruos (2 tipos) + balas + aplaste/disparo/hat-letal +
+- [x] T2 — Power-up propeller hat + eventos + plataforma azul/marrón +
+      tests de regresión *(landió dentro de T1: engine completo con hat,
+      azul, marrón y sus tests de regresión)*
+- [x] T3 — Monstruos (2 tipos) + balas + aplaste/disparo/hat-letal +
       muerte + tests (determinismo por partición de dt incluido)
-- [ ] T4 — Store zustand con publicación D8 (discreta/throttled),
+      *(landió dentro de T1: TDD reveló que premisas de simulación ciega
+      eran falsas — ver notas)*
+- [x] T4 — Store zustand con publicación D8 (discreta/throttled),
       stats de tick, shoot/drag/key + tests + `rules-perf.test.ts`
-- [ ] T5 — Seeds E2E (sentinelas `test-win` torre central, `test-lose`
+- [x] T5 — Seeds E2E (sentinelas `test-win` torre central, `test-lose`
       monstruo en eje) + tests
 - [ ] T6 — Pantalla: render Reanimated (`.get()/.set()`), loop rAF,
       gestos drag+tap, teclado web (D7), audio/haptics (D10/D11),
@@ -359,6 +362,23 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
 - Cap efectivo de monstruos: el guard de spawn usa el conteo vivo
   (`monstersOut.length < MAX_MONSTERS`); la limpieza bajo cámara corre en
   el mismo sub-paso, así que el techo real por ventana es estable.
+
+### T4/T5 (store + seeds) — hallazgos de implementación
+
+- **El guard anti-espiral define el contrato del tick en producción**:
+  `tick(6000)` avanza solo 8 sub-pasos (64 ms). Los tests del store deben
+  simular el loop rAF (frames de 16 ms vía helper `loopTick`) — llamar
+  `tick` con ms grandes mide el guard, no el gameplay. La pantalla nunca
+  llama `tick` con dt > 100 ms (cap del loop rAF de serpiente).
+- La publicación throttled D8 verificada: 2 s de gameplay → ~10
+  publicaciones (≤5 Hz) y la muerte publica inmediato. Pausa congela
+  también la referencia interna (`getGame()` estable) — el render no
+  necesita chequeos extra.
+- Sentinelas: la torre central debe verificarse solo en el tramo visible
+  (`y > 0`) — la generación continua encima añade reparto aleatorio por
+  encima de la torre, que es el comportamiento correcto. El E2E usa
+  6 s de tick (5 rebotes) para no entrar en zona de monstruos
+  (`MONSTER_START_HEIGHT`).
 
 ### Revisión crítica (sept. 2026) — hallazgos aplicados a esta versión
 
