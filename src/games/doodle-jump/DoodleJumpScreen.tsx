@@ -83,6 +83,8 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
   const scale = size ? Math.min(size.width / WORLD_W, size.height / WORLD_H) : 0;
   const scaleRef = useRef(0);
   scaleRef.current = scale;
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
 
   const onGameEndRef = useRef(onGameEnd);
   onGameEndRef.current = onGameEnd;
@@ -182,6 +184,32 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
     return () => sub.remove();
   }, []);
 
+  // --- hook de diagnóstico (SOLO builds E2E): estado del engine para
+  //     comparar contra el render en Playwright (caza del "escenario en
+  //     blanco", R0). En producción no existe.
+  useEffect(() => {
+    if (process.env.EXPO_PUBLIC_E2E !== '1') return;
+    (window as unknown as { __doodleDebug?: () => unknown }).__doodleDebug = () => {
+      const g = getGame();
+      return {
+        status: g.status,
+        score: g.score,
+        camY: Math.round(g.camY),
+        elapsedMs: g.elapsedMs,
+        doodler: { x: Math.round(g.doodler.x), y: Math.round(g.doodler.y), hatMs: g.doodler.hatMs },
+        // Ventana de render (candea R0 a nivel render): cuántas plataformas
+        // del engine están DENTRO de la vista (y ∈ [camY, camY+WORLD_H]).
+        platformsInView: g.platforms.filter((p) => p.y >= g.camY - 12 && p.y <= g.camY + WORLD_H).length,
+        platforms: g.platforms.length,
+        monsters: g.monsters.length,
+        bullets: g.bullets.length,
+      };
+    };
+    return () => {
+      delete (window as unknown as { __doodleDebug?: () => unknown }).__doodleDebug;
+    };
+  }, []);
+
   const spawnPopup = useCallback((text: string, color: string) => {
     const s = scaleRef.current;
     if (s <= 0) return;
@@ -264,6 +292,29 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       }
     },
     [recordEnd, reduced, shakeX, spawnPopup, scheduleEnd],
+  );
+
+  // --- disparo apuntado (D3 2×): dirección = toque − Doodler (en unidades
+  // del mundo). El tap llega en coords del `area` (GestureDetector); el
+  // papel está centrado dentro → compensar el offset del centrado.
+  const onAimShoot = useCallback(
+    (tapX: number, tapY: number) => {
+      const s = scaleRef.current;
+      const area = sizeRef.current;
+      const g = getGame();
+      let aim: { dx: number; dy: number } | undefined;
+      if (s > 0 && area) {
+        const offX = (area.width - WORLD_W * s) / 2;
+        const offY = (area.height - WORLD_H * s) / 2;
+        const dx = (tapX - (offX + g.doodler.x * s)) / s;
+        const dy = (tapY - (offY + (g.doodler.y - g.camY) * s)) / s;
+        // Deadzone: un toque sobre el propio Doodler no define dirección.
+        if (Math.hypot(dx, dy) > 12) aim = { dx, dy };
+      }
+      const events = useDoodleJumpStore.getState().shootNow(aim);
+      if (events.length > 0) handleEvents(events);
+    },
+    [handleEvents],
   );
 
   // --- escritura de posiciones del mundo → shared values (por frame)
@@ -412,13 +463,12 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       .runOnJS(true)
       .maxDistance(TAP_MAX_DISTANCE) // umbral drag-vs-tap explícito (v1 implícito)
       .maxDuration(TAP_MAX_DURATION_MS)
-      .onEnd(() => {
-        const events = useDoodleJumpStore.getState().shootNow();
-        if (events.length > 0) handleEvents(events);
+      .onEnd((e) => {
+        onAimShoot(e.x, e.y);
       });
     return Gesture.Exclusive(pan, tap);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleEvents]);
+  }, [handleEvents, onAimShoot]);
 
   // --- papel cuadriculado estático (D13): líneas memoizadas de una vez
   const grid = useMemo(() => {

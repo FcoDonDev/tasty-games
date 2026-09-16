@@ -315,8 +315,25 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
       desde arranque); verificación estándar completa verde: typecheck ✓,
       478 tests unit ✓, `node scripts/e2e.mjs` 67 passed ✓ (specs
       doodle-jump 8/8)
+- [x] T17a — **Fixtures de validación** (pedido del usuario): catálogo
+      `engine/fixtures.ts` (8 mecánicas: spring, hat, squish, squish-fast,
+      aim, blue-brown, wrap, density) con mundo CERRADO (`closed: true`,
+      `doodler` override en config) + guiones de input; unit
+      `fixtures.test.ts` (9 tests, determinismo incluido); E2E
+      `doodle-jump.fixtures.web.spec.ts` vía seeds `?seed=fix-<id>` (5
+      specs visibles). Hallazgos: (a) doble desalineación de nombres
+      seed↔catálogo (`spring` vs `fix-spring`) — la clave del catálogo es
+      el id SIN prefijo; (b) export manual SIN `EXPO_PUBLIC_E2E=1` deja
+      los seeds muertos en dist (el gate vive en `app/juego/[id].tsx`);
+      (c) hook `window.__doodleDebug` (gated E2E) para diagnóstico
+      engine↔render en Playwright — verificó consistencia total
+      (15 engine ↔ 15 nodos DOM) tras R7: el blanco NO se reprodujo en el
+      build actual — hipótesis principal: sesión dev stale (R7 llegó con
+      el Metro del usuario ya abierto; Reanimated exige reload completo).
 - [ ] T17 — Playtest manual del usuario (los 4 síntomas + feel del
-      retuning) — cierre del plan (T10)
+      retuning + apuntado) con **reload completo del dev server**; si el
+      blanco reaparece, capturar `window.__doodleDebug()` — cierre del
+      plan (T10)
 - [ ] T10 — Cierre: migrar hallazgos (GOTCHAS/ADR/ROADMAP si corresponde),
       eliminar este PLAN en el commit final
 

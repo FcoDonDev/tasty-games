@@ -8,14 +8,26 @@ Arcade vertical endless. Implementación según `PLAN-DOODLE-JUMP` (rama
 ```
 engine/
 ├── tuning.ts   # ÚNICA fuente de constantes (§3.2 del PLAN); tests candean relaciones
-├── rules.ts    # PURO: física de sub-pasos fijos (8 ms), colisiones, generación, wrap
-├── seed.ts     # sentinelas E2E (torre central / monstruo en eje) + config
+├── rules.ts    # PURO: física de sub-pasos (8 ms), colisiones, generación, wrap, disparo apuntado
+├── fixtures.ts # Fixtures de mecánica: mundo cerrado + guión de input (unit + E2E vía seed)
+├── seed.ts     # sentinelas E2E (torre central / monstruo en eje) + fixtures + config
 └── state.ts    # zustand D8: snapshot mutable interno + publicación discreta/throttled
 components/
 ├── Renderer.tsx # pools fijos de nodos animados (shared values) — sin re-renders por frame
 └── Overlays.tsx # pausa / fin (paleta doodle)
 DoodleJumpScreen.tsx # loop rAF, gestos drag+tap, teclado web, audio/haptics, popups
 ```
+
+## Fixtures de validación
+
+Mecánicas pautadas con escenario fijo (mundo cerrado, sin generación):
+`?seed=fix-spring|hat|squish|squish-fast|aim|blue-brown|wrap` (E2E) y
+`replayFixture` en `__tests__/fixtures.test.ts` (exactitud mecánica).
+El guión vive en `engine/fixtures.ts`; la exactitud en unit, el visible
+(popups/posiciones) en E2E. Solo activos con `EXPO_PUBLIC_E2E=1`.
+En builds E2E la pantalla expone además `window.__doodleDebug()` con un
+resumen del engine (conteos, camY, plataformas en vista) para diagnosticar
+engine↔render desde Playwright.
 
 ## Divergencias clave con serpiente/wakwak (no es un "espejo" literal)
 

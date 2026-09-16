@@ -22,10 +22,13 @@ import {
   type Platform,
 } from '../engine/rules';
 import {
+  BULLET_SPEED,
+  CLEAN_MARGIN,
   DOODLER_H,
   JUMP_V,
   MAX_BULLETS,
   MIN_GAP,
+  SPAWN_AHEAD,
   SPRING_V,
   STEP_MS,
   WORLD_H,
@@ -282,18 +285,67 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
 
   test('disparo mata al monstruo por contacto (evento kill)', () => {
     const base = createGameState({ rngSeed: 7 });
-    // Monstruo al LADO del Doodler, a la altura de la nariz: la bala
-    // horizontal lo alcanza (D3 revisada).
-    const bulletY = base.doodler.y - DOODLER_H / 2 - 4;
+    // Monstruo al LADO del Doodler, a la altura de la bala sin apuntado
+    // (sale del centro): la bala horizontal lo alcanza (D3).
     const setup: GameState = {
       ...base,
-      monsters: [{ id: 50, kind: 'static', x: base.doodler.x + 120, y: bulletY, phase: 0 }],
+      monsters: [{ id: 50, kind: 'static', x: base.doodler.x + 120, y: base.doodler.y, phase: 0 }],
     };
     const { state: fired } = shoot(setup);
     expect(fired.bullets).toHaveLength(1);
     const { state: after, events } = run(fired, 400);
     expect(events).toContain('kill');
     expect(after.monsters.some((m) => m.id === 50)).toBe(false);
+    expect(after.status).toBe('playing');
+  });
+
+  test('disparo apuntado: dirección del toque, velocidad constante (D3 2×)', () => {
+    const base = createGameState({ rngSeed: 7 });
+    // Hacia arriba: vx≈0, vy<0.
+    const up = shoot(base, { dx: 0, dy: -3 }).state;
+    expect(up.bullets).toHaveLength(1);
+    expect(up.bullets[0].vy).toBeLessThan(0);
+    expect(Math.abs(up.bullets[0].vx)).toBeLessThan(1e-6);
+    // Diagonal (3,4): normalizada a |v| = BULLET_SPEED.
+    const diag = shoot(base, { dx: 3, dy: -4 }).state;
+    const d = diag.bullets[0];
+    expect(Math.hypot(d.vx, d.vy)).toBeCloseTo(BULLET_SPEED, 6);
+    // Deadzone: dirección casi nula no dispara.
+    expect(shoot(base, { dx: 0.2, dy: 0.1 }).state.bullets).toHaveLength(0);
+    // El toque dispara aunque el Doodler mire al otro lado.
+    const leftFacing: GameState = { ...base, doodler: { ...base.doodler, facing: -1 } };
+    expect(shoot(leftFacing, { dx: 2, dy: 0 }).state.bullets[0].vx).toBeGreaterThan(0);
+  });
+
+  test('disparo apuntado hacia arriba mata al monstruo (caso v1 del disparo)', () => {
+    const base = createGameState({ rngSeed: 7 });
+    // Sin hat: D12 anula el disparo con hat activo. Plataformas fuera para
+    // que el Doodler siga vivo los 400 ms de la bala.
+    const setup: GameState = {
+      ...base,
+      monsters: [{ id: 50, kind: 'static', x: base.doodler.x, y: base.doodler.y - 200, phase: 0 }],
+      platforms: [],
+      nextSpawnY: -700,
+    };
+    const { state: fired } = shoot(setup, { dx: 0, dy: -1 });
+    // 350 ms: la bala mata (~260 ms) y el Doodler sigue vivo (muere a ~0.4 s).
+    const { state: after, events } = run(fired, 350);
+    expect(events).toContain('kill');
+    expect(after.monsters.some((m) => m.id === 50)).toBe(false);
+    expect(after.status).toBe('playing');
+  });
+
+  test('la bala apuntada hacia arriba despawnea sobre el tope de cámara', () => {
+    const base = createGameState({ rngSeed: 7 });
+    const setup: GameState = {
+      ...base,
+      doodler: { ...base.doodler, hatMs: 3000, vy: -160 },
+      platforms: [],
+      nextSpawnY: -700,
+    };
+    const { state: fired } = shoot(setup, { dx: 0, dy: -1 });
+    const { state: after } = run(fired, 600);
+    expect(after.bullets).toHaveLength(0);
     expect(after.status).toBe('playing');
   });
 
@@ -440,8 +492,30 @@ describe('rules doodle-jump: muerte, generación y caps', () => {
     }
   });
 
-  test('caps de entidades activas y limpieza bajo cámara', () => {
-    let state = createGameState({ rngSeed: 7, height: 5000 });
+  test('la generación persiste nextSpawnY: sin duplicados al escalar (R7)', () => {
+    // Escalada forzada con hat 3 s (~480 u + coast): cada sub-paso ejecuta
+    // el loop de generación — si nextSpawnY no persiste, cada sub-paso
+    // re-genera un lote desde el mismo cursor y apila duplicados
+    // ("racimo" del playtest 15-9).
+    let state = createGameState({ rngSeed: 7, height: 1000 });
+    state = { ...state, doodler: { ...state.doodler, hatMs: 3000, vy: -160 } };
+    const { state: after } = run(state, 3000);
+    // Ventana viva acotada: el conteo no puede exceder el peor caso del
+    // span (mismo invariante que el pool de render, R0/R6).
+    const span = CLEAN_MARGIN + WORLD_H + SPAWN_AHEAD;
+    const worstCase = Math.ceil(span / MIN_GAP) + 1;
+    expect(after.platforms.length).toBeLessThanOrEqual(worstCase + 2);
+    // Sin duplicados: gaps consecutivos ≥ MIN_GAP en toda la escalera viva.
+    const sorted = [...after.platforms].sort((a, b) => b.y - a.y);
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const gap = sorted[i].y - sorted[i + 1].y;
+      expect(gap).toBeGreaterThanOrEqual(MIN_GAP - 1);
+    }
+    // El cursor avanzó: nextSpawnY quedó por encima (menor) del camY+SPAWN_AHEAD.
+    expect(after.nextSpawnY).toBeLessThanOrEqual(after.camY - SPAWN_AHEAD);
+  });
+
+  test('caps de entidades activas y limpieza bajo cámara', () => {    let state = createGameState({ rngSeed: 7, height: 5000 });
     for (let i = 0; i < 200 && state.status === 'playing'; i++) {
       state = advance(state, 16).state;
       expect(state.monsters.length).toBeLessThanOrEqual(6);

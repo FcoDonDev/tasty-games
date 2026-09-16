@@ -40,8 +40,8 @@ export interface DoodleJumpStore {
   applyDrag: (deltaUnits: number) => void;
   /** Teclado web (D7): -1 izq, 0 suelto, 1 der. */
   setMoveDir: (dir: -1 | 0 | 1) => void;
-  /** Disparo entre frames; devuelve el evento para audio. */
-  shootNow: () => DoodleJumpEvent[];
+  /** Disparo entre frames; `aim` opcional en unidades del mundo (toque). */
+  shootNow: (aim?: { dx: number; dy: number }) => DoodleJumpEvent[];
   togglePause: () => void;
 }
 
@@ -146,9 +146,9 @@ export const useDoodleJumpStore = create<DoodleJumpStore>()((set, get) => ({
     game = setMoveDir(game, dir);
   },
 
-  shootNow: () => {
+  shootNow: (aim) => {
     if (get().paused || game.status !== 'playing') return [];
-    const result = shoot(game);
+    const result = shoot(game, aim);
     game = result.state;
     return result.events;
   },

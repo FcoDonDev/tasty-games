@@ -18,22 +18,30 @@ import {
   WORLD_W,
 } from './tuning';
 import { maxJumpHeight, type DoodleJumpConfig, type Monster, type Platform } from './rules';
+import { FIXTURES } from './fixtures';
 
 export const TEST_WIN_SEED = '__doodle_test_win__';
 export const TEST_LOSE_SEED = '__doodle_test_lose__';
 /** Fixture de performance (T4): mundo denso alto. */
 export const PERF_LONG_SEED = '__doodle_perf_long__';
+/** Prefijo de seeds de fixtures de mecánica: `fix-<id>` → `__doodle_fix_<id>__`. */
+export const FIX_SEED_PREFIX = '__doodle_fix_';
 
 export type DoodleJumpSeed =
   | typeof TEST_WIN_SEED
   | typeof TEST_LOSE_SEED
-  | typeof PERF_LONG_SEED;
+  | typeof PERF_LONG_SEED
+  | `__doodle_fix_${string}`;
 
-/** Query param `initialSeed` → sentinela, o `undefined` (partida normal). */
+/** Query param `initialSeed` → sentinela/fixture, o `undefined` (partida normal). */
 export function parseDoodleJumpSeed(initialSeed?: string | null): DoodleJumpSeed | undefined {
   if (initialSeed === 'test-win') return TEST_WIN_SEED;
   if (initialSeed === 'test-lose') return TEST_LOSE_SEED;
   if (initialSeed === 'perf-long') return PERF_LONG_SEED;
+  if (initialSeed?.startsWith('fix-')) {
+    const id = initialSeed.slice(4);
+    if (id in FIXTURES) return `__doodle_fix_${id}`;
+  }
   return undefined;
 }
 
@@ -82,6 +90,10 @@ export function seedConfig(sentinel?: DoodleJumpSeed): DoodleJumpConfig {
   if (sentinel === TEST_WIN_SEED) return testWinConfig();
   if (sentinel === TEST_LOSE_SEED) return testLoseConfig();
   if (sentinel === PERF_LONG_SEED) return perfLongConfig();
+  if (sentinel?.startsWith(FIX_SEED_PREFIX)) {
+    const fixture = FIXTURES[sentinel.slice(FIX_SEED_PREFIX.length)];
+    if (fixture) return fixture.config;
+  }
   return {};
 }
 

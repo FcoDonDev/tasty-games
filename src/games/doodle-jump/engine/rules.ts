@@ -91,8 +91,9 @@ export interface Bullet {
   /** Centro. */
   x: number;
   y: number;
-  /** Velocidad horizontal (D3): ±BULLET_SPEED según facing del disparo. */
+  /** Velocidad (D3): dirección del disparo × BULLET_SPEED (u/s). */
   vx: number;
+  vy: number;
 }
 
 export interface Doodler {
@@ -133,6 +134,13 @@ export interface DoodleJumpConfig {
   monsters?: Monster[];
   /** Para tests: height inicial (evita regenerar la escalera por banda 0). */
   height?: number;
+  /** Fixtures/tests: estado inicial del Doodler (posición, velocidad, facing). */
+  doodler?: Partial<Doodler>;
+  /**
+   * Fixtures/tests: mundo CERRADO — sin generación procedural
+   * (`nextSpawnY` fuera de alcance) y sin limpieza de lo provisto.
+   */
+  closed?: boolean;
 }
 
 /** Altura máxima de un salto normal (u): impulsor de la generación. */
@@ -292,6 +300,7 @@ export function createGameState(config: DoodleJumpConfig = {}): GameState {
     vy: 0,
     facing: 1,
     hatMs: 0,
+    ...config.doodler,
   };
   const firstPlatform: Platform = {
     id: 0,
@@ -304,13 +313,22 @@ export function createGameState(config: DoodleJumpConfig = {}): GameState {
   };
   const provided = config.platforms ? [...config.platforms] : [firstPlatform];
   const initialHeight = config.height ?? 0;
-  const generated = generateUpward(
-    provided,
-    Math.min(...provided.map((p) => p.y)),
-    initialHeight,
-    config.rngSeed ?? (Date.now() % 2147483647),
-    provided.length,
-  );
+  // Mundo cerrado (fixtures/tests): lo provisto ES el mundo — sin
+  // generación procedural y con el cursor de spawn fuera de alcance.
+  const generated = config.closed
+    ? {
+        platforms: provided,
+        rngSeed: config.rngSeed ?? 0,
+        nextId: provided.length,
+        highestY: Math.min(...provided.map((p) => p.y)),
+      }
+    : generateUpward(
+        provided,
+        Math.min(...provided.map((p) => p.y)),
+        initialHeight,
+        config.rngSeed ?? (Date.now() % 2147483647),
+        provided.length,
+      );
   const monsters = config.monsters ? [...config.monsters] : [];
   const nextId = Math.max(generated.nextId, ...monsters.map((m) => m.id + 1), 0);
   return {
@@ -323,7 +341,7 @@ export function createGameState(config: DoodleJumpConfig = {}): GameState {
     monsters,
     bullets: [],
     camY: 0,
-    nextSpawnY: generated.highestY,
+    nextSpawnY: config.closed ? Number.NEGATIVE_INFINITY : generated.highestY,
     nextId,
     moveDir: 0,
     rngSeed: generated.rngSeed,
@@ -333,10 +351,15 @@ export function createGameState(config: DoodleJumpConfig = {}): GameState {
 // --- inputs discretos (entre frames; los eventos salen para audio) ---
 
 /**
- * Disparo (D3): bala horizontal según `facing` ("nose ball" del original);
- * anulado con hat activo (D12).
+ * Disparo (D3 revisada 2×): con `aim` (dx, dy en unidades del mundo) la
+ * bala sale hacia ese punto — apuntado por toque (Fandom: "aim your shot
+ * by tapping"); sin `aim` (teclado), horizontal según `facing`. Anulado
+ * con hat activo (D12).
  */
-export function shoot(state: GameState): { state: GameState; events: DoodleJumpEvent[] } {
+export function shoot(
+  state: GameState,
+  aim?: { dx: number; dy: number },
+): { state: GameState; events: DoodleJumpEvent[] } {
   if (
     state.status !== 'playing' ||
     state.doodler.hatMs > 0 ||
@@ -344,12 +367,21 @@ export function shoot(state: GameState): { state: GameState; events: DoodleJumpE
   ) {
     return { state, events: [] };
   }
+  let nx: number = state.doodler.facing;
+  let ny = 0;
+  if (aim) {
+    const len = Math.hypot(aim.dx, aim.dy);
+    if (len < 1) return { state, events: [] }; // deadzone: sin dirección útil
+    nx = aim.dx / len;
+    ny = aim.dy / len;
+  }
   const id = state.nextId;
   const bullet: Bullet = {
     id,
-    x: state.doodler.x + state.doodler.facing * (DOODLER_W / 2 + 4),
-    y: state.doodler.y - DOODLER_H / 2 - 4,
-    vx: state.doodler.facing * BULLET_SPEED,
+    x: state.doodler.x + nx * (DOODLER_W / 2 + 4),
+    y: state.doodler.y + ny * (DOODLER_H / 2 + 4),
+    vx: nx * BULLET_SPEED,
+    vy: ny * BULLET_SPEED,
   };
   return {
     state: { ...state, bullets: [...state.bullets, bullet], nextId: id + 1 },
@@ -479,28 +511,35 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
     };
   }
 
-  // 5) Balas (D3): "nose ball" — viaja HORIZONTAL según vx a altura
-  //    constante (fiel al original); mata por contacto y despawn al salir
-  //    de la vista (bordes laterales: sin wrap).
+  // 5) Balas (D3): viajan a velocidad constante en su dirección (sin
+  //    gravedad); matan por contacto y despawn al salir de la vista.
   let bullets = state.bullets;
   if (bullets.length > 0) {
     const alive: Bullet[] = [];
     for (const b of bullets) {
       const bx = b.x + b.vx * dtS;
+      const by = b.y + b.vy * dtS;
       let killed = false;
       for (const m of monsters) {
         const mx = monsterX(m);
         if (
           Math.abs(bx - mx) < MONSTER_W / 2 + 3 &&
-          b.y >= m.y - MONSTER_H / 2 &&
-          b.y <= m.y + MONSTER_H / 2
+          by >= m.y - MONSTER_H / 2 &&
+          by <= m.y + MONSTER_H / 2
         ) {
           monsters = monsters.filter((q) => q.id !== m.id);
           events.push('kill');
           break;
         }
       }
-      if (bx > 0 && bx < WORLD_W) alive.push({ ...b, x: bx });
+      if (
+        bx > 0 &&
+        bx < WORLD_W &&
+        by > state.camY &&
+        by < state.camY + WORLD_H
+      ) {
+        alive.push({ ...b, x: bx, y: by });
+      }
     }
     bullets = alive;
   }
@@ -550,8 +589,18 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
       if (mon.monster) monstersOut = [...monstersOut, mon.monster];
     }
   }
+  // R7 (playtest 15-9): el cursor de generación DEBE persistir — sin esto
+  // cada sub-paso re-genera un lote desde el mismo nextSpawnY y apila
+  // plataformas duplicadas encima de la cámara ("racimo" del screenshot).
   return {
-    state: { ...moved, platforms: platformsOut, monsters: monstersOut, nextId, rngSeed },
+    state: {
+      ...moved,
+      platforms: platformsOut,
+      monsters: monstersOut,
+      nextSpawnY: spawnY,
+      nextId,
+      rngSeed,
+    },
     events,
   };
 }
