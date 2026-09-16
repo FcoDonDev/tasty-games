@@ -47,6 +47,11 @@ rediseñarse (D8), no copiarse tal cual.
 | D15 | Potenciadores (playtest 2, 16-sept) | Hat: 4 s @ 200 u/s (ascenso ~80 m); spring 950 u/s (pico ~320 u); el hat se CONSUME al recogerlo (ícono fuera de la plataforma, spring no); sombrero visible solo con `hatMs > 0` | Mantener 2 s @ 160 (débil: ~320 u total) / ícono persistente en plataforma |
 | D16 | Generación alcanzable (playtest 2) | Ventana horizontal por física: x nueva a ≤ `KEY_VX·t_land(gap)+PLATFORM_W−2·BLUE_AMP` de la x previa; brown siempre con compañera verde ±50 u; pool re-candeado | x uniforme aleatoria (tramos imposibles: gap 85 deja ~0.2 s de aire ≈ 53 u de alcance vs mundo 360 u) |
 | D17 | Renombre | `doodle-jump` → `robo-jump` + reskin leve (Doodler robot, "¡Turbo!", 🤖); récords dev huérfanos aceptados (app no publicada, sin migración) | Mantener nombre doodle (mismatch con la identidad del catálogo) / re-tematización completa (fase 2) |
+| D18 | Eventos con posición (fase 5 juice) | `spring`/`hat`/`kill`/`die` pasan a payload `{ type, x, y }` (+ `by: 'bullet'\|'squish'\|'hat'` en kill); `bounce`/`shoot`/`break` quedan strings (origen derivable del robot). Unlock: partículas con origen exacto (hoy el monstruo ya no existe al procesar el evento) | Derivar posiciones del estado post-tick (impreciso para kills a distancia; el monstruo muerto ya se filtró) |
+| D19 | Partículas | Pool de tweens UI-thread (`components/Particles.tsx`): pool fijo `PARTICLE_POOL 20` + `TRAIL_POOL 8`, cada partícula corre UN tween (opacidad→0, escala→0, deriva) y queda libre; triggers: pickups, kill (`by` modula estilo), disparo, muerte + **estela de turbo** (emisión round-robin cada ~50 ms desde `renderFrame` mientras `hatMs > 0`); gated por `useReducedMotion` | Partículas en el engine (cambio de física inútil: es cosmético) / partículas integradas por frame en JS (trabajo por frame, contra D8) |
+| D20 | Muerte por monstruo | Combo juice en la ventana existente `END_DELAY_LOST_MS` (el hit-stop ya existe: el engine congela): flash blanco ~120 ms → squash & stretch → ojos ✕ (visor por shared value) → tumbo girando (~720°, easeIn) con fade; shake existente queda reservado a la muerte (contraste Vlambeer). Muerte por caída sin cambios | Re-escribir el freeze en el engine (rompería pureza/determinismo) / animar la caída fuera de vista (invisible) |
+| D21 | Monstruos con vida | 100% render, cero gameplay: estático = blob ancho con púas + ojos que SIGUEN al robot (`lookX` por slot, seteado en `renderFrame`), ceño, bob de respiración; móvil = cuerpo compacto con 2 alas batiendo (~140 ms, desfasadas por índice, ref. Fandom "rapidly flapping wings"); parpadeo con fase determinista por índice; animaciones self-driving al montar + `cancelAnimation` al desmontar | Rediseño de sprites/assets (D13: Views) / cambiar comportamiento o hitbox de monstruos |
+| D22 | Hélice turbo | Aspa: `withRepeat(withTiming(360, ~160 ms, linear))` en UI thread, visible solo con `hatOpacity > 0` (el loop corre siempre — nodo chico, costo despreciable); opcional: micro-tilt del robot con turbo | Spin condicionado por JS (arrancar/parar el loop por frame) |
 
 ## 3. Arquitectura
 
@@ -370,6 +375,47 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
       en estado stale; el export fresco posterior resolvó (sintoma
       idéntico al "Metro stale" del 15-9: revisar cache de Metro tras
       `git mv`).
+
+### Fase 5 — Juice visual (playtest 16-sept parte 2; D18-D22)
+
+- [ ] T22 — **D18 Eventos con posición**: en `rules.ts`, `spring`/`hat`/
+      `kill`/`die` → payload `{ type, x, y }` (+ `by` en kill); posiciones
+      en unidades del mundo (plataforma del pickup, monstruo impactado,
+      punto de contacto de muerte). Actualizar aserciones de eventos en
+      `rules.test.ts` / `fixtures.test.ts` / `state.test.ts`
+      (`toContain('spring')` → checks tipados) + fixtures `expected`.
+- [ ] T23 — **D19 Partículas**: `components/Particles.tsx` (pool
+      `PARTICLE_POOL 20` + `TRAIL_POOL 8` en tuning; slots
+      `{x, y, opacity, scale}`; API `burst(x, y, style)` y
+      `trailEmit(x, y, v)` — tween único por partícula, counter para
+      variación determinista); wiring en la pantalla: burst spring (azul),
+      burst turbo (violeta), kill (rosa; `by:'hat'` dorado), chispa de
+      disparo, burst de muerte; **estela de turbo** round-robin (~50 ms)
+      desde `renderFrame` mientras `hatMs > 0`; todo gated por
+      `useReducedMotion`; `cancelAnimation` al desmontar.
+- [ ] T24 — **D20 Muerte por monstruo**: en `RoboJumpScreen`/`Renderer`
+      con shared values nuevos del slot (`flash`, `squashX/Y`, `dead`),
+      driven desde `handleEvents` en el evento `die` con `cause
+      'monster'`: flash blanco del cuerpo (~120 ms) → squash&stretch →
+      ojos ✕ → tumbo girando con fade (la ventana `END_DELAY_LOST_MS` ya
+      cubre la secuencia). Sin cambios de engine. Muerte por caída igual
+      que hoy.
+- [ ] T25 — **D21 Monstruos con vida**: `MonsterSlot` → siluetas distintas
+      (estático: blob ancho + púas/cuernos; móvil: compacto + 2 alas
+      batiendo desfasadas), ojos con `lookX` (siguen al robot, seteado en
+      `renderFrame` desde `sign(robo.x − monster.x)`), ceño, bob de
+      respiración y parpadeo con fase por índice (determinista, sin
+      Math.random en render); `cancelAnimation` en cleanup; gated por
+      `useReducedMotion`.
+- [ ] T26 — **D22 Hélice**: spin `withRepeat(withTiming(360, 160 ms,
+      linear))` sobre la aspa del sombrero (visible solo con
+      `hatOpacity > 0`); opcional micro-tilt del robot con turbo (±3°,
+      same loop).
+- [ ] T27 — **Verificación estándar + perf**: `pnpm typecheck` →
+      `pnpm test` → `node scripts/e2e.mjs` (labels intactos, specs no
+      dependen de animaciones); spot-check de FPS con
+      `EXPO_PUBLIC_PERF_METRICS=1` (protocolo ADR 0011) para validar que
+      los pools/loops nuevos no bajan el baseline; playtest del usuario.
 - [ ] T10 — Cierre: migrar hallazgos (GOTCHAS/ADR/ROADMAP si corresponde),
       eliminar este PLAN en el commit final — **solo con OK del usuario**
 
@@ -393,6 +439,10 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
 8. Cero re-renders React por frame (D8): el render corre en shared values
    y el loop no ejecuta `setState` por frame.
 9. Haptics solo en spring/kill/die (D10); rebote silencioso de haptics.
+10. **Fase 5**: el juice (partículas, muerte, monstruos, hélice) es
+    100% cosmético — no altera gameplay, score ni determinismo; con
+    `useReducedMotion` los loops/bursts se apagan; E2E sigue 72/72 sin
+    tocar specs (labels intactos); FPS no degrada el baseline (T27).
 
 ## 6. Riesgos / puntos delicados
 
@@ -427,6 +477,20 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
 - **Playtest de tuning**: los valores de §3.2 son semilla; el "feel"
   (gravedad, clamp, umbral tap) solo se valida jugando (skill
   expo-animation: release build; aquí: export + viewport 360×640).
+- **Fase 5 — juice (nuevos riesgos)**:
+  - *Loops `withRepeat` infinitos al desmontar* (alas, spin, bob): deben
+    cancelarse en cleanup (`cancelAnimation` en el efecto de desmontar) —
+    patrón ya usado en el repo; sin él, React puede re-montar slots y
+    duplicar loops.
+  - *Estela de turbo emite desde `renderFrame`* (JS thread): es UN
+    `.set()` + un tween por emisión (~20/s), no integración por frame —
+    verificar con ADR 0011 que no degrada el baseline (T27).
+  - *Determinismo E2E intacto*: todo el juice es visual/UI-thread — no
+    toca estado del engine; los specs no deben depender de animaciones
+    (labels/popups solo).
+  - *Ojos que siguen*: `lookX` es un `.set()` más por monstruo por frame
+    (≤ 4 slots) — barato, pero mantener el cálculo en `renderFrame`
+    (fuente única), no en worklets leyendo `getGame()`.
 
 ## 7. Notas/hallazgos
 
@@ -499,6 +563,38 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
   se resuelve con el patrón `BoardGrid` de serpiente.
 - **Decisiones confirmadas en la revisión**: D13 (doodle sketch con
   Views), D14 (sin ajustes v1) y D11 confirmada (score = altura pura).
+
+### Fase 5 — juice visual (playtest 2 parte 2) — investigación (16-sept)
+
+- **Canon de juice (game-feel/awesome-gamedev-skill + freegamesprites)**:
+  una muerte/p golpe convincente apila 5-8 respuestas en ~100 ms —
+  sonido (ya), partículas, hit-stop (ya, gratis: el engine congela),
+  flash blanco 2 frames ("el efecto más barato y ~30% del impacto
+  percibido"), knockback/tumble, shake y número/popup (ya). Reglas: el
+  juice es TRANSITORIO (exagerar y volver al reposo) y se escala a la
+  importancia del evento (shake reservado a la muerte — ya así).
+  - Flash de 2 frames para hit normal; crítico = 4 frames + scale punch.
+    Knockback/tumble bueno = velocidad que decae (no teleport).
+- **Hit-stop**: ya lo tenemos gratis — `status:'over'` congela el tick y
+  `END_DELAY_LOST_MS` da la ventana para la secuencia de muerte (flash →
+  squash → ✕ → tumbo) ANTES del overlay. Igual que Hyper Light Drifter
+  (~4 frames) / Nuclear Throne (shake solo en muerte).
+- **Monstruos (referencia Fandom Doodle Jump)**: el original usa
+  siluetas variadas con "striped rapidly flapping wings" en el volador;
+  variedad visual = identidad del juego. Nuestro alcance: 2 siluetas
+  (púas / alado) + ojos que siguen (lookX) + parpadeo + respiración —
+  todo con Views (D13), animaciones self-driving (withRepeat al montar).
+- **Partículas en esta arquitectura**: patrón pool + tween único por
+  partícula (conferido por docs Reanimated: shared values no disparan
+  re-renders; tweens corren en UI thread). La lib externa
+  `react-native-reanimated-particles` depende de react-native-svg —
+  NO usar (duplicaría dependencia; el repo dibuja con Views). La estela
+  del turbo es emisión disparada (~50 ms) desde el renderFrame existente,
+  no un segundo loop.
+- **Hélice**: `withRepeat(withTiming(360, {duration:160}, 'linear'), -1)`
+  — rotación lineal continua en UI thread; visible solo con
+  `hatOpacity > 0` (nodo chico, loop siempre activo = costo despreciable;
+  spin condicionado por JS sería más caro de gestionar que el loop fijo).
 
 ### Playtest 2 del usuario (16-sept) + fase de ajustes — hallazgos T18-T20
 
