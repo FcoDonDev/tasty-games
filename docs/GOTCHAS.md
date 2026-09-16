@@ -79,6 +79,19 @@ background están en `AGENTS.md`, no acá.
 - **Los callbacks de animación corren también al cancelar** (`finished=false`):
   un guard por id/token en el callback (ej. `finishFlight` de solitario) evita
   que un spring interrumpido limpie el estado de una animación posterior.
+- **Loops `withRepeat` self-driving (juice)**: arrancar en effect al montar y
+  `cancelAnimation` en el cleanup — si no, un re-montaje del pool duplica
+  loops. Gated por `useReducedMotion` (siluetas estáticas sin loops).
+- **Nunca animar un SV que el loop por-frame sobreescribe**: si `renderFrame`
+  escribe `slot.opacity` cada frame, un fade de muerte va MULTIPLICADO en el
+  animated style (`opacity.value * (1 - dead.value·k)`), no en el mismo SV
+  (el write por frame pisaría el tween). La caída del tumbo se suma como
+  término derivado en el MISMO transform (`translateY + d²·dist`).
+- **Un SV compartido entre registro y uso se crea en el componente que lo
+  usa**: si el hijo lo leyera del pool (`slots[i]?.lookX`), al primer render
+  el registro aún no ocurrió (los effects corren después del render) y el
+  SV queda `undefined` para siempre. Crearlo localmente y pasarlo a ambos
+  (registro del slot + nodos que lo leen).
 
 ## Jest
 
@@ -127,7 +140,12 @@ background están en `AGENTS.md`, no acá.
 - **La cache de Metro ignora `EXPO_PUBLIC_*` en export**: exportar con la env
   var tras haber exportado sin ella sirve transforms cacheados con la variable
   doblada a `undefined` (`initialSeed:void 0`). Solución: `expo export --clear`
-  (lo hace `scripts/e2e.mjs`).
+  (lo hace `scripts/e2e.mjs`). Diagnóstico rápido: **md5 del bundle
+  idéntico entre exports con envs distintas** = cache sirviendo el env viejo
+  ("export fresco" NO basta al TOGGLEAR una env; verificado con
+  `EXPO_PUBLIC_PERF_METRICS` en robo-jump). Tras un `git mv`/rename el
+  síntoma es el mismo: la PRIMERA corrida E2E corre contra un bundle con
+  el módulo movido en estado stale — export `--clear` la resuelve.
 - **`expo export` NO regenera `.expo/types/router.d.ts`** (rutas tipadas): hay
   que arrancar `pnpm start` una vez y detenerlo por PID, o tsc falla en rutas
   sin cambios propios.

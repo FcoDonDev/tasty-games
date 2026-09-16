@@ -1,7 +1,8 @@
 # Robo Jump — Notas técnicas
 
-Arcade vertical endless. Implementación según `PLAN-DOODLE-JUMP` (rama
-`feat/robo-jump`); ver PLAN para decisiones D1–D14 completas.
+Arcade vertical endless. Decisiones de diseño (D1–D22) y hallazgos en el
+historial de git de la rama `feat/doodle-jump` (PLAN-DOODLE-JUMP, eliminado
+en el commit de cierre); ver RULES.md para las reglas QA.
 
 ## Arquitectura
 
@@ -90,3 +91,40 @@ consistencia engine↔render que validó R0/R7 (ver PLAN, T17a).
 Valores en `engine/tuning.ts` (semillas a calibrar en playtest); los tests
 de invariantes candean RELACIONES (alcanzabilidad: gap ≤ 0.8·salto máx;
 spring alcanza > maxGap; caps coherentes), no valores exactos.
+
+## Juice visual (fase 5, D18–D22)
+
+Todo el juice es 100% cosmético (UI-thread, cero cambios de física/score;
+gated por `useReducedMotion`; specs E2E intactos):
+
+- **Eventos con posición (D18)**: `spring`/`hat`/`kill`/`die` son payloads
+  `{ type, x, y }` (+ `by: 'bullet'|'squish'|'hat'` en kill) en unidades
+  del mundo — la pantalla los usa como ORIGEN de partículas sin derivar
+  posiciones del estado post-tick (el monstruo muerto ya no existe).
+  `bounce`/`shoot`/`break` siguen siendo strings.
+- **Partículas (D19)**: `components/Particles.tsx` — pool fijo
+  (`PARTICLE_POOL 20` + `TRAIL_POOL 8`) de nodos 1×1 escalados por el
+  transform; cada emisión setea 8 shared values y lanza UN tween de
+  progreso `k`; ángulos deterministas (reparto radial × salto áureo por
+  contador, sin Math.random). API `burst(x, y, style)` y
+  `emit(x, y)` (estela del turbo: `renderFrame` emite cada
+  `TRAIL_EVERY_MS` mientras `hatMs > 0`).
+- **Muerte por monstruo (D20)**: flash blanco → squash & stretch → ojos ✕
+  → tumbo girando con fade, todo en `RoboSlot` (SVs `flash/squashX/
+  squashY/ko/dead`) disparado por `triggerRoboDeath` en `die` con
+  `cause:'monster'`; la secuencia (680 ms) vive dentro de
+  `END_DELAY_LOST_MS` (700 ms). La muerte por caída no cambia. El reset
+  de los SV en `restart` (`resetRoboFx`) es OBLIGATORIO: sin él el tumbo
+  del run anterior seguiría animando.
+- **Monstruos (D21)**: estático = blob ancho con púas + ceño; móvil =
+  compacto con 2 alas batiendo desfasadas; ojos que siguen al robot
+  (SV `lookX` por slot, creado por el propio `MonsterSlot` y seteado en
+  `renderFrame`), bob de respiración y parpadeo con fase por índice
+  (determinista). Los hitboxes no cambian (contenedor 26×26).
+- **Hélice (D22)**: el aspa gira con `withRepeat(360°/160 ms, linear)`
+  siempre en UI thread (invisible con `hatOpacity = 0`; el loop fijo
+  cuesta menos que gestionar su arranque/parada por JS).
+
+Trampas documentadas en `docs/GOTCHAS.md` (Reanimated): loops con
+`cancelAnimation` al desmontar, fade multiplicado fuera del SV del
+loop por-frame, SV creado por quien lo usa.

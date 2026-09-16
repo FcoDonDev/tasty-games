@@ -93,6 +93,28 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
   `/serpiente-preview` (mismo mock, medible con perf metrics) — no
   reescribiendo el juego en producción. Ver ADR 0014 §Consecuencias.
 
+## Robo Jump — fase 2 (diferida del cierre de PLAN-DOODLE-JUMP)
+
+- [ ] Amenazas del original: UFO (abducción) y black hole (absorción).
+- [ ] Power-ups restantes: trampolín (backflip que anula disparo), spring
+      shoes, escudo, cohete; plataformas gris (vertical) y amarillo-rojo
+      (explota).
+- [ ] **Marcador de récord "dibujado en el margen del papel"**: el mejor
+      score propio garabateado en el margen a la altura alcanzada (mecánica
+      firma del original; requiere leer el récord del juego en la pantalla
+      — sin romper D4/récords via `recordsRepository`).
+- [ ] Monstruos multi-golpe (2-4 disparos según tamaño, fiel al original;
+      hoy mueren de 1) y apuntado al tap ("laser", medir si aporta frente
+      al facing actual).
+- [ ] Tilt nativo (expo-sensors) y sheet de ajustes/sensibilidad de drag;
+      temas visuales y misiones/logros.
+- [ ] Medición del juice (partículas/loops de monstruos) en device Android
+      con [ADR 0011](adr/0011-metricas-performance.md) — hoy validado solo
+      en web (~63 fps con pools/loops activos).
+- [ ] Fix menor: warning Reanimated "transform overwritten by layout
+      animation" en `FloatingPopup` (robo-jump) — wrap del `entering`/
+      `exiting` en un Animated.View externo.
+
 ## Deudas técnicas conocidas
 
 - [ ] **Personalizar los iconos PWA**: hoy son escalados de
