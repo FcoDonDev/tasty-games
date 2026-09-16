@@ -362,8 +362,14 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
       icon 🤖/descripción); reskin: cuerpo acero + visor cian + antena
       con punta encendida; popup "¡Turbo!". Récords dev huérfanos
       aceptados (sin migración). RULES.md R3/R5/R10 + README actualizados.
-- [ ] T21 — Verificación estándar: `pnpm typecheck` → `pnpm test` →
-      `node scripts/e2e.mjs`.
+- [x] T21 — Verificación estándar completa (16-sept): `pnpm typecheck` ✓,
+      494 tests unit ✓ (50 suites, robo-jump 67/67), `node scripts/e2e.mjs`
+      72 passed ✓ (specs robo-jump 13/13: 8 base + 5 fixtures). Nota: la
+      PRIMERA corrida E2E falló en 15.5 s para TODOS los specs robo — el
+      export inmediato al renombre sirvió un bundle con el módulo movido
+      en estado stale; el export fresco posterior resolvó (sintoma
+      idéntico al "Metro stale" del 15-9: revisar cache de Metro tras
+      `git mv`).
 - [ ] T10 — Cierre: migrar hallazgos (GOTCHAS/ADR/ROADMAP si corresponde),
       eliminar este PLAN en el commit final — **solo con OK del usuario**
 
