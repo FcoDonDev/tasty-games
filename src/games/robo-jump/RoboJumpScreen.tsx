@@ -542,19 +542,23 @@ export default function RoboJumpScreen({ onExit, onGameEnd, initialSeed }: GameS
   // `Exclusive` (revisión RNGH sept-2026): con `Simultaneous`, un drag
   // rápido <280 ms que activó el Pan podía disparar el Tap al soltar.
   // Exclusive da prioridad al Pan; el tap solo dispara si el Pan falló.
+  // El origen del drag vive en un ref FUERA del closure del gesto (fix drag
+  // táctil): si el gesto se re-crea a mitad del arrastre (re-render), el
+  // closure nuevo nacería con lastX=0 y el primer delta = posición absoluta
+  // del dedo (siempre ≥ 0 → salto a un solo lado). El ref sobrevive.
+  const lastDragX = useRef(0);
   const gesture = useMemo(() => {
-    let lastX = 0;
     const pan = Gesture.Pan()
       .runOnJS(true)
       .activeOffsetX([-TAP_MAX_DISTANCE, TAP_MAX_DISTANCE])
       .onBegin((e) => {
-        lastX = e.x;
+        lastDragX.current = e.x;
       })
       .onUpdate((e) => {
         const s = scaleRef.current;
         if (s <= 0) return;
-        const delta = (e.x - lastX) / s;
-        lastX = e.x;
+        const delta = (e.x - lastDragX.current) / s;
+        lastDragX.current = e.x;
         if (delta !== 0) useRoboJumpStore.getState().applyDrag(delta);
       });
     const tap = Gesture.Tap()

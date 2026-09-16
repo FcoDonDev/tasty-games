@@ -244,7 +244,14 @@ export function useParticleFx(scaleRef: RefObject<number>): ParticleFx {
     [],
   );
 
-  return { burst, emit, node };
+  // Objeto estable entre renders (fix drag táctil): si el retorno cambiara de
+  // identidad por render, `handleEvents` (dep de la pantalla) y el gesto del
+  // Pan se re-crearían ~5×/s con el publish de score — y RNGH web conserva la
+  // instancia del handler pero reemplaza los callbacks por closures frescos
+  // (updateHandlers), desincronizando el origen del drag.
+  const fx = useMemo<ParticleFx>(() => ({ burst, emit, node }), [burst, emit, node]);
+
+  return fx;
 }
 
 export { PARTICLE_POOL, TRAIL_POOL };
