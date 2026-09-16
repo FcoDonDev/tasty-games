@@ -1,5 +1,5 @@
 /**
- * Store zustand de Doodle Jump (PLAN-DOODLE-JUMP T4, D8/D9/D10).
+ * Store zustand de Robo Jump (PLAN-DOODLE-JUMP T4, D8/D9/D10).
  *
  * Divergencia con serpiente/wakwak (D8): la física es CONTINUA — el estado
  * cambia cada frame — así que el `GameState` vive como snapshot mutable
@@ -18,16 +18,16 @@ import {
   createGameState,
   setMoveDir,
   shoot,
-  type DoodleJumpEvent,
+  type RoboJumpEvent,
   type GameState,
   type GameStatus,
 } from './rules';
-import { parseDoodleJumpSeed, seedConfig } from './seed';
+import { parseRoboJumpSeed, seedConfig } from './seed';
 
 /** Throttle de publicación de score/status (D8): ≤ 5 Hz. */
 const UI_PUBLISH_MS = 200;
 
-export interface DoodleJumpStore {
+export interface RoboJumpStore {
   /** Espejos discretos para la UI (se publican throttled/inmediato). */
   paused: boolean;
   status: GameStatus;
@@ -36,12 +36,12 @@ export interface DoodleJumpStore {
   startRun: (seed?: string) => void;
   reset: (seed?: string) => void;
   /** Avanza la simulación; devuelve los eventos discretos (sonido/haptics). */
-  tick: (dtMs: number) => DoodleJumpEvent[];
+  tick: (dtMs: number) => RoboJumpEvent[];
   applyDrag: (deltaUnits: number) => void;
   /** Teclado web (D7): -1 izq, 0 suelto, 1 der. */
   setMoveDir: (dir: -1 | 0 | 1) => void;
   /** Disparo entre frames; `aim` opcional en unidades del mundo (toque). */
-  shootNow: (aim?: { dx: number; dy: number }) => DoodleJumpEvent[];
+  shootNow: (aim?: { dx: number; dy: number }) => RoboJumpEvent[];
   togglePause: () => void;
 }
 
@@ -86,20 +86,20 @@ let tickAccumMs = 0;
 let sincePublishMs = 0;
 
 function publish(
-  set: (partial: Partial<Pick<DoodleJumpStore, 'status' | 'score'>>) => void,
+  set: (partial: Partial<Pick<RoboJumpStore, 'status' | 'score'>>) => void,
 ): void {
   sincePublishMs = 0;
   tickPublished += 1;
   set({ status: game.status, score: game.score });
 }
 
-export const useDoodleJumpStore = create<DoodleJumpStore>()((set, get) => ({
+export const useRoboJumpStore = create<RoboJumpStore>()((set, get) => ({
   paused: false,
   status: game.status,
   score: game.score,
 
   startRun: (seed) => {
-    const config = seedConfig(parseDoodleJumpSeed(seed));
+    const config = seedConfig(parseRoboJumpSeed(seed));
     game = createGameState(config);
     tickAccumMs = 0;
     sincePublishMs = UI_PUBLISH_MS; // publica inmediato al iniciar

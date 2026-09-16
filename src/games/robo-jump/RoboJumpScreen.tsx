@@ -1,9 +1,9 @@
 /**
- * DoodleJumpScreen (T6): loop rAF → `store.tick(dt)` (acumulador + sub-pasos
+ * RoboJumpScreen (T6): loop rAF → `store.tick(dt)` (acumulador + sub-pasos
  * fijos, D9) + Renderer de shared values (D8: cero re-renders React por
  * frame). Gestos: drag continuo mueve / tap dispara (D2); teclado ←/→/Espacio
  * en web (D7). Sonido/haptics causales (D10), popups, auto-pausa, récord vía
- * `onGameEnd` (D4: endless, `won:false` siempre). Identidad visual: doodle
+ * `onGameEnd` (D4: endless, `won:false` siempre). Identidad visual: sketch
  * sketch con papel cuadriculado (D13).
  */
 
@@ -44,13 +44,13 @@ import {
   Renderer,
   type SlotGroups,
 } from './components/Renderer';
-import { monsterX, platformX, type DoodleJumpEvent } from './engine/rules';
-import { drainTickStats, getGame, setTickStatsEnabled, useDoodleJumpStore } from './engine/state';
+import { monsterX, platformX, type RoboJumpEvent } from './engine/rules';
+import { drainTickStats, getGame, setTickStatsEnabled, useRoboJumpStore } from './engine/state';
 import {
   BULLET_H,
   BULLET_W,
-  DOODLER_H,
-  DOODLER_W,
+  ROBO_H,
+  ROBO_W,
   MONSTER_H,
   MONSTER_W,
   PLATFORM_W,
@@ -78,7 +78,7 @@ interface ScorePopup {
   color: string;
 }
 
-export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: GameScreenProps) {
+export default function RoboJumpScreen({ onExit, onGameEnd, initialSeed }: GameScreenProps) {
   const { size, onLayout } = useContainerSize();
   const scale = size ? Math.min(size.width / WORLD_W, size.height / WORLD_H) : 0;
   const scaleRef = useRef(0);
@@ -112,23 +112,23 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       platforms: Array.from({ length: PLATFORM_POOL }, () => null),
       monsters: Array.from({ length: MONSTER_POOL }, () => null),
       bullets: Array.from({ length: BULLET_POOL }, () => null),
-      doodler: { current: null },
+      robo: { current: null },
     }),
     [],
   );
 
   // Métricas (ADR 0011): monitor de FPS + stats de tick al desmontar.
-  usePerfFrameMonitor('doodle-jump');
+  usePerfFrameMonitor('robo-jump');
   useEffect(() => {
     setTickStatsEnabled(isPerfEnabled());
-    beginPerfSession('doodle-jump');
+    beginPerfSession('robo-jump');
     return () => {
       const stats = drainTickStats();
-      for (const ms of stats.advanceSamples) perfSample('doodle-jump', 'loop.advance', ms);
+      for (const ms of stats.advanceSamples) perfSample('robo-jump', 'loop.advance', ms);
       if (stats.tickCalls > 0) {
-        perfSample('doodle-jump', 'loop.publishRate', stats.tickPublished / stats.tickCalls);
+        perfSample('robo-jump', 'loop.publishRate', stats.tickPublished / stats.tickCalls);
       }
-      endPerfSession('doodle-jump');
+      endPerfSession('robo-jump');
       setTickStatsEnabled(false);
     };
   }, []);
@@ -138,7 +138,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
     setEndShown(false);
     setPopups([]);
     if (endTimerRef.current) clearTimeout(endTimerRef.current);
-    useDoodleJumpStore.getState().reset(initialSeed);
+    useRoboJumpStore.getState().reset(initialSeed);
   }, [initialSeed]);
 
   // --- partida: reset al montar y al reintentar (conserva seed E2E)
@@ -168,7 +168,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
   // --- auto-pausa al ocultar la pestaña (web) o ir a background (nativo)
   useEffect(() => {
     const autoPause = (): void => {
-      const store = useDoodleJumpStore.getState();
+      const store = useRoboJumpStore.getState();
       if (!store.paused && getGame().status === 'playing') store.togglePause();
     };
     if (Platform.OS === 'web') {
@@ -189,14 +189,14 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
   //     blanco", R0). En producción no existe.
   useEffect(() => {
     if (process.env.EXPO_PUBLIC_E2E !== '1') return;
-    (window as unknown as { __doodleDebug?: () => unknown }).__doodleDebug = () => {
+    (window as unknown as { __roboDebug?: () => unknown }).__roboDebug = () => {
       const g = getGame();
       return {
         status: g.status,
         score: g.score,
         camY: Math.round(g.camY),
         elapsedMs: g.elapsedMs,
-        doodler: { x: Math.round(g.doodler.x), y: Math.round(g.doodler.y), hatMs: g.doodler.hatMs },
+        robo: { x: Math.round(g.robo.x), y: Math.round(g.robo.y), hatMs: g.robo.hatMs },
         // Ventana de render (candea R0 a nivel render): cuántas plataformas
         // del engine están DENTRO de la vista (y ∈ [camY, camY+WORLD_H]).
         platformsInView: g.platforms.filter((p) => p.y >= g.camY - 12 && p.y <= g.camY + WORLD_H).length,
@@ -206,7 +206,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       };
     };
     return () => {
-      delete (window as unknown as { __doodleDebug?: () => unknown }).__doodleDebug;
+      delete (window as unknown as { __roboDebug?: () => unknown }).__roboDebug;
     };
   }, []);
 
@@ -217,7 +217,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
     const id = ++popupIdRef.current;
     setPopups((prev) => [
       ...prev.slice(-4),
-      { id, x: g.doodler.x * s, y: (g.doodler.y - g.camY) * s, text, color },
+      { id, x: g.robo.x * s, y: (g.robo.y - g.camY) * s, text, color },
     ]);
     const timer = setTimeout(() => {
       setPopups((prev) => prev.filter((p) => p.id !== id));
@@ -231,7 +231,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
     endedRef.current = true;
     const g = getGame();
     onGameEndRef.current({
-      gameId: 'doodle-jump',
+      gameId: 'robo-jump',
       won: false, // endless: sin victoria (D4)
       score: g.score,
       durationMs: g.elapsedMs,
@@ -246,7 +246,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
 
   // --- eventos discretos → sonido/haptics (LO PRIMERO) + popups (D10)
   const handleEvents = useCallback(
-    (events: DoodleJumpEvent[]) => {
+    (events: RoboJumpEvent[]) => {
       for (const event of events) {
         if (typeof event === 'object') {
           soundExplosion();
@@ -276,7 +276,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
             break;
           case 'hat':
             soundPowerUp();
-            spawnPopup('¡Propeller!', '#AB47BC');
+            spawnPopup('¡Turbo!', '#AB47BC');
             break;
           case 'kill':
             soundHit();
@@ -294,7 +294,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
     [recordEnd, reduced, shakeX, spawnPopup, scheduleEnd],
   );
 
-  // --- disparo apuntado (D3 2×): dirección = toque − Doodler (en unidades
+  // --- disparo apuntado (D3 2×): dirección = toque − Robo (en unidades
   // del mundo). El tap llega en coords del `area` (GestureDetector); el
   // papel está centrado dentro → compensar el offset del centrado.
   const onAimShoot = useCallback(
@@ -306,12 +306,12 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       if (s > 0 && area) {
         const offX = (area.width - WORLD_W * s) / 2;
         const offY = (area.height - WORLD_H * s) / 2;
-        const dx = (tapX - (offX + g.doodler.x * s)) / s;
-        const dy = (tapY - (offY + (g.doodler.y - g.camY) * s)) / s;
-        // Deadzone: un toque sobre el propio Doodler no define dirección.
+        const dx = (tapX - (offX + g.robo.x * s)) / s;
+        const dy = (tapY - (offY + (g.robo.y - g.camY) * s)) / s;
+        // Deadzone: un toque sobre el propio Robo no define dirección.
         if (Math.hypot(dx, dy) > 12) aim = { dx, dy };
       }
-      const events = useDoodleJumpStore.getState().shootNow(aim);
+      const events = useRoboJumpStore.getState().shootNow(aim);
       if (events.length > 0) handleEvents(events);
     },
     [handleEvents],
@@ -321,18 +321,19 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
   const renderFrame = useCallback(
     (s: number) => {
       const g = getGame();
-      const doodlerSlot = slots.doodler.current;
-      if (doodlerSlot) {
-        doodlerSlot.x.set(g.doodler.x * s - (DOODLER_W * s) / 2);
-        doodlerSlot.y.set((g.doodler.y - g.camY) * s - (DOODLER_H * s) / 2);
-        doodlerSlot.flip.set(g.doodler.facing);
-        doodlerSlot.opacity.set(1);
+      const roboSlot = slots.robo.current;
+      if (roboSlot) {
+        roboSlot.x.set(g.robo.x * s - (ROBO_W * s) / 2);
+        roboSlot.y.set((g.robo.y - g.camY) * s - (ROBO_H * s) / 2);
+        roboSlot.flip.set(g.robo.facing);
+        roboSlot.opacity.set(1);
+        roboSlot.hatOpacity.set(g.robo.hatMs > 0 ? 1 : 0);
         // Copia de wrap: visible solo cerca del borde (riesgo §6).
-        const mirrorX = g.doodler.x < WORLD_W / 2 ? g.doodler.x + WORLD_W : g.doodler.x - WORLD_W;
-        const near = g.doodler.x < DOODLER_W || g.doodler.x > WORLD_W - DOODLER_W;
-        doodlerSlot.twinX.set(mirrorX * s - (DOODLER_W * s) / 2);
-        doodlerSlot.twinY.set((g.doodler.y - g.camY) * s - (DOODLER_H * s) / 2);
-        doodlerSlot.twinOpacity.set(near ? 1 : 0);
+        const mirrorX = g.robo.x < WORLD_W / 2 ? g.robo.x + WORLD_W : g.robo.x - WORLD_W;
+        const near = g.robo.x < ROBO_W || g.robo.x > WORLD_W - ROBO_W;
+        roboSlot.twinX.set(mirrorX * s - (ROBO_W * s) / 2);
+        roboSlot.twinY.set((g.robo.y - g.camY) * s - (ROBO_H * s) / 2);
+        roboSlot.twinOpacity.set(near ? 1 : 0);
       }
       g.platforms.forEach((p, i) => {
         const slot = slots.platforms[i];
@@ -380,7 +381,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       const rawDt = now - last;
       const dt = Math.min(100, rawDt);
       last = now;
-      const store = useDoodleJumpStore.getState();
+      const store = useRoboJumpStore.getState();
       if (!store.paused && getGame().status === 'playing') {
         handleEvents(store.tick(dt));
       }
@@ -389,8 +390,9 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
       const game = getGame();
       const s = scaleRef.current;
       if (s > 0) renderFrame(s);
-      // Sync de escena: React solo re-renderiza si cambió el set de entidades.
-      const key = `${game.platforms.map((p) => p.id).join(',')}|${game.monsters.map((m) => m.id).join(',')}|${game.bullets.map((b) => b.id).join(',')}`;
+      // Sync de escena: React solo re-renderiza si cambió el set de entidades
+      // O su decoración (spring/hat se consumen — D15 — sin cambiar ids).
+      const key = `${game.platforms.map((p) => `${p.id}${p.spring ? 's' : ''}${p.hat ? 'h' : ''}`).join(',')}|${game.monsters.map((m) => m.id).join(',')}|${game.bullets.map((b) => b.id).join(',')}`;
       if (key !== lastSceneKey) {
         lastSceneKey = key;
         setScene({
@@ -399,7 +401,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
           bullets: game.bullets.slice(),
         });
       }
-      if (rawDt > STALL_BUDGET_MS) perfJsStall('doodle-jump', rawDt);
+      if (rawDt > STALL_BUDGET_MS) perfJsStall('robo-jump', rawDt);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -407,9 +409,9 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
   }, [handleEvents]);
 
   // --- suscripciones discretas para la UI React (status/score/paused)
-  const paused = useDoodleJumpStore((st) => st.paused);
-  const status = useDoodleJumpStore((st) => st.status);
-  const score = useDoodleJumpStore((st) => st.score);
+  const paused = useRoboJumpStore((st) => st.paused);
+  const status = useRoboJumpStore((st) => st.status);
+  const score = useRoboJumpStore((st) => st.score);
 
   // --- teclado web (D7): ←/→ mueven, Espacio/↑ dispara
   useEffect(() => {
@@ -417,19 +419,19 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        useDoodleJumpStore.getState().setMoveDir(-1);
+        useRoboJumpStore.getState().setMoveDir(-1);
       } else if (event.key === 'ArrowRight') {
         event.preventDefault();
-        useDoodleJumpStore.getState().setMoveDir(1);
+        useRoboJumpStore.getState().setMoveDir(1);
       } else if ((event.key === ' ' || event.key === 'ArrowUp') && !event.repeat) {
         event.preventDefault();
-        const events = useDoodleJumpStore.getState().shootNow();
+        const events = useRoboJumpStore.getState().shootNow();
         if (events.length > 0) handleEvents(events);
       }
     };
     const onKeyUp = (event: KeyboardEvent): void => {
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        useDoodleJumpStore.getState().setMoveDir(0);
+        useRoboJumpStore.getState().setMoveDir(0);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -457,7 +459,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
         if (s <= 0) return;
         const delta = (e.x - lastX) / s;
         lastX = e.x;
-        if (delta !== 0) useDoodleJumpStore.getState().applyDrag(delta);
+        if (delta !== 0) useRoboJumpStore.getState().applyDrag(delta);
       });
     const tap = Gesture.Tap()
       .runOnJS(true)
@@ -494,7 +496,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
   }, [scale]);
 
   const paper = (
-    <View style={styles.boardArea} onLayout={onLayout} accessibilityLabel="doodle-jump-escena">
+    <View style={styles.boardArea} onLayout={onLayout} accessibilityLabel="robo-jump-escena">
       {scale > 0 ? (
         <Animated.View
           style={[
@@ -524,18 +526,18 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
   return (
     <View style={styles.screen}>
       <GameHeader
-        gameId="doodle-jump"
+        gameId="robo-jump"
         onExit={onExit}
         onRestart={restart}
         center={
-          <Text style={styles.score} accessibilityLabel="doodle-jump-score">
+          <Text style={styles.score} accessibilityLabel="robo-jump-score">
             {score} m
           </Text>
         }
         left={
           <PressableScale
-            accessibilityLabel="doodle-jump-pausa"
-            onPress={() => useDoodleJumpStore.getState().togglePause()}
+            accessibilityLabel="robo-jump-pausa"
+            onPress={() => useRoboJumpStore.getState().togglePause()}
             style={styles.pauseButton}
           >
             <View>
@@ -549,7 +551,7 @@ export default function DoodleJumpScreen({ onExit, onGameEnd, initialSeed }: Gam
         <View style={styles.area}>{paper}</View>
       </GestureDetector>
       {paused && status === 'playing' ? (
-        <PauseOverlay onResume={() => useDoodleJumpStore.getState().togglePause()} />
+        <PauseOverlay onResume={() => useRoboJumpStore.getState().togglePause()} />
       ) : null}
       {endVisible ? (
         <EndOverlay

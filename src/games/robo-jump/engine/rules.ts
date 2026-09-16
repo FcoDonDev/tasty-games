@@ -1,5 +1,5 @@
 /**
- * Reglas puras de Doodle Jump (PLAN-DOODLE-JUMP T1, D2/D4/D5/D9/D11/D12).
+ * Reglas puras de Robo Jump (PLAN-DOODLE-JUMP T1, D2/D4/D5/D9/D11/D12).
  * Sin UI, sin imports de otros juegos ni de core: funciones puras sobre
  * `GameState` con física de sub-pasos fijos (D9). El store (`state.ts`, T4)
  * las invoca; la pantalla escribe shared values desde `getGame()` (D8).
@@ -16,8 +16,8 @@ import {
   CAM_LINE,
   CLEAN_MARGIN,
   DIFFICULTY_BAND,
-  DOODLER_H,
-  DOODLER_W,
+  ROBO_H,
+  ROBO_W,
   DRAG_MAX_DELTA,
   GRAVITY,
   HAT_MS,
@@ -37,6 +37,8 @@ import {
   MONSTER_H,
   MONSTER_START_HEIGHT,
   MONSTER_W,
+  COMPANION_DROP,
+  COMPANION_DIST,
   PLATFORM_H,
   PLATFORM_W,
   SCORE_DIVISOR,
@@ -52,7 +54,7 @@ import {
 export type GameStatus = 'playing' | 'over';
 
 /** Eventos discretos → sonido/haptics (D10/D11), espejo de serpiente. */
-export type DoodleJumpEvent =
+export type RoboJumpEvent =
   | 'bounce'
   | 'spring'
   | 'hat'
@@ -96,7 +98,7 @@ export interface Bullet {
   vy: number;
 }
 
-export interface Doodler {
+export interface Robo {
   /** Centro. */
   x: number;
   y: number;
@@ -113,7 +115,7 @@ export interface GameState {
   /** Metros enteros: `round(height / SCORE_DIVISOR)` (D11). */
   score: number;
   elapsedMs: number;
-  doodler: Doodler;
+  robo: Robo;
   platforms: Platform[];
   monsters: Monster[];
   bullets: Bullet[];
@@ -128,14 +130,14 @@ export interface GameState {
   rngSeed: number;
 }
 
-export interface DoodleJumpConfig {
+export interface RoboJumpConfig {
   rngSeed?: number;
   platforms?: Platform[];
   monsters?: Monster[];
   /** Para tests: height inicial (evita regenerar la escalera por banda 0). */
   height?: number;
-  /** Fixtures/tests: estado inicial del Doodler (posición, velocidad, facing). */
-  doodler?: Partial<Doodler>;
+  /** Fixtures/tests: estado inicial del Robo (posición, velocidad, facing). */
+  robo?: Partial<Robo>;
   /**
    * Fixtures/tests: mundo CERRADO — sin generación procedural
    * (`nextSpawnY` fuera de alcance) y sin limpieza de lo provisto.
@@ -167,6 +169,42 @@ export function brownProbFor(height: number): number {
 }
 export function monsterProbFor(height: number): number {
   return Math.min(0.25, 0.08 + bandOf(height) * 0.03);
+}
+
+/**
+ * D16: alcance horizontal (u) del salto hacia una plataforma `gap` u más
+ * arriba — tiempo en el aire de la rama DESCENDENTE del salto (la que
+ * aterriza) × velocidad de teclado (base conservadora: el drag llega a
+ * ~2×), más el solape de bordes (media plataforma) y descontando la
+ * oscilación de las azules involucradas. 0 si el gap es verticalmente
+ * inalcanzable con salto normal.
+ */
+export function reachForGap(gap: number, blueNext: boolean, bluePrev: boolean): number {
+  const disc = JUMP_V * JUMP_V - 2 * GRAVITY * gap;
+  if (disc <= 0) return 0;
+  const t = (JUMP_V + Math.sqrt(disc)) / GRAVITY;
+  const reach =
+    KEY_VX * t +
+    PLATFORM_W / 2 -
+    (blueNext ? BLUE_AMP : 0) -
+    (bluePrev ? BLUE_AMP : 0);
+  return Math.max(0, reach);
+}
+
+/**
+ * D16: ¿es `p` la compañera verde de alguna brown? (la compañera no es
+ * parte de la escalera: vive `COMPANION_DROP` u por debajo de su brown).
+ * Lo consumen los invariantes de generación (tests) y el fixture density.
+ */
+export function isCompanionPlatform(p: Platform, all: Platform[]): boolean {
+  if (p.kind !== 'green') return false;
+  return all.some(
+    (b) =>
+      b.kind === 'brown' &&
+      b !== p &&
+      Math.abs(p.y - (b.y + COMPANION_DROP)) <= 1 &&
+      Math.abs(p.x - b.x) % WORLD_W <= COMPANION_DIST + PLATFORM_W,
+  );
 }
 
 /**
@@ -203,10 +241,13 @@ export function monsterX(m: Monster): number {
 
 function spawnPlatform(
   y: number,
+  gap: number,
+  prevX: number,
+  prevKind: PlatformKind,
   height: number,
   rngSeed: number,
   nextId: number,
-): { platform: Platform; rngSeed: number; nextId: number } {
+): { platform: Platform; companion: Platform | null; rngSeed: number; nextId: number } {
   let s = rngSeed;
   const rKind = randomNext(s);
   s = rKind.seed;
@@ -218,17 +259,35 @@ function spawnPlatform(
   const rX = randomNext(s);
   s = rX.seed;
   const amp = kind === 'blue' ? BLUE_AMP : 0;
-  const margin = PLATFORM_W / 2 + amp + 4;
-  const x = margin + rX.value * (WORLD_W - 2 * margin);
+  const prevAmp = prevKind === 'blue' ? BLUE_AMP : 0;
+  const margin = PLATFORM_W / 2 + Math.max(amp, prevAmp) + 4;
+  // D16: x DENTRO de la ventana alcanzable desde la plataforma previa
+  // (recorte por margen de oscilación; el clamp hacia adentro solo acerca).
+  const reach = reachForGap(gap, kind === 'blue', prevKind === 'blue');
+  const lo = Math.max(margin, prevX - reach);
+  const hi = Math.min(WORLD_W - margin, prevX + reach);
+  const x = hi > lo ? lo + rX.value * (hi - lo) : Math.min(hi, Math.max(lo, prevX));
   const rDeco = randomNext(s);
   s = rDeco.seed;
   const spring = kind === 'green' && rDeco.value < SPRING_PROB;
   const hat = kind === 'green' && !spring && rDeco.value < SPRING_PROB + HAT_PROB;
-  return {
-    platform: { id: nextId, kind, x, y, phase: rX.value * Math.PI * 2, spring, hat },
-    rngSeed: s,
-    nextId: nextId + 1,
-  };
+  const platform: Platform = { id: nextId, kind, x, y, phase: rX.value * Math.PI * 2, spring, hat };
+  // D16: la brown nunca es trampa — compañera verde que la sustituye al
+  // romperse (cae 40 u y aterriza en ella).
+  let companion: Platform | null = null;
+  let idOut = nextId + 1;
+  if (kind === 'brown') {
+    const rC = randomNext(s);
+    s = rC.seed;
+    const side = rC.value < 0.5 ? -1 : 1;
+    const cx = Math.min(
+      WORLD_W - PLATFORM_W / 2 - 4,
+      Math.max(PLATFORM_W / 2 + 4, platform.x + side * COMPANION_DIST),
+    );
+    companion = { id: idOut, kind: 'green', x: cx, y: y + COMPANION_DROP, phase: 0, spring: false, hat: false };
+    idOut += 1;
+  }
+  return { platform, companion, rngSeed: s, nextId: idOut };
 }
 
 function spawnMonster(
@@ -263,8 +322,8 @@ function spawnMonster(
   };
 }
 
-function nextGap(height: number, rngSeed: number): { gap: number; rngSeed: number } {
-  const maxGap = maxGapFor(height);
+function nextGap(height: number, rngSeed: number, cap?: number): { gap: number; rngSeed: number } {
+  const maxGap = cap === undefined ? maxGapFor(height) : Math.max(MIN_GAP, cap);
   const r = randomNext(rngSeed);
   return { gap: MIN_GAP + r.value * (maxGap - MIN_GAP), rngSeed: r.seed };
 }
@@ -273,6 +332,8 @@ function nextGap(height: number, rngSeed: number): { gap: number; rngSeed: numbe
 function generateUpward(
   platforms: Platform[],
   fromY: number,
+  prevX: number,
+  prevKind: PlatformKind,
   height: number,
   rngSeed: number,
   nextId: number,
@@ -280,33 +341,45 @@ function generateUpward(
   let seed = rngSeed;
   let id = nextId;
   let y = fromY;
+  let cursorX = prevX;
+  let cursorKind = prevKind;
   while (y > -SPAWN_AHEAD) {
-    const gap = nextGap(height, seed);
+    // D16: tras una brown (compañera a COMPANION_DROP por debajo), el gap
+    // se acota para que saltar de la compañera a la siguiente plataforma
+    // siga siendo alcanzable.
+    const cap =
+      cursorKind === 'brown' ? maxGapFor(height) - COMPANION_DROP : undefined;
+    const gap = nextGap(height, seed, cap);
     seed = gap.rngSeed;
     y -= gap.gap;
-    const spawned = spawnPlatform(y, height, seed, id);
+    const spawned = spawnPlatform(y, gap.gap, cursorX, cursorKind, height, seed, id);
     seed = spawned.rngSeed;
     id = spawned.nextId;
     platforms = [...platforms, spawned.platform];
+    if (spawned.companion) {
+      platforms = [...platforms, spawned.companion];
+    }
+    cursorX = spawned.platform.x;
+    cursorKind = spawned.platform.kind;
   }
   return { platforms, rngSeed: seed, nextId: id, highestY: y };
 }
 
-export function createGameState(config: DoodleJumpConfig = {}): GameState {
-  const startDoodler: Doodler = {
+export function createGameState(config: RoboJumpConfig = {}): GameState {
+  const startRobo: Robo = {
     x: WORLD_W / 2,
     y: START_Y,
     vx: 0,
     vy: 0,
     facing: 1,
     hatMs: 0,
-    ...config.doodler,
+    ...config.robo,
   };
   const firstPlatform: Platform = {
     id: 0,
     kind: 'green',
     x: WORLD_W / 2,
-    y: START_Y + DOODLER_H / 2,
+    y: START_Y + ROBO_H / 2,
     phase: 0,
     spring: false,
     hat: false,
@@ -315,16 +388,20 @@ export function createGameState(config: DoodleJumpConfig = {}): GameState {
   const initialHeight = config.height ?? 0;
   // Mundo cerrado (fixtures/tests): lo provisto ES el mundo — sin
   // generación procedural y con el cursor de spawn fuera de alcance.
+  const fromY = Math.min(...provided.map((p) => p.y));
+  const fromPlatform = provided.find((p) => p.y === fromY);
   const generated = config.closed
     ? {
         platforms: provided,
         rngSeed: config.rngSeed ?? 0,
         nextId: provided.length,
-        highestY: Math.min(...provided.map((p) => p.y)),
+        highestY: fromY,
       }
     : generateUpward(
         provided,
-        Math.min(...provided.map((p) => p.y)),
+        fromY,
+        fromPlatform?.x ?? WORLD_W / 2,
+        fromPlatform?.kind ?? 'green',
         initialHeight,
         config.rngSeed ?? (Date.now() % 2147483647),
         provided.length,
@@ -336,7 +413,7 @@ export function createGameState(config: DoodleJumpConfig = {}): GameState {
     height: initialHeight,
     score: Math.round(initialHeight / SCORE_DIVISOR),
     elapsedMs: 0,
-    doodler: startDoodler,
+    robo: startRobo,
     platforms: generated.platforms,
     monsters,
     bullets: [],
@@ -359,15 +436,15 @@ export function createGameState(config: DoodleJumpConfig = {}): GameState {
 export function shoot(
   state: GameState,
   aim?: { dx: number; dy: number },
-): { state: GameState; events: DoodleJumpEvent[] } {
+): { state: GameState; events: RoboJumpEvent[] } {
   if (
     state.status !== 'playing' ||
-    state.doodler.hatMs > 0 ||
+    state.robo.hatMs > 0 ||
     state.bullets.length >= MAX_BULLETS
   ) {
     return { state, events: [] };
   }
-  let nx: number = state.doodler.facing;
+  let nx: number = state.robo.facing;
   let ny = 0;
   if (aim) {
     const len = Math.hypot(aim.dx, aim.dy);
@@ -378,8 +455,8 @@ export function shoot(
   const id = state.nextId;
   const bullet: Bullet = {
     id,
-    x: state.doodler.x + nx * (DOODLER_W / 2 + 4),
-    y: state.doodler.y + ny * (DOODLER_H / 2 + 4),
+    x: state.robo.x + nx * (ROBO_W / 2 + 4),
+    y: state.robo.y + ny * (ROBO_H / 2 + 4),
     vx: nx * BULLET_SPEED,
     vy: ny * BULLET_SPEED,
   };
@@ -399,23 +476,23 @@ export function setMoveDir(state: GameState, dir: -1 | 0 | 1): GameState {
 export function applyDragX(state: GameState, deltaUnits: number): GameState {
   if (state.status !== 'playing' || deltaUnits === 0) return state;
   const clamped = Math.max(-DRAG_MAX_DELTA, Math.min(DRAG_MAX_DELTA, deltaUnits));
-  let x = state.doodler.x + clamped;
+  let x = state.robo.x + clamped;
   if (x < 0) x += WORLD_W;
   if (x >= WORLD_W) x -= WORLD_W;
   return {
     ...state,
-    doodler: { ...state.doodler, x, vx: 0, facing: clamped < 0 ? -1 : 1 },
+    robo: { ...state.robo, x, vx: 0, facing: clamped < 0 ? -1 : 1 },
   };
 }
 
 // --- sub-paso físico (D9) ---
 
-function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent[] } {
-  const doodler = state.doodler;
-  const prevBottom = doodler.y + DOODLER_H / 2;
+function stepOnce(state: GameState): { state: GameState; events: RoboJumpEvent[] } {
+  const robo = state.robo;
+  const prevBottom = robo.y + ROBO_H / 2;
   const dtS = STEP_MS / 1000;
-  const events: DoodleJumpEvent[] = [];
-  const halfW = DOODLER_W / 2;
+  const events: RoboJumpEvent[] = [];
+  const halfW = ROBO_W / 2;
 
   // 0) Oscilaciones: plataformas azules y monstruos móviles avanzan fase.
   let platforms = state.platforms.map((p) =>
@@ -426,20 +503,20 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
   );
 
   // 1) Vertical: hat manda (ascenso sostenido); si no, gravedad.
-  const hatActive = doodler.hatMs > 0;
-  const vy = hatActive ? -HAT_VY : doodler.vy + GRAVITY * dtS;
-  let y = doodler.y + vy * dtS;
-  let hatMs = hatActive ? Math.max(0, doodler.hatMs - STEP_MS) : 0;
+  const hatActive = robo.hatMs > 0;
+  const vy = hatActive ? -HAT_VY : robo.vy + GRAVITY * dtS;
+  let y = robo.y + vy * dtS;
+  let hatMs = hatActive ? Math.max(0, robo.hatMs - STEP_MS) : 0;
 
   // 2) Horizontal: teclado (el drag escribe x directo vía applyDragX).
   const vx = state.moveDir * KEY_VX;
-  let x = doodler.x + vx * dtS;
+  let x = robo.x + vx * dtS;
   if (x < 0) x += WORLD_W;
   if (x >= WORLD_W) x -= WORLD_W;
-  const facing: 1 | -1 = vx < 0 ? -1 : vx > 0 ? 1 : doodler.facing;
+  const facing: 1 | -1 = vx < 0 ? -1 : vx > 0 ? 1 : robo.facing;
   let vyOut = vy;
 
-  const newBottom = y + DOODLER_H / 2;
+  const newBottom = y + ROBO_H / 2;
 
   // 3) Plataforma: solo cayendo y cruzando su borde superior.
   for (const p of platforms) {
@@ -459,6 +536,9 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
       if (p.hat) {
         hatMs = HAT_MS;
         vyOut = -HAT_VY;
+        // D15: el hat se CONSUME — el ícono deja la plataforma (el Robo
+        // lo lleva); re-caer sobre la plataforma no lo re-activa.
+        platforms = platforms.map((q) => (q.id === p.id ? { ...q, hat: false } : q));
         events.push('hat');
       } else if (p.spring) {
         vyOut = -SPRING_V;
@@ -467,7 +547,7 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
         vyOut = -JUMP_V;
         events.push('bounce');
       }
-      y = p.y - DOODLER_H / 2;
+      y = p.y - ROBO_H / 2;
       break;
     }
   }
@@ -481,7 +561,7 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
       mx - MONSTER_W / 2 < x + halfW &&
       mx + MONSTER_W / 2 > x - halfW &&
       newBottom >= m.y - MONSTER_H / 2 &&
-      y - DOODLER_H / 2 <= m.y + MONSTER_H / 2;
+      y - ROBO_H / 2 <= m.y + MONSTER_H / 2;
     if (!overlapping) continue;
     if (hatMs > 0) {
       monsters = monsters.filter((q) => q.id !== m.id);
@@ -491,11 +571,11 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
     // Aplaste (R4/T14): la tolerancia escala con el desplazamiento vertical
     // del PROPIO sub-paso — con caídas rápidas el cruce puede saltarse
     // varios u por sub-paso y una tolerancia fija lo lee como muerte.
-    const squishTolerance = Math.abs(doodler.vy) * dtS + 2;
+    const squishTolerance = Math.abs(robo.vy) * dtS + 2;
     if (vyOut > 0 && prevBottom <= m.y - MONSTER_H / 2 + squishTolerance) {
       monsters = monsters.filter((q) => q.id !== m.id);
       vyOut = -JUMP_V;
-      y = m.y - MONSTER_H / 2 - DOODLER_H / 2;
+      y = m.y - MONSTER_H / 2 - ROBO_H / 2;
       events.push('kill');
       break;
     }
@@ -503,7 +583,7 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
       state: {
         ...state,
         status: 'over',
-        doodler: { ...doodler, x, y, vx, vy: vyOut, hatMs, facing },
+        robo: { ...robo, x, y, vx, vy: vyOut, hatMs, facing },
         monsters,
         elapsedMs: state.elapsedMs + STEP_MS,
       },
@@ -544,7 +624,7 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
     bullets = alive;
   }
 
-  // 6) Cámara: sube (camY decrece) solo cuando el Doodler cruza la línea;
+  // 6) Cámara: sube (camY decrece) solo cuando el Robo cruza la línea;
   //    nunca baja (no hay descenso). Altura/score (D11).
   const camY = Math.min(state.camY, y - CAM_LINE * WORLD_H);
   const height = Math.max(state.height, Math.max(0, START_Y - y));
@@ -552,7 +632,7 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
 
   const moved: GameState = {
     ...state,
-    doodler: { x, y, vx, vy: vyOut, facing, hatMs },
+    robo: { x, y, vx, vy: vyOut, facing, hatMs },
     platforms,
     monsters,
     bullets,
@@ -563,7 +643,7 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
   };
 
   // 7) Muerte por caída bajo la vista.
-  if (moved.doodler.y - DOODLER_H / 2 > moved.camY + WORLD_H) {
+  if (moved.robo.y - ROBO_H / 2 > moved.camY + WORLD_H) {
     return { state: { ...moved, status: 'over' }, events: [...events, { type: 'die', cause: 'fall' }] };
   }
 
@@ -573,15 +653,31 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
   let monstersOut = moved.monsters.filter((m) => m.y - MONSTER_H / 2 < camBottom);
   let rngSeed = state.rngSeed;
   let nextId = state.nextId;
+  // D16: la ventana de alcanzabilidad usa la plataforma más alta viva como
+  // ancla (x/kind) — la escalera generada es siempre encadenable.
+  const topPlatform = moved.platforms.reduce<Platform | null>(
+    (best, p) => (best === null || p.y < best.y ? p : best),
+    null,
+  );
+  let cursorX = topPlatform?.x ?? WORLD_W / 2;
+  let cursorKind: PlatformKind = topPlatform?.kind ?? 'green';
   let spawnY = state.nextSpawnY;
   while (spawnY > moved.camY - SPAWN_AHEAD) {
-    const gap = nextGap(moved.height, rngSeed);
+    // D16: el gap posterior a una brown se acota (compañera alcanzable).
+    const cap =
+      cursorKind === 'brown' ? maxGapFor(moved.height) - COMPANION_DROP : undefined;
+    const gap = nextGap(moved.height, rngSeed, cap);
     rngSeed = gap.rngSeed;
     spawnY -= gap.gap;
-    const spawned = spawnPlatform(spawnY, moved.height, rngSeed, nextId);
+    const spawned = spawnPlatform(spawnY, gap.gap, cursorX, cursorKind, moved.height, rngSeed, nextId);
     rngSeed = spawned.rngSeed;
     nextId = spawned.nextId;
     platformsOut = [...platformsOut, spawned.platform];
+    if (spawned.companion) {
+      platformsOut = [...platformsOut, spawned.companion];
+    }
+    cursorX = spawned.platform.x;
+    cursorKind = spawned.platform.kind;
     if (monstersOut.length < MAX_MONSTERS) {
       const mon = spawnMonster(spawnY + gap.gap / 2, moved.height, rngSeed, nextId);
       rngSeed = mon.rngSeed;
@@ -615,9 +711,9 @@ function stepOnce(state: GameState): { state: GameState; events: DoodleJumpEvent
 export function advance(
   state: GameState,
   dtMs: number,
-): { state: GameState; events: DoodleJumpEvent[]; leftoverMs: number } {
+): { state: GameState; events: RoboJumpEvent[]; leftoverMs: number } {
   if (state.status !== 'playing') return { state, events: [], leftoverMs: Math.max(0, dtMs) };
-  const events: DoodleJumpEvent[] = [];
+  const events: RoboJumpEvent[] = [];
   let current = state;
   let leftover = Math.max(0, dtMs);
   let guard = 0;

@@ -16,11 +16,11 @@ import {
   replayFixture,
   type Fixture,
 } from '../engine/fixtures';
-import { platformX, type DoodleJumpEvent } from '../engine/rules';
+import { isCompanionPlatform, platformX, type RoboJumpEvent } from '../engine/rules';
 import { MIN_GAP, PLATFORM_POOL, SPAWN_AHEAD, WORLD_H, CLEAN_MARGIN } from '../engine/tuning';
 
-describe('fixtures doodle-jump: mecánicas pautadas', () => {
-  test('fix-spring — el resorte impulsa más alto que el salto y el Doodler vive', () => {
+describe('fixtures robo-jump: mecánicas pautadas', () => {
+  test('fix-spring — el resorte impulsa más alto que el salto y el Robo vive', () => {
     const { state, events } = replayFixture(FIX_SPRING);
     expect(events).toContain('spring');
     expect(state.status).toBe('playing');
@@ -38,7 +38,7 @@ describe('fixtures doodle-jump: mecánicas pautadas', () => {
     expect(state.status).toBe('playing');
   });
 
-  test('fix-squish — aplaste tipo Mario: mata, el monstruo muere y el Doodler vive', () => {
+  test('fix-squish — aplaste tipo Mario: mata, el monstruo muere y el Robo vive', () => {
     const { state, events } = replayFixture(FIX_SQUISH);
     expect(events).toContain('kill');
     expect(state.monsters).toHaveLength(0);
@@ -72,7 +72,7 @@ describe('fixtures doodle-jump: mecánicas pautadas', () => {
 
   test('fix-wrap — el drag cruza el borde y reaparece por el opuesto', () => {
     const { state, events } = replayFixture(FIX_WRAP);
-    expect(state.doodler.x).toBeLessThan(60);
+    expect(state.robo.x).toBeLessThan(60);
     expect(state.status).toBe('playing');
     expect(events.some((e) => typeof e === 'object' && e.type === 'die')).toBe(false);
   });
@@ -82,10 +82,13 @@ describe('fixtures doodle-jump: mecánicas pautadas', () => {
     expect(state.status).toBe('playing');
     const span = CLEAN_MARGIN + WORLD_H + SPAWN_AHEAD;
     const worstCase = Math.ceil(span / MIN_GAP) + 1;
-    expect(state.platforms.length).toBeLessThanOrEqual(Math.max(worstCase, PLATFORM_POOL) + 2);
-    const sorted = [...state.platforms].sort((a, b) => b.y - a.y);
-    for (let i = 0; i < sorted.length - 1; i++) {
-      expect(sorted[i].y - sorted[i + 1].y).toBeGreaterThanOrEqual(MIN_GAP - 1);
+    expect(state.platforms.length).toBeLessThanOrEqual(Math.max(worstCase, PLATFORM_POOL) + 6);
+    // Escalera sin compañeras (D16): gaps legales en todo momento.
+    const ladder = state.platforms
+      .filter((p) => !isCompanionPlatform(p, state.platforms))
+      .sort((a, b) => b.y - a.y);
+    for (let i = 0; i < ladder.length - 1; i++) {
+      expect(ladder[i].y - ladder[i + 1].y).toBeGreaterThanOrEqual(MIN_GAP - 1);
     }
     expect(state.nextSpawnY).toBeLessThanOrEqual(state.camY - SPAWN_AHEAD);
     expect(events.some((e) => typeof e === 'object' && e.type === 'die')).toBe(false);

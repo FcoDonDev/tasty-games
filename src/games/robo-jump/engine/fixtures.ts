@@ -10,7 +10,8 @@
  * resultado esperado; los asserts viven en los tests.
  */
 
-import { advance, applyDragX, createGameState, shoot, type DoodleJumpConfig, type DoodleJumpEvent, type GameState } from './rules';
+import { advance, applyDragX, createGameState, shoot, type RoboJumpConfig, type RoboJumpEvent, type GameState } from './rules';
+import { HAT_VY } from './tuning';
 
 /** Un paso del guión: avanzar ms y opcionalmente input discreto. */
 export interface FixtureStep {
@@ -26,22 +27,22 @@ export interface FixtureStep {
 export interface Fixture {
   id: string;
   description: string;
-  config: DoodleJumpConfig;
+  config: RoboJumpConfig;
   steps: FixtureStep[];
   /** Resultado esperado, documentado (los asserts viven en los tests). */
   expected: string[];
 }
 
 /** Crea el mundo del fixture (determinista, cerrado). */
-export function fixtureState(fixture: Fixture): { state: ReturnType<typeof createGameState>; events: DoodleJumpEvent[] } {
+export function fixtureState(fixture: Fixture): { state: ReturnType<typeof createGameState>; events: RoboJumpEvent[] } {
   const state = createGameState(fixture.config);
   return { state, events: [] };
 }
 
 /** Pasos con avance particionado en frames de 16 ms (patrón run de rules.test). */
-export function stepOnce(state: GameState, step: FixtureStep): { state: GameState; events: DoodleJumpEvent[] } {
+export function stepOnce(state: GameState, step: FixtureStep): { state: GameState; events: RoboJumpEvent[] } {
   let current = state;
-  const events: DoodleJumpEvent[] = [];
+  const events: RoboJumpEvent[] = [];
   if (step.drag) {
     current = applyDragX(current, step.drag);
   }
@@ -67,9 +68,9 @@ export function stepOnce(state: GameState, step: FixtureStep): { state: GameStat
 }
 
 /** Corre el guión completo; expone el estado final y todos los eventos. */
-export function replayFixture(fixture: Fixture): { state: GameState; events: DoodleJumpEvent[] } {
+export function replayFixture(fixture: Fixture): { state: GameState; events: RoboJumpEvent[] } {
   let { state } = fixtureState(fixture);
-  const events: DoodleJumpEvent[] = [];
+  const events: RoboJumpEvent[] = [];
   for (const step of fixture.steps) {
     const result = stepOnce(state, step);
     state = result.state;
@@ -78,15 +79,15 @@ export function replayFixture(fixture: Fixture): { state: GameState; events: Doo
   return { state, events };
 }
 
-const baseDoodler = { x: 180 };
+const baseRobo = { x: 180 };
 
 export const FIX_SPRING: Fixture = {
   id: 'spring',
-  description: 'Spring: el Doodler cae sobre la plataforma con resorte y sale impulsado (SPRING_V).',
+  description: 'Spring: el Robo cae sobre la plataforma con resorte y sale impulsado (SPRING_V).',
   config: {
     closed: true,
     rngSeed: 21,
-    doodler: { ...baseDoodler, y: 430, vy: 200 },
+    robo: { ...baseRobo, y: 430, vy: 200 },
     platforms: [
       { id: 0, kind: 'green', x: 180, y: 556, phase: 0, spring: false, hat: false },
       { id: 1, kind: 'green', x: 180, y: 456, phase: 0, spring: true, hat: false },
@@ -95,7 +96,7 @@ export const FIX_SPRING: Fixture = {
   steps: [{ ms: 2200 }],
   expected: [
     "evento 'spring'",
-    'el Doodler sobrevive (bota eternamente en el spring)',
+    'el Robo sobrevive (bota eternamente en el spring)',
     'score ≥ 30 (el impulso lo lleva ~240 u sobre el resorte)',
   ],
 };
@@ -106,7 +107,7 @@ export const FIX_HAT: Fixture = {
   config: {
     closed: true,
     rngSeed: 22,
-    doodler: { ...baseDoodler, y: 430, vy: 150 },
+    robo: { ...baseRobo, y: 430, vy: 150 },
     platforms: [
       { id: 0, kind: 'green', x: 180, y: 556, phase: 0, spring: false, hat: false },
       { id: 1, kind: 'green', x: 180, y: 456, phase: 0, spring: false, hat: true },
@@ -118,7 +119,7 @@ export const FIX_HAT: Fixture = {
     "eventos en orden ['hat', 'kill']",
     'el monstruo desaparece (atravesado con hat)',
     'sin bala al intentar disparar con hat activo',
-    'el Doodler sigue vivo',
+    'el Robo sigue vivo',
   ],
 };
 
@@ -128,14 +129,14 @@ export const FIX_SQUISH: Fixture = {
   config: {
     closed: true,
     rngSeed: 22,
-    doodler: { ...baseDoodler, y: 376, vy: 300 },
+    robo: { ...baseRobo, y: 376, vy: 300 },
     platforms: [
       { id: 0, kind: 'green', x: 180, y: 556, phase: 0, spring: false, hat: false },
     ],
     monsters: [{ id: 50, kind: 'static', x: 180, y: 436, phase: 0 }],
   },
   steps: [{ ms: 800 }],
-  expected: ["evento 'kill'", 'el monstruo muere', 'el Doodler rebotó (vy < 0) y vive'],
+  expected: ["evento 'kill'", 'el monstruo muere', 'el Robo rebotó (vy < 0) y vive'],
 };
 
 export const FIX_SQUISH_FAST: Fixture = {
@@ -144,14 +145,14 @@ export const FIX_SQUISH_FAST: Fixture = {
   config: {
     closed: true,
     rngSeed: 23,
-    doodler: { ...baseDoodler, y: 316, vy: 900 },
+    robo: { ...baseRobo, y: 316, vy: 900 },
     platforms: [
       { id: 0, kind: 'green', x: 180, y: 556, phase: 0, spring: false, hat: false },
     ],
     monsters: [{ id: 50, kind: 'static', x: 180, y: 436, phase: 0 }],
   },
   steps: [{ ms: 700 }],
-  expected: ["evento 'kill'", 'el Doodler NO muere por contacto lateral'],
+  expected: ["evento 'kill'", 'el Robo NO muere por contacto lateral'],
 };
 
 export const FIX_AIM: Fixture = {
@@ -178,7 +179,7 @@ export const FIX_AIM: Fixture = {
   expected: [
     "tres eventos 'kill' (derecha, izquierda, arriba)",
     'los tres monstruos desaparecen',
-    'el Doodler sigue vivo (botando en la plataforma base)',
+    'el Robo sigue vivo (botando en la plataforma base)',
   ],
 };
 
@@ -188,7 +189,7 @@ export const FIX_BLUE_BROWN: Fixture = {
   config: {
     closed: true,
     rngSeed: 25,
-    doodler: { ...baseDoodler, y: 200, vy: 300 },
+    robo: { ...baseRobo, y: 200, vy: 300 },
     platforms: [
       { id: 0, kind: 'green', x: 180, y: 556, phase: 0, spring: false, hat: false },
       { id: 1, kind: 'brown', x: 180, y: 300, phase: 0, spring: false, hat: false },
@@ -199,7 +200,7 @@ export const FIX_BLUE_BROWN: Fixture = {
   expected: [
     "evento 'break' (marrón atravesado) y luego 'bounce' (azul)",
     'la fase de la azul avanzó (oscilación)',
-    'el Doodler sigue vivo',
+    'el Robo sigue vivo',
   ],
 };
 
@@ -230,7 +231,7 @@ export const FIX_WRAP: Fixture = {
     { ms: 40, drag: 15 },
     { ms: 40, drag: 15 },
   ],
-  expected: ['doodler.x < 60 (cruzó el borde derecho y reapareció por la izquierda)', 'vivo'],
+  expected: ['robo.x < 60 (cruzó el borde derecho y reapareció por la izquierda)', 'vivo'],
 };
 
 /**
@@ -243,7 +244,7 @@ export const FIX_DENSITY: Fixture = {
   config: {
     rngSeed: 27,
     height: 0,
-    doodler: { hatMs: 8000, vy: -160 },
+    robo: { hatMs: 8000, vy: -HAT_VY },
   },
   steps: [{ ms: 8000 }],
   expected: ['platforms.length ≤ peor caso del span en todo momento', 'gaps consecutivos ≥ MIN_GAP', 'nextSpawnY avanza'],

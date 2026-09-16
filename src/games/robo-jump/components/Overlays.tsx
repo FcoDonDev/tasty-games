@@ -1,6 +1,6 @@
 /**
- * Overlays de Doodle Jump (T6), espejo de `serpiente/components/Overlays`
- * con la paleta doodle del juego (D13). Endless: siempre derrota (D4).
+ * Overlays de Robo Jump (T6), espejo de `serpiente/components/Overlays`
+ * con la paleta sketch del juego (D13). Endless: siempre derrota (D4).
  */
 
 import { StyleSheet, Text, View } from 'react-native';
@@ -19,7 +19,7 @@ export function PauseOverlay({ onResume }: { onResume: () => void }) {
       <View style={styles.card}>
         <Text style={styles.title}>Pausa</Text>
         <PressableScale
-          accessibilityLabel="reanudar-doodle-jump"
+          accessibilityLabel="reanudar-robo-jump"
           onPress={onResume}
           style={styles.button}
         >
@@ -54,14 +54,14 @@ export function EndOverlay({
           {score} m · {seconds}s
         </Text>
         <PressableScale
-          accessibilityLabel="reintentar-doodle-jump"
+          accessibilityLabel="reintentar-robo-jump"
           onPress={onRestart}
           style={styles.button}
         >
           <Text style={styles.buttonText}>Jugar de nuevo</Text>
         </PressableScale>
         <PressableScale
-          accessibilityLabel="fin-salir-doodle-jump"
+          accessibilityLabel="fin-salir-robo-jump"
           onPress={onExit}
           style={styles.ghost}
         >

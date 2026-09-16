@@ -9,14 +9,14 @@ import { expect, test, type Page, type Locator } from '@playwright/test';
  */
 
 async function openFixture(page: Page, id: string): Promise<void> {
-  await page.goto(`/juego/doodle-jump?seed=fix-${id}`);
-  await expect(page.getByLabel('doodle-jump-escena', { exact: true })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByLabel('doodle-jump-doodler', { exact: true })).toBeVisible();
+  await page.goto(`/juego/robo-jump?seed=fix-${id}`);
+  await expect(page.getByLabel('robo-jump-escena', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByLabel('robo-jump-robot', { exact: true })).toBeVisible();
 }
 
-async function doodlerBox(page: Page): Promise<{ x: number; y: number; width: number; height: number }> {
-  const box = await page.getByLabel('doodle-jump-doodler', { exact: true }).boundingBox();
-  if (!box) throw new Error('doodler sin caja');
+async function roboBox(page: Page): Promise<{ x: number; y: number; width: number; height: number }> {
+  const box = await page.getByLabel('robo-jump-robot', { exact: true }).boundingBox();
+  if (!box) throw new Error('robo sin caja');
   return box;
 }
 
@@ -28,47 +28,47 @@ async function expectPopup(page: Page, text: string, timeoutMs = 8_000): Promise
     .toBe(true);
 }
 
-test('fix-spring — el resorte muestra ¡Resorte! y el Doodler sobrevive', async ({ page }) => {
+test('fix-spring — el resorte muestra ¡Resorte! y el Robo sobrevive', async ({ page }) => {
   test.setTimeout(30_000);
   await openFixture(page, 'spring');
   await expectPopup(page, '¡Resorte!');
   await expect(page.getByLabel('overlay-fin', { exact: true })).toBeHidden();
 });
 
-test('fix-hat — ¡Propeller! y luego ¡Plop! (atraviesa letalmente, D12)', async ({ page }) => {
+test('fix-hat — ¡Turbo! y luego ¡Plop! (atraviesa letalmente, D12)', async ({ page }) => {
   test.setTimeout(30_000);
   await openFixture(page, 'hat');
-  await expectPopup(page, '¡Propeller!');
+  await expectPopup(page, '¡Turbo!');
   await expectPopup(page, '¡Plop!');
   await expect(page.getByLabel('overlay-fin', { exact: true })).toBeHidden();
 });
 
-test('fix-squish — aplaste: ¡Plop! y el Doodler vive', async ({ page }) => {
+test('fix-squish — aplaste: ¡Plop! y el Robo vive', async ({ page }) => {
   test.setTimeout(30_000);
   await openFixture(page, 'squish');
   await expectPopup(page, '¡Plop!');
   await expect(page.getByLabel('overlay-fin', { exact: true })).toBeHidden();
 });
 
-test('fix-aim — tap arriba del Doodler dispara y mata (¡Plop!)', async ({ page }) => {
+test('fix-aim — tap arriba del Robo dispara y mata (¡Plop!)', async ({ page }) => {
   test.setTimeout(30_000);
   await openFixture(page, 'aim');
-  // Apuntar 300 px ARRIBA del Doodler: la bala sube y toca al monstruo
+  // Apuntar 300 px ARRIBA del Robo: la bala sube y toca al monstruo
   // fijo de la fixture (unidad cubre la exactitud de las 3 direcciones).
-  const box = await doodlerBox(page);
+  const box = await roboBox(page);
   await page.mouse.click(box.x + box.width / 2, box.y - 300);
   await expectPopup(page, '¡Plop!');
   await expect(page.getByLabel('overlay-fin', { exact: true })).toBeHidden();
 });
 
-test('fix-wrap — el teclado cruza el borde y el Doodler reaparece por la izquierda', async ({ page }) => {
+test('fix-wrap — el teclado cruza el borde y el Robo reaparece por la izquierda', async ({ page }) => {
   test.setTimeout(30_000);
   await openFixture(page, 'wrap');
-  const before = await doodlerBox(page);
+  const before = await roboBox(page);
   await page.keyboard.down('ArrowRight');
   await page.waitForTimeout(1500);
   await page.keyboard.up('ArrowRight');
-  const after = await doodlerBox(page);
+  const after = await roboBox(page);
   expect(after.x).toBeLessThan(before.x); // wrap: reapareció por la izquierda
   await expect(page.getByLabel('overlay-fin', { exact: true })).toBeHidden();
 });

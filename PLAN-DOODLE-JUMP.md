@@ -44,6 +44,9 @@ rediseñarse (D8), no copiarse tal cual.
 | D12 | Aplaste y hat vs monstruos | Fiel al original: aplaste SOLO cayendo (`vy > 0`) sobre la cabeza del monstruo → rebote + muerte; el propeller hat destruye monstruos al atravesarlos y anula el disparo mientras dura | Hat no letal (desvía del original sin beneficio de simplicidad) |
 | D13 | Identidad visual | **Doodle sketch con Views**: fondo papel cuadriculado (grid sutil de Views memoizadas, patrón damero de serpiente), Doodler/monstruos/plataformas dibujados con shapes/text, paleta propia del juego sobre el ThemeProvider. Sin assets de imagen (convención del repo) | Assets generados con AI (skill design: introduce pipeline que ningún juego usa); minimalista sin cuadrícula (pierde la identidad doodle) |
 | D14 | Ajustes in-game | **Sin sheet de ajustes en v1**: sonido/dark mode ya son globales del app; el teclado (D7) cubre desktop; sensibilidad de drag se calibra fija en `tuning.ts` | Sheet espejo de serpiente con sensibilidad de drag (suma UI+persistencia+tests sin necesidad demostrada) |
+| D15 | Potenciadores (playtest 2, 16-sept) | Hat: 4 s @ 200 u/s (ascenso ~80 m); spring 950 u/s (pico ~320 u); el hat se CONSUME al recogerlo (ícono fuera de la plataforma, spring no); sombrero visible solo con `hatMs > 0` | Mantener 2 s @ 160 (débil: ~320 u total) / ícono persistente en plataforma |
+| D16 | Generación alcanzable (playtest 2) | Ventana horizontal por física: x nueva a ≤ `KEY_VX·t_land(gap)+PLATFORM_W−2·BLUE_AMP` de la x previa; brown siempre con compañera verde ±50 u; pool re-candeado | x uniforme aleatoria (tramos imposibles: gap 85 deja ~0.2 s de aire ≈ 53 u de alcance vs mundo 360 u) |
+| D17 | Renombre | `doodle-jump` → `robo-jump` + reskin leve (Doodler robot, "¡Turbo!", 🤖); récords dev huérfanos aceptados (app no publicada, sin migración) | Mantener nombre doodle (mismatch con la identidad del catálogo) / re-tematización completa (fase 2) |
 
 ## 3. Arquitectura
 
@@ -330,12 +333,39 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
       (15 engine ↔ 15 nodos DOM) tras R7: el blanco NO se reprodujo en el
       build actual. **Documentación de uso en el README del juego**
       (gate + comandos + salida de ejemplo).
-- [ ] T17 — Playtest manual del usuario (los 4 síntomas + feel del
-      retuning + apuntado) con **reload completo del dev server**; si el
-      blanco reaparece, capturar `window.__doodleDebug()` — cierre del
-      plan (T10)
+- [x] T17 — Playtest manual del usuario (16-sept): **blanco corregido**,
+      disparo y potenciadores funcionan. Pendientes que definen la fase 4:
+      potenciadores (duración/potencia + ícono del hat no desaparece de la
+      plataforma al usarlo), tramos imposibles por generación (x sin
+      ventana de alcance), renombre a robo-jump.
+- [x] T18 — **D15 Potenciadores**: `HAT_MS 4000` @ `HAT_VY 200`
+      (ascenso ~80 m/uso), `SPRING_V 950` (pico ~322 u); consumo del hat
+      (`p.hat = false` al recoger) + key de sync de escena con flags
+      spring/hat; sombrero del Doodler dibujado con Views (DoodlerSlot
+      ganó `hatOpacity`, visible solo con `hatMs > 0`, heredado por la
+      copia de wrap); tests vy por constante (`HAT_VY`).
+- [x] T19 — **D16 Generación alcanzable**: escáner estadístico (40 seeds ×
+      5 bandas) DIJO que el dead-end era 100% **brown como única ruta**
+      (la cadena verde/azul era alcanzable incluso con modelo
+      conservador). Fix: (a) ventana `reachForGap` (x nueva a ≤
+      `KEY_VX·t_land(gap)+PLATFORM_W/2−oscilaciones` de la x previa); (b)
+      brown con **compañera verde** a 36 u por debajo y ≤ 90 u de
+      distancia + **cap del gap post-brown** (`maxGap−COMPANION_DROP`)
+      para cerrar la cadena desde la compañera; (c) pool 24→28 con
+      invariante companion-aware; (d) `isCompanionPlatform` para los
+      invariantes (compañera fuera de la escalera). Test de regresión
+      `reachability.test.ts` (0/40 bloqueos en 5 bandas).
+- [x] T20 — **D17 Renombre** `doodle-jump` → `robo-jump` + reskin leve:
+      `git mv` folder + specs; entidad `doodler`→`robo` (campo, tipos,
+      `DOODLER_W/H`→`ROBO_W/H`); labels `robo-jump-*` (robot/escena/pausa/
+      score); seeds `__robo_*`; hook `__roboDebug`; registry (id/name/
+      icon 🤖/descripción); reskin: cuerpo acero + visor cian + antena
+      con punta encendida; popup "¡Turbo!". Récords dev huérfanos
+      aceptados (sin migración). RULES.md R3/R5/R10 + README actualizados.
+- [ ] T21 — Verificación estándar: `pnpm typecheck` → `pnpm test` →
+      `node scripts/e2e.mjs`.
 - [ ] T10 — Cierre: migrar hallazgos (GOTCHAS/ADR/ROADMAP si corresponde),
-      eliminar este PLAN en el commit final
+      eliminar este PLAN en el commit final — **solo con OK del usuario**
 
 ## 5. Criterios de aceptación
 
@@ -463,6 +493,27 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
   se resuelve con el patrón `BoardGrid` de serpiente.
 - **Decisiones confirmadas en la revisión**: D13 (doodle sketch con
   Views), D14 (sin ajustes v1) y D11 confirmada (score = altura pura).
+
+### Playtest 2 del usuario (16-sept) + fase de ajustes — hallazgos T18-T20
+
+- **Potenciadores (D15)**: hat se recogía pero el ícono QUEDABA en la
+  plataforma (`p.hat` nunca se limpiaba) — además re-activable al
+  re-caer. Fix: consumo al recoger + key de sync de escena por flags
+  (ids solos no detectan el cambio). El Doodler ahora SÍ lleva el
+  sombrero (DoodlerSlot.hatOpacity) mientras `hatMs > 0`.
+- **Dead-end de generación (T19) — lección de método**: la matemática
+  "a ojo" (window REACH por gap) daba bloqueos imposibles (75% de spans)
+  que el MODELO CORRECTO desmintió: mi primer escáner restaba
+  `BLUE_AMP` sin condicional y con eso sobre-bloqueaba; corregido,
+  la cadena verde/azul es alcanzable 40/40 en toda banda. El culpable
+  REAL: **brown como única ruta** (no se puede parar: se rompe → rebote
+  eterno abajo = el "imposible avanzar" del usuario). Diseño iterativo
+  de la compañera: drop 40 avanzando el cursor por ella dejaba gaps
+  post-brown < MIN_GAP; drop 40 con cap dejaba compañera→siguiente >
+  salto máx en banda 0 (40+48 = 88 > 85). **Solución: drop 36 + cap del
+  gap post-brown `maxGap−36`** — todos los cierres de cadena quedan
+  dentro de `maxGapFor`. Si se retoca el tuning: MIN_GAP + COMPANION_DROP
+  ≤ MAX_GAP_BASE debe sostenerse (candearlo si se mueven).
 
 ### Playtest manual (15-sept-2026) + análisis post-implementación — hallazgos que definen la fase de remediación
 

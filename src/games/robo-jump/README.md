@@ -1,7 +1,7 @@
-# Doodle Jump — Notas técnicas
+# Robo Jump — Notas técnicas
 
 Arcade vertical endless. Implementación según `PLAN-DOODLE-JUMP` (rama
-`feat/doodle-jump`); ver PLAN para decisiones D1–D14 completas.
+`feat/robo-jump`); ver PLAN para decisiones D1–D14 completas.
 
 ## Arquitectura
 
@@ -14,8 +14,8 @@ engine/
 └── state.ts    # zustand D8: snapshot mutable interno + publicación discreta/throttled
 components/
 ├── Renderer.tsx # pools fijos de nodos animados (shared values) — sin re-renders por frame
-└── Overlays.tsx # pausa / fin (paleta doodle)
-DoodleJumpScreen.tsx # loop rAF, gestos drag+tap, teclado web, audio/haptics, popups
+└── Overlays.tsx # pausa / fin (paleta sketch del juego)
+RoboJumpScreen.tsx # loop rAF, gestos drag+tap, teclado web, audio/haptics, popups
 ```
 
 ## Fixtures de validación
@@ -26,12 +26,12 @@ Mecánicas pautadas con escenario fijo (mundo cerrado, sin generación):
 El guión vive en `engine/fixtures.ts`; la exactitud en unit, el visible
 (popups/posiciones) en E2E.
 
-## Diagnóstico `window.__doodleDebug()` (solo builds E2E)
+## Diagnóstico `window.__roboDebug()` (solo builds E2E)
 
-La pantalla registra `window.__doodleDebug()` **solo cuando el bundle se
+La pantalla registra `window.__roboDebug()` **solo cuando el bundle se
 compiló con `EXPO_PUBLIC_E2E=1`** (la env se inlinea al compilar — el gate
-vive en `DoodleJumpScreen.tsx` y en `app/juego/[id].tsx`). En producción no
-existe: si `window.__doodleDebug is not a function`, el bundle no la tuvo.
+vive en `RoboJumpScreen.tsx` y en `app/juego/[id].tsx`). En producción no
+existe: si `window.__roboDebug is not a function`, el bundle no la tuvo.
 
 ```bash
 # Dev (recuerda: reload COMPLETO de la pestaña tras lanzar — Reanimated):
@@ -46,15 +46,15 @@ Qué devuelve (snapshot del engine en el instante de la llamada):
 ```json
 {
   "status": "playing", "score": 98, "camY": -690, "elapsedMs": 29040,
-  "doodler": { "x": 180, "y": -324, "hatMs": 0 },
+  "robot": { "x": 180, "y": -324, "hatMs": 0 },
   "platformsInView": 9,   // plataformas del engine DENTRO de la vista
   "platforms": 15, "monsters": 1, "bullets": 0
 }
 ```
 
-Uso típico: en Playwright, `page.evaluate(() => window.__doodleDebug())`
+Uso típico: en Playwright, `page.evaluate(() => window.__roboDebug())`
 en el momento del síntoma y comparar contra el DOM (nodos con opacity > 0
-dentro de `[aria-label="doodle-jump-escena"]`) — es la prueba de
+dentro de `[aria-label="robo-jump-escena"]`) — es la prueba de
 consistencia engine↔render que validó R0/R7 (ver PLAN, T17a).
 
 ## Divergencias clave con serpiente/wakwak (no es un "espejo" literal)
@@ -69,12 +69,12 @@ consistencia engine↔render que validó R0/R7 (ver PLAN, T17a).
    guard define el contrato: la pantalla llama `tick` con dt ≤ 100 ms del
    rAF; `tick(6000)` avanza solo 64 ms.
 3. **Cámara y-down**: `camY` es el TOPE de la vista y SUBIR = DECRECER.
-   `camY = min(camY, doodler.y - CAM_LINE*WORLD_H)`. Candidar monotonicidad
+   `camY = min(camY, robot.y - CAM_LINE*WORLD_H)`. Candidar monotonicidad
    no-creciente, no la intuición.
 4. **Renderer con pools fijos**: posiciones por shared values escritas por
    el loop (padre) en slots registrados por hijos; React re-renderiza solo
    al cambiar el set de entidades (ids join-compare por frame, ~1-2 Hz).
-   Copia de wrap del Doodler: segundo nodo pre-creado con opacity
+   Copia de wrap del Robot: segundo nodo pre-creado con opacity
    condicionada a la cercanía de borde.
 
 ## Audio/haptics (D10/D11)

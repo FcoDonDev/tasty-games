@@ -1,12 +1,12 @@
 /**
- * Capa de entidades animadas de Doodle Jump (T6, D8/D13): pool FIJO de
+ * Capa de entidades animadas de Robo Jump (T6, D8/D13): pool FIJO de
  * nodos animados por shared values. El loop rAF de la pantalla escribe
  * posiciones cada frame leyendo `getGame()` — cero re-renders React por
  * frame; React solo re-renderiza cuando CAMBIA el set de entidades
  * (spawn/limpieza, ~1-2 Hz). API `.get()/.set()`-safe: los valores se
  * escriben solo desde handlers del loop, nunca durante render.
  *
- * Identidad visual (D13): doodle sketch con Views — papel cuadriculado,
+ * Identidad visual (D13): sketch con Views — papel cuadriculado,
  * entidades dibujadas con shapes/text, paleta propia del juego.
  */
 
@@ -19,8 +19,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { platformX, monsterX, type Bullet, type Monster, type Platform } from '../engine/rules';
 import {
-  DOODLER_H,
-  DOODLER_W,
+  ROBO_H,
+  ROBO_W,
   MAX_BULLETS,
   MAX_MONSTERS,
   MONSTER_H,
@@ -43,11 +43,13 @@ export interface Slot {
   opacity: SharedValue<number>;
 }
 
-export interface DoodlerSlot {
+export interface RoboSlot {
   x: SharedValue<number>;
   y: SharedValue<number>;
   flip: SharedValue<number>;
   opacity: SharedValue<number>;
+  /** D15: 1 con propeller activo (hatMs > 0), 0 si no. */
+  hatOpacity: SharedValue<number>;
   twinX: SharedValue<number>;
   twinY: SharedValue<number>;
   twinOpacity: SharedValue<number>;
@@ -57,10 +59,10 @@ export interface SlotGroups {
   platforms: (Slot | null)[];
   monsters: (Slot | null)[];
   bullets: (Slot | null)[];
-  doodler: { current: DoodlerSlot | null };
+  robo: { current: RoboSlot | null };
 }
 
-/** Paleta doodle (D13): plataformas con la semántica de color del original. */
+/** Paleta sketch (D13): plataformas con la semántica de color del original. */
 const PLATFORM_COLOR: Record<string, string> = {
   green: '#5DBB63',
   blue: '#42A5F5',
@@ -231,33 +233,34 @@ const BulletSlot = memo(function BulletSlot({
 });
 
 /**
- * Doodler + copia de wrap: durante el cruce de borde se dibujan DOS copias
+ * Robo + copia de wrap: durante el cruce de borde se dibujan DOS copias
  * (riesgo §6 — sin "teletransporte" visual). `flip` invierte el cuerpo
  * según `facing`. Los ojos dejan claro hacia dónde mira.
  */
-const DoodlerNode = memo(function DoodlerNode({
+const RoboNode = memo(function RoboNode({
   slot,
   scale,
 }: {
-  slot: { current: DoodlerSlot | null };
+  slot: { current: RoboSlot | null };
   scale: number;
 }) {
   const x = useSharedValue(0);
   const y = useSharedValue(0);
   const flip = useSharedValue(1);
   const opacity = useSharedValue(0);
+  const hatOpacity = useSharedValue(0);
   const twinX = useSharedValue(0);
   const twinY = useSharedValue(0);
   const twinOpacity = useSharedValue(0);
   useEffect(() => {
-    slot.current = { x, y, flip, opacity, twinX, twinY, twinOpacity };
+    slot.current = { x, y, flip, opacity, hatOpacity, twinX, twinY, twinOpacity };
     return () => {
       slot.current = null;
     };
-  }, [slot, x, y, flip, opacity, twinX, twinY, twinOpacity]);
+  }, [slot, x, y, flip, opacity, hatOpacity, twinX, twinY, twinOpacity]);
 
-  const w = DOODLER_W * scale;
-  const h = DOODLER_H * scale;
+  const w = ROBO_W * scale;
+  const h = ROBO_H * scale;
   const body = useAnimatedStyle(() => ({
     transform: [{ translateX: x.value }, { translateY: y.value }, { scaleX: flip.value }],
     opacity: opacity.value,
@@ -266,42 +269,72 @@ const DoodlerNode = memo(function DoodlerNode({
     transform: [{ translateX: twinX.value }, { translateY: twinY.value }, { scaleX: flip.value }],
     opacity: twinOpacity.value,
   }));
+  // Propeller hat (D15): flotando sobre la cabeza, hereda la opacidad de su
+  // copia (principal/twin) × hatOpacity — visible solo mientras dura el boost.
+  const hat = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: x.value },
+      { translateY: y.value - h * 0.62 },
+      { scaleX: flip.value },
+    ],
+    opacity: hatOpacity.value * opacity.value,
+  }));
+  const hatTwin = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: twinX.value },
+      { translateY: twinY.value - h * 0.62 },
+      { scaleX: flip.value },
+    ],
+    opacity: hatOpacity.value * twinOpacity.value,
+  }));
+
+  const hatVisual = (
+    <View style={styles.roboHat} pointerEvents="none">
+      <View style={[styles.hatBlade, { width: w * 0.95, height: Math.max(2, h * 0.14) }]} />
+      <View style={[styles.hatCap, { width: w * 0.55, height: h * 0.42 }]} />
+    </View>
+  );
+
+  const robotVisual = (
+    <>
+      {/* Antena (identidad robo): punta encendida + varilla. */}
+      <View style={[styles.antenna, { top: -h * 0.45 }]} pointerEvents="none">
+        <View style={[styles.antennaTip, { width: w * 0.18, height: w * 0.18, borderRadius: w * 0.09 }]} />
+        <View style={[styles.antennaRod, { width: Math.max(1.5, w * 0.07), height: h * 0.32 }]} />
+      </View>
+      {/* Visor: pantalla oscura con ojos cian encendidos. */}
+      <View style={styles.body}>
+        <View style={[styles.visor, { width: w * 0.72, height: h * 0.5 }]}>
+          <View style={[styles.visorEye, { width: w * 0.16, height: h * 0.16 }]} />
+          <View style={[styles.visorEye, { width: w * 0.16, height: h * 0.16 }]} />
+        </View>
+      </View>
+    </>
+  );
 
   return (
     <>
       <Animated.View
-        accessibilityLabel="doodle-jump-doodler"
-        style={[styles.entity, body, { width: w, height: h, backgroundColor: '#7CB342', borderRadius: w * 0.4 }]}
+        accessibilityLabel="robo-jump-robot"
+        style={[styles.entity, body, { width: w, height: h, backgroundColor: '#B0BEC5', borderRadius: w * 0.2 }]}
       >
-        <View style={styles.body}>
-          <View style={[styles.eyePair, { width: w * 0.62, height: h * 0.42 }]}>
-            <View style={[styles.doodlerEye, { width: w * 0.22, height: h * 0.3 }]}>
-              <View style={[styles.pupil, { width: w * 0.1, height: h * 0.14 }]} />
-            </View>
-            <View style={[styles.doodlerEye, { width: w * 0.22, height: h * 0.3 }]}>
-              <View style={[styles.pupil, { width: w * 0.1, height: h * 0.14 }]} />
-            </View>
-          </View>
-        </View>
+        {robotVisual}
+      </Animated.View>
+      <Animated.View style={[styles.entity, hat, { width: w, height: h }]} pointerEvents="none">
+        {hatVisual}
       </Animated.View>
       <Animated.View
         style={[
           styles.entity,
           twin,
-          { width: w, height: h, backgroundColor: '#7CB342', borderRadius: w * 0.4 },
+          { width: w, height: h, backgroundColor: '#B0BEC5', borderRadius: w * 0.2 },
         ]}
         pointerEvents="none"
       >
-        <View style={styles.body}>
-          <View style={[styles.eyePair, { width: w * 0.62, height: h * 0.42 }]}>
-            <View style={[styles.doodlerEye, { width: w * 0.22, height: h * 0.3 }]}>
-              <View style={[styles.pupil, { width: w * 0.1, height: h * 0.14 }]} />
-            </View>
-            <View style={[styles.doodlerEye, { width: w * 0.22, height: h * 0.3 }]}>
-              <View style={[styles.pupil, { width: w * 0.1, height: h * 0.14 }]} />
-            </View>
-          </View>
-        </View>
+        {robotVisual}
+      </Animated.View>
+      <Animated.View style={[styles.entity, hatTwin, { width: w, height: h }]} pointerEvents="none">
+        {hatVisual}
       </Animated.View>
     </>
   );
@@ -331,7 +364,7 @@ export function Renderer({
       {Array.from({ length: BULLET_POOL }, (_, i) => (
         <BulletSlot key={`b${i}`} slots={slots.bullets} index={i} entity={bullets[i] ?? null} scale={scale} />
       ))}
-      <DoodlerNode slot={slots.doodler} scale={scale} />
+      <RoboNode slot={slots.robo} scale={scale} />
     </>
   );
 }
@@ -384,25 +417,39 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 2,
     borderBottomRightRadius: 2,
   },
+  roboHat: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   body: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  eyePair: {
+  antenna: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  antennaRod: {
+    backgroundColor: '#78909C',
+    borderRadius: 2,
+  },
+  antennaTip: {
+    backgroundColor: '#EF5350',
+  },
+  visor: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-  },
-  doodlerEye: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 99,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pupil: {
     backgroundColor: '#263238',
+    borderRadius: 3,
+  },
+  visorEye: {
+    backgroundColor: '#00E5FF',
     borderRadius: 99,
   },
 });

@@ -1,5 +1,5 @@
 /**
- * Tests del engine puro de Doodle Jump (PLAN-DOODLE-JUMP T1–T3, §3.3):
+ * Tests del engine puro de Robo Jump (PLAN-DOODLE-JUMP T1–T3, §3.3):
  * física, colisiones, cámara monotónica, caps y determinismo por partición
  * de dt (D9). El auto-rebote sin input horizontal es el ancla determinista
  * de los seeds E2E (§3.5).
@@ -10,6 +10,7 @@ import {
   applyDragX,
   blueProbFor,
   createGameState,
+  isCompanionPlatform,
   maxGapFor,
   maxJumpHeight,
   monsterProbFor,
@@ -17,14 +18,15 @@ import {
   platformX,
   setMoveDir,
   shoot,
-  type DoodleJumpEvent,
+  type RoboJumpEvent,
   type GameState,
   type Platform,
 } from '../engine/rules';
 import {
   BULLET_SPEED,
   CLEAN_MARGIN,
-  DOODLER_H,
+  ROBO_H,
+  HAT_VY,
   JUMP_V,
   MAX_BULLETS,
   MIN_GAP,
@@ -36,9 +38,9 @@ import {
 } from '../engine/tuning';
 
 /** Avanza `ms` conservando el leftover entre llamadas (partición del rAF). */
-function run(state: GameState, ms: number, chunkMs = 16): { state: GameState; events: DoodleJumpEvent[] } {
+function run(state: GameState, ms: number, chunkMs = 16): { state: GameState; events: RoboJumpEvent[] } {
   let current = state;
-  const events: DoodleJumpEvent[] = [];
+  const events: RoboJumpEvent[] = [];
   let remaining = ms;
   let carry = 0;
   while (remaining > 0) {
@@ -56,9 +58,9 @@ function run(state: GameState, ms: number, chunkMs = 16): { state: GameState; ev
 function substeps(
   state: GameState,
   n: number,
-): { states: GameState[]; events: DoodleJumpEvent[]; final: GameState } {
+): { states: GameState[]; events: RoboJumpEvent[]; final: GameState } {
   const states: GameState[] = [];
-  const events: DoodleJumpEvent[] = [];
+  const events: RoboJumpEvent[] = [];
   let current = state;
   for (let i = 0; i < n; i++) {
     const r = advance(current, STEP_MS);
@@ -69,7 +71,7 @@ function substeps(
   return { states, events, final: current };
 }
 
-describe('rules doodle-jump: física núcleo', () => {
+describe('rules robo-jump: física núcleo', () => {
   test('auto-rebote: cae sobre la plataforma inicial y rebota (sin input)', () => {
     const state = createGameState({ rngSeed: 7 });
     // Un salto completo: sube con JUMP_V y vuelve a la plataforma.
@@ -78,15 +80,15 @@ describe('rules doodle-jump: física núcleo', () => {
     expect(events).toContain('bounce');
     expect(after.status).toBe('playing');
     // El rebote lo dejó nuevamente justo sobre la plataforma inicial.
-    expect(after.doodler.vy).toBeLessThanOrEqual(0);
+    expect(after.robo.vy).toBeLessThanOrEqual(0);
   });
 
   test('determinismo por partición de dt (D9): mismo input → mismo estado', () => {
     const a = run(createGameState({ rngSeed: 42 }), 2000, 16);
     const b = run(createGameState({ rngSeed: 42 }), 2000, 7);
     const c = run(createGameState({ rngSeed: 42 }), 2000, 40);
-    expect(a.state.doodler).toEqual(b.state.doodler);
-    expect(a.state.doodler).toEqual(c.state.doodler);
+    expect(a.state.robo).toEqual(b.state.robo);
+    expect(a.state.robo).toEqual(c.state.robo);
     expect(a.state.height).toBe(c.state.height);
     expect(a.state.platforms.map((p) => p.id)).toEqual(c.state.platforms.map((p) => p.id));
   });
@@ -114,23 +116,23 @@ describe('rules doodle-jump: física núcleo', () => {
   });
 });
 
-describe('rules doodle-jump: colisiones de plataformas', () => {
+describe('rules robo-jump: colisiones de plataformas', () => {
   test('subir atraviesa la plataforma sin rebotar (colisión solo al caer)', () => {
     const state = createGameState({ rngSeed: 7 });
-    // Doodler DEBAJO de una plataforma, subiendo: nunca la cruza hacia arriba.
+    // Robo DEBAJO de una plataforma, subiendo: nunca la cruza hacia arriba.
     const p = state.platforms[0];
     const under: GameState = {
       ...state,
-      doodler: { ...state.doodler, x: p.x, y: p.y + DOODLER_H / 2 + 4, vy: -200 },
+      robo: { ...state.robo, x: p.x, y: p.y + ROBO_H / 2 + 4, vy: -200 },
     };
     const { final, events } = substeps(under, 20);
     expect(events).not.toContain('bounce');
-    expect(final.doodler.y).toBeLessThan(under.doodler.y); // atravesó hacia arriba
+    expect(final.robo.y).toBeLessThan(under.robo.y); // atravesó hacia arriba
   });
 
   test('aterrizar en brown la rompe: no rebota y desaparece (evento break)', () => {
     const state = createGameState({ rngSeed: 7 });
-    const brown: Platform = { id: 999, kind: 'brown', x: WORLD_W / 2, y: state.doodler.y + DOODLER_H / 2, phase: 0, spring: false, hat: false };
+    const brown: Platform = { id: 999, kind: 'brown', x: WORLD_W / 2, y: state.robo.y + ROBO_H / 2, phase: 0, spring: false, hat: false };
     const withBrown: GameState = { ...state, platforms: [brown, ...state.platforms.filter((p) => p.id !== 0)] };
     const { state: after, events } = run(withBrown, 150);
     expect(events).toContain('break');
@@ -144,7 +146,7 @@ describe('rules doodle-jump: colisiones de plataformas', () => {
       id: 999,
       kind: 'green',
       x: WORLD_W / 2,
-      y: state.doodler.y + DOODLER_H / 2,
+      y: state.robo.y + ROBO_H / 2,
       phase: 0,
       spring: true,
       hat: false,
@@ -156,7 +158,7 @@ describe('rules doodle-jump: colisiones de plataformas', () => {
     const { states, events } = substeps(withSpring, 30);
     const landing = events.findIndex((e) => e === 'spring');
     expect(landing).toBeGreaterThanOrEqual(0);
-    expect(states[landing].doodler.vy).toBe(-SPRING_V);
+    expect(states[landing].robo.vy).toBe(-SPRING_V);
   });
 
   test('la plataforma azul oscila determinísticamente', () => {
@@ -182,19 +184,19 @@ describe('rules doodle-jump: colisiones de plataformas', () => {
   });
 });
 
-describe('rules doodle-jump: wrap, drag y teclado', () => {
+describe('rules robo-jump: wrap, drag y teclado', () => {
   test('drag cruza el borde izquierdo y aparece por la derecha (facing -1)', () => {
     const state = createGameState({ rngSeed: 7 });
-    const atLeft = { ...state, doodler: { ...state.doodler, x: 5 } };
+    const atLeft = { ...state, robo: { ...state.robo, x: 5 } };
     const after = applyDragX(atLeft, -10);
-    expect(after.doodler.x).toBeCloseTo(WORLD_W - 5, 0);
-    expect(after.doodler.facing).toBe(-1);
+    expect(after.robo.x).toBeCloseTo(WORLD_W - 5, 0);
+    expect(after.robo.facing).toBe(-1);
   });
 
   test('el drag clampea el delta por evento (anti-teleport)', () => {
     const state = createGameState({ rngSeed: 7 });
     const after = applyDragX(state, 5000);
-    expect(after.doodler.x - state.doodler.x).toBeLessThanOrEqual(24 + 1e-9);
+    expect(after.robo.x - state.robo.x).toBeLessThanOrEqual(24 + 1e-9);
   });
 
   test('el drag no se aplica con la partida terminada', () => {
@@ -207,15 +209,15 @@ describe('rules doodle-jump: wrap, drag y teclado', () => {
     const moving = setMoveDir(state, -1);
     expect(moving.moveDir).toBe(-1);
     const { state: after } = run(moving, 100);
-    expect(after.doodler.x).toBeLessThan(state.doodler.x);
-    expect(after.doodler.facing).toBe(-1);
+    expect(after.robo.x).toBeLessThan(state.robo.x);
+    expect(after.robo.facing).toBe(-1);
     const stopped = setMoveDir(after, 0);
     const { state: still } = run(stopped, 50);
-    expect(still.doodler.vx).toBe(0);
+    expect(still.robo.vx).toBe(0);
   });
 });
 
-describe('rules doodle-jump: cámara y score', () => {
+describe('rules robo-jump: cámara y score', () => {
   test('la cámara scrolla solo al cruzar la línea y nunca retrocede (D11)', () => {
     let state = createGameState({ rngSeed: 7 });
     let lastCam = state.camY;
@@ -225,41 +227,43 @@ describe('rules doodle-jump: cámara y score', () => {
       expect(state.camY).toBeLessThanOrEqual(lastCam); // nunca baja
       lastCam = state.camY;
     }
-    // Sin input horizontal: el Doodler rebota en la primera plataforma y el
+    // Sin input horizontal: el Robo rebota en la primera plataforma y el
     // apex (≈ START_Y - maxJump) no cruza la línea (256) → sin scroll.
     expect(state.camY).toBe(0);
     expect(state.score).toBe(Math.round(state.height / 10));
 
-    // Con el Doodler por encima de la línea, el scroll lo deja sobre ella.
-    const above: GameState = { ...state, doodler: { ...state.doodler, y: 200, vy: 0 } };
+    // Con el Robo por encima de la línea, el scroll lo deja sobre ella.
+    const above: GameState = { ...state, robo: { ...state.robo, y: 200, vy: 0 } };
     const { state: scrolled } = advance(above, 8);
-    expect(scrolled.camY).toBeCloseTo(scrolled.doodler.y - WORLD_H * 0.4, 5);
+    expect(scrolled.camY).toBeCloseTo(scrolled.robo.y - WORLD_H * 0.4, 5);
     expect(scrolled.camY).toBeLessThan(0);
   });
 
   test('al caer la cámara no baja (no hay descenso)', () => {
     const state = createGameState({ rngSeed: 7 });
-    // Cámara elevada con el Doodler DEBAJO de la línea, cayendo.
-    const high: GameState = { ...state, camY: 300, nextSpawnY: 0, doodler: { ...state.doodler, y: 600, vy: 200 } };
+    // Cámara elevada con el Robo DEBAJO de la línea, cayendo.
+    const high: GameState = { ...state, camY: 300, nextSpawnY: 0, robo: { ...state.robo, y: 600, vy: 200 } };
     const { state: after } = run(high, 200);
     expect(after.camY).toBe(300);
   });
 });
 
-describe('rules doodle-jump: hat, balas y monstruos', () => {
+describe('rules robo-jump: hat, balas y monstruos', () => {
   function withHatPlatform(): { state: GameState; hatId: number } {
     const base = createGameState({ rngSeed: 7 });
-    const hat: Platform = { id: 997, kind: 'green', x: WORLD_W / 2, y: base.doodler.y + DOODLER_H / 2, phase: 0, spring: false, hat: true };
+    const hat: Platform = { id: 997, kind: 'green', x: WORLD_W / 2, y: base.robo.y + ROBO_H / 2, phase: 0, spring: false, hat: true };
     return { state: { ...base, platforms: [hat, ...base.platforms.filter((p) => p.id !== 0)] }, hatId: 997 };
   }
 
   test('el hat se activa al aterrizar: ascenso sostenido y dispara evento hat', () => {
-    const { state } = withHatPlatform();
+    const { state, hatId } = withHatPlatform();
     const { state: after, events } = run(state, 300);
     expect(events).toContain('hat');
-    expect(after.doodler.hatMs).toBeGreaterThan(0);
-    expect(after.doodler.vy).toBe(-160);
-    expect(after.doodler.y).toBeLessThan(state.doodler.y);
+    expect(after.robo.hatMs).toBeGreaterThan(0);
+    expect(after.robo.vy).toBe(-HAT_VY);
+    expect(after.robo.y).toBeLessThan(state.robo.y);
+    // D15: el hat se CONSUME — la plataforma queda sin decoración.
+    expect(after.platforms.find((p) => p.id === hatId)?.hat).toBe(false);
   });
 
   test('con hat activo el disparo se rechaza (misma referencia, D12)', () => {
@@ -274,8 +278,8 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
     const base = createGameState({ rngSeed: 7, height: 1000 });
     const hatted: GameState = {
       ...base,
-      doodler: { ...base.doodler, hatMs: 1000, vy: -160 },
-      monsters: [{ id: 50, kind: 'static', x: WORLD_W / 2, y: base.doodler.y - 60, phase: 0 }],
+      robo: { ...base.robo, hatMs: 1000, vy: -HAT_VY },
+      monsters: [{ id: 50, kind: 'static', x: WORLD_W / 2, y: base.robo.y - 60, phase: 0 }],
     };
     const { state: after, events } = run(hatted, 600);
     expect(events).toContain('kill');
@@ -285,11 +289,11 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
 
   test('disparo mata al monstruo por contacto (evento kill)', () => {
     const base = createGameState({ rngSeed: 7 });
-    // Monstruo al LADO del Doodler, a la altura de la bala sin apuntado
+    // Monstruo al LADO del Robo, a la altura de la bala sin apuntado
     // (sale del centro): la bala horizontal lo alcanza (D3).
     const setup: GameState = {
       ...base,
-      monsters: [{ id: 50, kind: 'static', x: base.doodler.x + 120, y: base.doodler.y, phase: 0 }],
+      monsters: [{ id: 50, kind: 'static', x: base.robo.x + 120, y: base.robo.y, phase: 0 }],
     };
     const { state: fired } = shoot(setup);
     expect(fired.bullets).toHaveLength(1);
@@ -312,23 +316,23 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
     expect(Math.hypot(d.vx, d.vy)).toBeCloseTo(BULLET_SPEED, 6);
     // Deadzone: dirección casi nula no dispara.
     expect(shoot(base, { dx: 0.2, dy: 0.1 }).state.bullets).toHaveLength(0);
-    // El toque dispara aunque el Doodler mire al otro lado.
-    const leftFacing: GameState = { ...base, doodler: { ...base.doodler, facing: -1 } };
+    // El toque dispara aunque el Robo mire al otro lado.
+    const leftFacing: GameState = { ...base, robo: { ...base.robo, facing: -1 } };
     expect(shoot(leftFacing, { dx: 2, dy: 0 }).state.bullets[0].vx).toBeGreaterThan(0);
   });
 
   test('disparo apuntado hacia arriba mata al monstruo (caso v1 del disparo)', () => {
     const base = createGameState({ rngSeed: 7 });
     // Sin hat: D12 anula el disparo con hat activo. Plataformas fuera para
-    // que el Doodler siga vivo los 400 ms de la bala.
+    // que el Robo siga vivo los 400 ms de la bala.
     const setup: GameState = {
       ...base,
-      monsters: [{ id: 50, kind: 'static', x: base.doodler.x, y: base.doodler.y - 200, phase: 0 }],
+      monsters: [{ id: 50, kind: 'static', x: base.robo.x, y: base.robo.y - 200, phase: 0 }],
       platforms: [],
       nextSpawnY: -700,
     };
     const { state: fired } = shoot(setup, { dx: 0, dy: -1 });
-    // 350 ms: la bala mata (~260 ms) y el Doodler sigue vivo (muere a ~0.4 s).
+    // 350 ms: la bala mata (~260 ms) y el Robo sigue vivo (muere a ~0.4 s).
     const { state: after, events } = run(fired, 350);
     expect(events).toContain('kill');
     expect(after.monsters.some((m) => m.id === 50)).toBe(false);
@@ -339,7 +343,7 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
     const base = createGameState({ rngSeed: 7 });
     const setup: GameState = {
       ...base,
-      doodler: { ...base.doodler, hatMs: 3000, vy: -160 },
+      robo: { ...base.robo, hatMs: 3000, vy: -HAT_VY },
       platforms: [],
       nextSpawnY: -700,
     };
@@ -361,34 +365,34 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
   test('disparo horizontal según facing (D3 revisada)', () => {
     const base = createGameState({ rngSeed: 7 });
     // Mirando a la derecha: la bala sale por la nariz y avanza +x.
-    const right: GameState = { ...base, doodler: { ...base.doodler, facing: 1 } };
+    const right: GameState = { ...base, robo: { ...base.robo, facing: 1 } };
     const shotRight = shoot(right).state;
     expect(shotRight.bullets).toHaveLength(1);
     const b0 = shotRight.bullets[0];
     expect(b0.vx).toBeGreaterThan(0);
-    expect(b0.x).toBeGreaterThan(right.doodler.x);
+    expect(b0.x).toBeGreaterThan(right.robo.x);
     const { state: after } = run(shotRight, 32);
     const b1 = after.bullets[0];
     if (!b1) throw new Error('bala despawneara antes de tiempo');
     expect(b1.x).toBeGreaterThan(b0.x); // avanzó horizontal
     expect(b1.y).toBe(b0.y); // altura constante ("nose ball", sin gravedad)
     // Mirando a la izquierda: vx negativo y sale hacia -x.
-    const left: GameState = { ...base, doodler: { ...base.doodler, facing: -1 } };
+    const left: GameState = { ...base, robo: { ...base.robo, facing: -1 } };
     const shotLeft = shoot(left).state;
     expect(shotLeft.bullets[0].vx).toBeLessThan(0);
-    expect(shotLeft.bullets[0].x).toBeLessThan(left.doodler.x);
+    expect(shotLeft.bullets[0].x).toBeLessThan(left.robo.x);
   });
 
   test('la bala despawnea al salir por el borde lateral (sin wrap, D3)', () => {
     const base = createGameState({ rngSeed: 7 });
     const left: GameState = {
       ...base,
-      doodler: { ...base.doodler, facing: -1 },
+      robo: { ...base.robo, facing: -1 },
       platforms: [],
       nextSpawnY: -700,
     };
     const { state: fired } = shoot(left);
-    // 300 ms: la bala sale del borde (~235 ms) y el Doodler sigue vivo.
+    // 300 ms: la bala sale del borde (~235 ms) y el Robo sigue vivo.
     const { state: after } = run(fired, 300);
     expect(after.bullets).toHaveLength(0);
     expect(after.status).toBe('playing');
@@ -398,10 +402,10 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
     const base = createGameState({ rngSeed: 7 });
     // Caída RÁPIDA (vy 900 u/s): cruza ~7 u por sub-paso de 8 ms — una
     // tolerancia fija de 2 u leía el cruce como muerte en vez de aplaste.
-    const monsterY = base.doodler.y;
+    const monsterY = base.robo.y;
     const setup: GameState = {
       ...base,
-      doodler: { ...base.doodler, y: monsterY - 120, vy: 900 },
+      robo: { ...base.robo, y: monsterY - 120, vy: 900 },
       monsters: [{ id: 50, kind: 'static', x: WORLD_W / 2, y: monsterY, phase: 0 }],
       platforms: [],
       nextSpawnY: -700,
@@ -415,10 +419,10 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
   test('aplaste tipo Mario: cayendo sobre la cabeza lo mata y rebota (D12)', () => {
     const base = createGameState({ rngSeed: 7 });
     // Sin plataformas en el trayecto (y sin generación): caída limpia al monstruo.
-    const monsterY = base.doodler.y;
+    const monsterY = base.robo.y;
     const setup: GameState = {
       ...base,
-      doodler: { ...base.doodler, y: monsterY - 80, vy: 300 },
+      robo: { ...base.robo, y: monsterY - 80, vy: 300 },
       monsters: [{ id: 50, kind: 'static', x: WORLD_W / 2, y: monsterY, phase: 0 }],
       platforms: [],
       nextSpawnY: -700,
@@ -427,16 +431,16 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
     expect(events).toContain('kill');
     expect(after.monsters.some((m) => m.id === 50)).toBe(false);
     expect(after.status).toBe('playing'); // el aplaste lo salvó
-    expect(after.doodler.vy).toBeLessThan(0); // rebotó hacia arriba
+    expect(after.robo.vy).toBeLessThan(0); // rebotó hacia arriba
   });
 
   test('tocar un monstruo de lado muere (evento die monster)', () => {
     const base = createGameState({ rngSeed: 7 });
     // Sin plataformas: contacto lateral con vy > 0 pero sin cruce superior.
-    const monsterY = base.doodler.y;
+    const monsterY = base.robo.y;
     const setup: GameState = {
       ...base,
-      doodler: { ...base.doodler, x: WORLD_W / 2 - 18, y: monsterY, vy: 50 },
+      robo: { ...base.robo, x: WORLD_W / 2 - 18, y: monsterY, vy: 50 },
       monsters: [{ id: 50, kind: 'static', x: WORLD_W / 2, y: monsterY, phase: 0 }],
       platforms: [],
       nextSpawnY: -700,
@@ -450,7 +454,7 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
     const base = createGameState({ rngSeed: 7, height: 1000 });
     const setup: GameState = {
       ...base,
-      monsters: [{ id: 50, kind: 'mobile', x: WORLD_W / 2, y: base.doodler.y - 300, phase: 0 }],
+      monsters: [{ id: 50, kind: 'mobile', x: WORLD_W / 2, y: base.robo.y - 300, phase: 0 }],
     };
     const { state: after } = run(setup, 1000);
     const mob = after.monsters.find((m) => m.id === 50);
@@ -461,7 +465,7 @@ describe('rules doodle-jump: hat, balas y monstruos', () => {
   });
 });
 
-describe('rules doodle-jump: muerte, generación y caps', () => {
+describe('rules robo-jump: muerte, generación y caps', () => {
   test('caer bajo la cámara muere con cause fall (una sola vez)', () => {
     let state = createGameState({ rngSeed: 7 });
     // Quitar TODAS las plataformas Y desactivar la generación: caída limpia.
@@ -477,12 +481,15 @@ describe('rules doodle-jump: muerte, generación y caps', () => {
     for (const seed of [1, 2, 3, 11, 42, 97]) {
       for (const height of [0, 1000, 5000, 20000]) {
         const state = createGameState({ rngSeed: seed, height });
-        // Orden descendente por y: de abajo hacia arriba, gaps consecutivos.
-        const sorted = [...state.platforms].sort((a, b) => b.y - a.y);
-        expect(sorted.length).toBeGreaterThan(10);
-        for (let i = 0; i < sorted.length - 1; i++) {
-          const low = sorted[i];
-          const high = sorted[i + 1];
+        // Escalera SIN compañeras (D16: viven 40 u bajo su brown — no son
+        // parte de la cadena), ordenada de abajo hacia arriba.
+        const ladder = state.platforms
+          .filter((p) => !isCompanionPlatform(p, state.platforms))
+          .sort((a, b) => b.y - a.y);
+        expect(ladder.length).toBeGreaterThan(10);
+        for (let i = 0; i < ladder.length - 1; i++) {
+          const low = ladder[i];
+          const high = ladder[i + 1];
           const gap = low.y - high.y;
           expect(gap).toBeLessThanOrEqual(maxGapFor(height) + 1e-9);
           expect(gap).toBeLessThan(maxJump); // margen de salto siempre
@@ -498,18 +505,19 @@ describe('rules doodle-jump: muerte, generación y caps', () => {
     // re-genera un lote desde el mismo cursor y apila duplicados
     // ("racimo" del playtest 15-9).
     let state = createGameState({ rngSeed: 7, height: 1000 });
-    state = { ...state, doodler: { ...state.doodler, hatMs: 3000, vy: -160 } };
+    state = { ...state, robo: { ...state.robo, hatMs: 3000, vy: -HAT_VY } };
     const { state: after } = run(state, 3000);
     // Ventana viva acotada: el conteo no puede exceder el peor caso del
     // span (mismo invariante que el pool de render, R0/R6).
     const span = CLEAN_MARGIN + WORLD_H + SPAWN_AHEAD;
     const worstCase = Math.ceil(span / MIN_GAP) + 1;
     expect(after.platforms.length).toBeLessThanOrEqual(worstCase + 2);
-    // Sin duplicados: gaps consecutivos ≥ MIN_GAP en toda la escalera viva.
-    const sorted = [...after.platforms].sort((a, b) => b.y - a.y);
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const gap = sorted[i].y - sorted[i + 1].y;
-      expect(gap).toBeGreaterThanOrEqual(MIN_GAP - 1);
+    // Sin duplicados: gaps de la escalera (sin compañeras, D16) ≥ MIN_GAP.
+    const ladder = after.platforms
+      .filter((p) => !isCompanionPlatform(p, after.platforms))
+      .sort((a, b) => b.y - a.y);
+    for (let i = 0; i < ladder.length - 1; i++) {
+      expect(ladder[i].y - ladder[i + 1].y).toBeGreaterThanOrEqual(MIN_GAP - 1);
     }
     // El cursor avanzó: nextSpawnY quedó por encima (menor) del camY+SPAWN_AHEAD.
     expect(after.nextSpawnY).toBeLessThanOrEqual(after.camY - SPAWN_AHEAD);

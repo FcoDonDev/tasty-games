@@ -7,7 +7,7 @@
 import { advance, createGameState } from '../engine/rules';
 import { PERF_LONG_SEED, seedConfig } from '../engine/seed';
 
-describe('perf fixture doodle-jump: advance', () => {
+describe('perf fixture robo-jump: advance', () => {
   test('200 frames de 16 ms en un mundo alto (banda 20) ≤ 2 s total', () => {
     let state = createGameState(seedConfig(PERF_LONG_SEED));
     const t0 = performance.now();

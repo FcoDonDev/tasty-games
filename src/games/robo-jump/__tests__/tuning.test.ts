@@ -27,7 +27,7 @@ import {
 } from '../engine/tuning';
 import { maxJumpHeight, maxGapFor, blueProbFor, brownProbFor, monsterProbFor } from '../engine/rules';
 
-describe('tuning doodle-jump: invariantes', () => {
+describe('tuning robo-jump: invariantes', () => {
   test('todo gap generado es alcanzable (≤ margen del salto máx)', () => {
     const maxJump = maxJumpHeight();
     expect(maxJump).toBeGreaterThan(0);
@@ -72,7 +72,7 @@ describe('tuning doodle-jump: invariantes', () => {
     expect(MAX_GAP_BASE).toBeGreaterThan(MIN_GAP);
   });
 
-  test('el pool de render cubre el peor caso de plataformas vivas (R0/R6)', () => {
+  test('el pool de render cubre el peor caso de plataformas vivas (R0/R6/D16)', () => {
     // Span vivo: limpieza bajo (camY+WORLD_H+CLEAN_MARGIN) y generación
     // hasta (camY-SPAWN_AHEAD). Con gap mínimo, el peor caso divide el
     // span por MIN_GAP — un pool menor deja plataformas del engine sin
@@ -80,5 +80,9 @@ describe('tuning doodle-jump: invariantes', () => {
     const span = CLEAN_MARGIN + WORLD_H + SPAWN_AHEAD;
     const worstCaseLive = Math.ceil(span / MIN_GAP) + 1;
     expect(PLATFORM_POOL).toBeGreaterThanOrEqual(worstCaseLive);
+    // D16: las compañeras verdes de las brown suman ~brownProb máx (0.2)
+    // de plataformas adicionales al span vivo.
+    const withCompanions = worstCaseLive + Math.ceil(worstCaseLive * 0.2);
+    expect(PLATFORM_POOL).toBeGreaterThanOrEqual(withCompanions);
   });
 });
