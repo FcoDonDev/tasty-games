@@ -98,3 +98,12 @@ export const SPAWN_AHEAD = 320;
  * (~worstCaseLive × (1 + brownProb max) ≈ 27 vivas → pool 28).
  */
 export const PLATFORM_POOL = 28;
+
+/** D19 (fase 5 juice): pools de partículas cosméticas (tweens UI-thread).
+ * Los bursts usan el rango [0, PARTICLE_POOL) y la estela del turbo el
+ * rango final [PARTICLE_POOL, PARTICLE_POOL + TRAIL_POOL). */
+export const PARTICLE_POOL = 20;
+export const TRAIL_POOL = 8;
+
+/** D19: cadencia de la estela del turbo (emisión round-robin, ms). */
+export const TRAIL_EVERY_MS = 50;

@@ -53,15 +53,25 @@ import {
 
 export type GameStatus = 'playing' | 'over';
 
-/** Eventos discretos → sonido/haptics (D10/D11), espejo de serpiente. */
+/** Causa del kill (D18): modula el juice del impacto. */
+export type RoboJumpKillBy = 'bullet' | 'squish' | 'hat';
+
+/**
+ * Eventos discretos → sonido/haptics/juice (D10/D11/D18), espejo de
+ * serpiente. D18 (fase 5): los eventos con posición de origen para
+ * partículas llevan payload `{ x, y }` en unidades del mundo
+ * (plataforma del pickup, monstruo impactado, punto de contacto de
+ * muerte); `bounce`/`shoot`/`break` quedan como strings (su origen es
+ * derivable del estado del Robo en la pantalla).
+ */
 export type RoboJumpEvent =
   | 'bounce'
-  | 'spring'
-  | 'hat'
   | 'shoot'
   | 'break'
-  | 'kill'
-  | { type: 'die'; cause: 'fall' | 'monster' };
+  | { type: 'spring'; x: number; y: number }
+  | { type: 'hat'; x: number; y: number }
+  | { type: 'kill'; x: number; y: number; by: RoboJumpKillBy }
+  | { type: 'die'; cause: 'fall' | 'monster'; x: number; y: number };
 
 export type PlatformKind = 'green' | 'blue' | 'brown';
 
@@ -539,10 +549,10 @@ function stepOnce(state: GameState): { state: GameState; events: RoboJumpEvent[]
         // D15: el hat se CONSUME — el ícono deja la plataforma (el Robo
         // lo lleva); re-caer sobre la plataforma no lo re-activa.
         platforms = platforms.map((q) => (q.id === p.id ? { ...q, hat: false } : q));
-        events.push('hat');
+        events.push({ type: 'hat', x: p.x, y: p.y });
       } else if (p.spring) {
         vyOut = -SPRING_V;
-        events.push('spring');
+        events.push({ type: 'spring', x: p.x, y: p.y });
       } else {
         vyOut = -JUMP_V;
         events.push('bounce');
@@ -565,7 +575,7 @@ function stepOnce(state: GameState): { state: GameState; events: RoboJumpEvent[]
     if (!overlapping) continue;
     if (hatMs > 0) {
       monsters = monsters.filter((q) => q.id !== m.id);
-      events.push('kill');
+      events.push({ type: 'kill', x: mx, y: m.y, by: 'hat' });
       continue;
     }
     // Aplaste (R4/T14): la tolerancia escala con el desplazamiento vertical
@@ -576,7 +586,7 @@ function stepOnce(state: GameState): { state: GameState; events: RoboJumpEvent[]
       monsters = monsters.filter((q) => q.id !== m.id);
       vyOut = -JUMP_V;
       y = m.y - MONSTER_H / 2 - ROBO_H / 2;
-      events.push('kill');
+      events.push({ type: 'kill', x: mx, y: m.y, by: 'squish' });
       break;
     }
     return {
@@ -587,7 +597,7 @@ function stepOnce(state: GameState): { state: GameState; events: RoboJumpEvent[]
         monsters,
         elapsedMs: state.elapsedMs + STEP_MS,
       },
-      events: [...events, { type: 'die', cause: 'monster' }],
+      events: [...events, { type: 'die', cause: 'monster', x: mx, y: m.y }],
     };
   }
 
@@ -608,7 +618,7 @@ function stepOnce(state: GameState): { state: GameState; events: RoboJumpEvent[]
           by <= m.y + MONSTER_H / 2
         ) {
           monsters = monsters.filter((q) => q.id !== m.id);
-          events.push('kill');
+          events.push({ type: 'kill', x: mx, y: m.y, by: 'bullet' });
           break;
         }
       }
@@ -644,7 +654,10 @@ function stepOnce(state: GameState): { state: GameState; events: RoboJumpEvent[]
 
   // 7) Muerte por caída bajo la vista.
   if (moved.robo.y - ROBO_H / 2 > moved.camY + WORLD_H) {
-    return { state: { ...moved, status: 'over' }, events: [...events, { type: 'die', cause: 'fall' }] };
+    return {
+      state: { ...moved, status: 'over' },
+      events: [...events, { type: 'die', cause: 'fall', x: moved.robo.x, y: moved.robo.y }],
+    };
   }
 
   // 8) Limpieza bajo cámara + generación por encima (con monstruos).

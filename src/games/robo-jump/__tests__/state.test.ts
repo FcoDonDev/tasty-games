@@ -141,7 +141,16 @@ describe('store robo-jump: sentinelas E2E (§3.5)', () => {
   test('test-lose: monstruo en el eje mata sin input (colisión determinista)', () => {
     useRoboJumpStore.getState().reset('test-lose');
     const events = loopTick(2000);
-    expect(events.at(-1)).toEqual({ type: 'die', cause: 'monster' });
+    // D18: el die por monstruo lleva la posición del contacto (eje central).
+    const die = events.at(-1);
+    expect(
+      typeof die === 'object' &&
+        die !== undefined &&
+        'type' in die &&
+        die.type === 'die' &&
+        die.cause === 'monster' &&
+        die.x === WORLD_W / 2,
+    ).toBe(true);
     expect(getGame().status).toBe('over');
   });
 

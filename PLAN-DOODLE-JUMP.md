@@ -378,13 +378,13 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
 
 ### Fase 5 — Juice visual (playtest 16-sept parte 2; D18-D22)
 
-- [ ] T22 — **D18 Eventos con posición**: en `rules.ts`, `spring`/`hat`/
+- [x] T22 — **D18 Eventos con posición**: en `rules.ts`, `spring`/`hat`/
       `kill`/`die` → payload `{ type, x, y }` (+ `by` en kill); posiciones
       en unidades del mundo (plataforma del pickup, monstruo impactado,
       punto de contacto de muerte). Actualizar aserciones de eventos en
       `rules.test.ts` / `fixtures.test.ts` / `state.test.ts`
       (`toContain('spring')` → checks tipados) + fixtures `expected`.
-- [ ] T23 — **D19 Partículas**: `components/Particles.tsx` (pool
+- [x] T23 — **D19 Partículas**: `components/Particles.tsx` (pool
       `PARTICLE_POOL 20` + `TRAIL_POOL 8` en tuning; slots
       `{x, y, opacity, scale}`; API `burst(x, y, style)` y
       `trailEmit(x, y, v)` — tween único por partícula, counter para
@@ -393,29 +393,34 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
       disparo, burst de muerte; **estela de turbo** round-robin (~50 ms)
       desde `renderFrame` mientras `hatMs > 0`; todo gated por
       `useReducedMotion`; `cancelAnimation` al desmontar.
-- [ ] T24 — **D20 Muerte por monstruo**: en `RoboJumpScreen`/`Renderer`
+- [x] T24 — **D20 Muerte por monstruo**: en `RoboJumpScreen`/`Renderer`
       con shared values nuevos del slot (`flash`, `squashX/Y`, `dead`),
       driven desde `handleEvents` en el evento `die` con `cause
       'monster'`: flash blanco del cuerpo (~120 ms) → squash&stretch →
       ojos ✕ → tumbo girando con fade (la ventana `END_DELAY_LOST_MS` ya
       cubre la secuencia). Sin cambios de engine. Muerte por caída igual
       que hoy.
-- [ ] T25 — **D21 Monstruos con vida**: `MonsterSlot` → siluetas distintas
+- [x] T25 — **D21 Monstruos con vida**: `MonsterSlot` → siluetas distintas
       (estático: blob ancho + púas/cuernos; móvil: compacto + 2 alas
       batiendo desfasadas), ojos con `lookX` (siguen al robot, seteado en
       `renderFrame` desde `sign(robo.x − monster.x)`), ceño, bob de
       respiración y parpadeo con fase por índice (determinista, sin
       Math.random en render); `cancelAnimation` en cleanup; gated por
       `useReducedMotion`.
-- [ ] T26 — **D22 Hélice**: spin `withRepeat(withTiming(360, 160 ms,
+- [x] T26 — **D22 Hélice**: spin `withRepeat(withTiming(360, 160 ms,
       linear))` sobre la aspa del sombrero (visible solo con
       `hatOpacity > 0`); opcional micro-tilt del robot con turbo (±3°,
       same loop).
-- [ ] T27 — **Verificación estándar + perf**: `pnpm typecheck` →
-      `pnpm test` → `node scripts/e2e.mjs` (labels intactos, specs no
-      dependen de animaciones); spot-check de FPS con
-      `EXPO_PUBLIC_PERF_METRICS=1` (protocolo ADR 0011) para validar que
-      los pools/loops nuevos no bajan el baseline; playtest del usuario.
+- [x] T27 — **Verificación estándar + perf**: `pnpm typecheck` ✓ →
+      `pnpm test` ✓ (494/494, robo-jump 67/67 con payloads D18) →
+      `node scripts/e2e.mjs` 72 passed ✓ (labels intactos, specs sin
+      cambios); spot-check ADR 0011 con `EXPO_PUBLIC_PERF_METRICS=1`
+      inline: ~63 fps (1889 frames / 1 solo long-frame de mount 50 ms),
+      `loop.advance` avg 0.01 ms, dropped frames 2/1889 — los pools
+      (28 partículas) y los loops always-on (spin/bob/alas/parpadeo) no
+      degradan el baseline. Verificación visual: burst azul del resorte +
+      popup (seed fix-spring), ojos ✕ + tumbo + overlay en muerte (seed
+      test-lose). Playtest del usuario pendiente.
 - [ ] T10 — Cierre: migrar hallazgos (GOTCHAS/ADR/ROADMAP si corresponde),
       eliminar este PLAN en el commit final — **solo con OK del usuario**
 
@@ -565,6 +570,43 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
   Views), D14 (sin ajustes v1) y D11 confirmada (score = altura pura).
 
 ### Fase 5 — juice visual (playtest 2 parte 2) — investigación (16-sept)
+
+- **Metro cache vs env inline (T27 hallazgo)**: exportar CON la env
+  nueva (`EXPO_PUBLIC_PERF_METRICS=1`) produjo un bundle BYTE-IDENTICAL
+  al export anterior sin ella — el caché de Metro (~/.expo / bundler)
+  sirvió los módulos con el env viejo inlineado. El "export fresco"
+  NO basta al TOGGLEAR una env: hay que `expo export --clear` (o borrar
+  el caché). Señal de diagnóstico: md5 del bundle idéntico entre exports
+  con envs distintas. Refina la nota "togglear la env exige
+  rebuild/export fresco" de AGENTS.md (→ GOTCHAS en T10).
+- **Implementación (T23-T26)**: `Particles.tsx` = pool fijo de 20+8
+  slots; cada slot son 8 shared values + 1 tween de progreso `k` por
+  emisión (ángulo determinista: reparto radial × salto áureo por
+  contador, sin Math.random); `burst`/`emit` toman coords del MUNDO y
+  escalan con `scaleRef` — los eventos D18 llegan ya en unidades.
+  Truco de tamaño: nodo 1×1 con `scale` animado (borderRadius
+  proporcional gratis). La estela del turbo es `emit` disparado desde
+  `renderFrame` cada `TRAIL_EVERY_MS` (50 ms) — UN tween por emisión.
+- **Muerte (D20)**: los SV nuevos (`flash/squashX/squashY/ko/dead`)
+  viven en `RoboSlot` y los dispara la pantalla (`triggerRoboDeath`) en
+  el evento `die` con `cause:'monster'`; el tumbo añade translateY en el
+  MISMO animated style que `renderFrame` escribe cada frame (el fade va
+  multiplicado, nunca en el mismo SV — renderFrame sobreescribiría
+  `opacity`). Secuencia completa (680 ms) < `END_DELAY_LOST_MS` (700).
+  `resetRoboFx()` en `restart` cancela tweens pendientes — sin él, el
+  tumbo del run anterior seguía animando (SV fuera del ciclo React).
+- **Monstruos (D21)**: el `lookX` lo CREA `MonsterSlot` y lo pasa al
+  registro (SlotNode) y a los ojos — si lo pidiera del pool
+  (`slots[i]?.lookX`), al primer render el registro aún no ocurrió
+  (effects corren después del render) y los ojos quedarían sin SV.
+  Siluetas: contenedor 26×26 (hitbox) + contenido con silueta dibujada
+  (blob 30×24 con púas border-trick / compacto con alas); loops
+  self-driving gated por `reduced` + `cancelAnimation` en cleanup.
+- **Warning preexistente (reportado, no corregido)**: Reanimated
+  "Property [transform] may be overwritten by a layout animation" ×N —
+  viene de `FloatingPopup` (FadeInUp/entering + transform en el MISMO
+  Animated.View, código previo a esta fase, no tocado). Fix trivial si
+  se quiere: wrapper Animated.View para el layout animation.
 
 - **Canon de juice (game-feel/awesome-gamedev-skill + freegamesprites)**:
   una muerte/p golpe convincente apila 5-8 respuestas en ~100 ms —

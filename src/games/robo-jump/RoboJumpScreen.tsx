@@ -11,12 +11,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
+  cancelAnimation,
+  Easing,
   FadeIn,
   FadeInUp,
   FadeOut,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSequence,
   withTiming,
@@ -37,6 +40,7 @@ import {
 import { useContainerSize } from '@/core/ui/useContainerSize';
 import type { GameScreenProps } from '@/core/types';
 import { EndOverlay, PauseOverlay } from './components/Overlays';
+import { useParticleFx } from './components/Particles';
 import {
   BULLET_POOL,
   MONSTER_POOL,
@@ -54,6 +58,7 @@ import {
   MONSTER_H,
   MONSTER_W,
   PLATFORM_W,
+  TRAIL_EVERY_MS,
   WORLD_H,
   WORLD_W,
 } from './engine/tuning';
@@ -106,6 +111,10 @@ export default function RoboJumpScreen({ onExit, onGameEnd, initialSeed }: GameS
   const shakeX = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
 
+  // Partículas de juice (D19): pool fijo de tweens UI-thread.
+  const fx = useParticleFx(scaleRef);
+  const lastTrailAt = useRef(0);
+
   // Slots del renderer: pools fijos creados una sola vez.
   const slots = useMemo<SlotGroups>(
     () => ({
@@ -133,13 +142,56 @@ export default function RoboJumpScreen({ onExit, onGameEnd, initialSeed }: GameS
     };
   }, []);
 
+  // --- muerte por monstruo (D20): flash → squash & stretch → ojos ✕ →
+  // tumbo girando con fade, DENTRO de la ventana END_DELAY_LOST_MS (el
+  // hit-stop ya existe: el engine congela). Reduced motion: robo congelado
+  // como hoy. Muerte por caída sin cambios (el Robo ya está fuera de vista).
+  const triggerRoboDeath = useCallback(() => {
+    const slot = slots.robo.current;
+    if (!slot || reduced) return;
+    cancelAnimation(slot.dead);
+    cancelAnimation(slot.flash);
+    slot.flash.set(
+      withSequence(withTiming(1, { duration: 40 }), withTiming(0, { duration: 120 })),
+    );
+    slot.squashX.set(
+      withSequence(
+        withTiming(1.4, { duration: 70, easing: Easing.out(Easing.quad) }),
+        withTiming(0.85, { duration: 100 }),
+        withTiming(1, { duration: 150 }),
+      ),
+    );
+    slot.squashY.set(
+      withSequence(
+        withTiming(0.6, { duration: 70, easing: Easing.out(Easing.quad) }),
+        withTiming(1.2, { duration: 100 }),
+        withTiming(1, { duration: 150 }),
+      ),
+    );
+    slot.ko.set(withTiming(1, { duration: 90 }));
+    slot.dead.set(withDelay(160, withTiming(1, { duration: 520, easing: Easing.in(Easing.quad) })));
+  }, [reduced, slots]);
+
+  const resetRoboFx = useCallback(() => {
+    const slot = slots.robo.current;
+    if (!slot) return;
+    cancelAnimation(slot.dead);
+    cancelAnimation(slot.flash);
+    slot.flash.set(0);
+    slot.squashX.set(1);
+    slot.squashY.set(1);
+    slot.ko.set(0);
+    slot.dead.set(0);
+  }, [slots]);
+
   const restart = useCallback(() => {
     endedRef.current = false;
     setEndShown(false);
     setPopups([]);
+    resetRoboFx();
     if (endTimerRef.current) clearTimeout(endTimerRef.current);
     useRoboJumpStore.getState().reset(initialSeed);
-  }, [initialSeed]);
+  }, [initialSeed, resetRoboFx]);
 
   // --- partida: reset al montar y al reintentar (conserva seed E2E)
   useEffect(() => {
@@ -244,54 +296,89 @@ export default function RoboJumpScreen({ onExit, onGameEnd, initialSeed }: GameS
     endTimerRef.current = setTimeout(() => setEndShown(true), delayMs);
   }, []);
 
-  // --- eventos discretos → sonido/haptics (LO PRIMERO) + popups (D10)
+  // --- eventos discretos → sonido/haptics (LO PRIMERO) + popups + juice
+  // (D10/D18/D19: los eventos con posición llevan el origen del burst)
   const handleEvents = useCallback(
     (events: RoboJumpEvent[]) => {
       for (const event of events) {
         if (typeof event === 'object') {
-          soundExplosion();
-          hapticHeavy();
-          recordEnd();
-          if (!reduced) {
-            shakeX.set(
-              withSequence(
-                withTiming(7, { duration: DEATH_SHAKE_MS }),
-                withTiming(-6, { duration: DEATH_SHAKE_MS }),
-                withTiming(4, { duration: DEATH_SHAKE_MS }),
-                withTiming(0, { duration: DEATH_SHAKE_MS + 10 }),
-              ),
-            );
+          if (event.type === 'die') {
+            soundExplosion();
+            hapticHeavy();
+            recordEnd();
+            // D19: burst en el punto de contacto (monstruo o caída).
+            fx.burst(event.x, event.y, {
+              mode: 4,
+              count: 14,
+              radius: 46,
+              rise: 8,
+              duration: 560,
+              size: 9,
+            });
+            if (event.cause === 'monster') triggerRoboDeath();
+            if (!reduced) {
+              shakeX.set(
+                withSequence(
+                  withTiming(7, { duration: DEATH_SHAKE_MS }),
+                  withTiming(-6, { duration: DEATH_SHAKE_MS }),
+                  withTiming(4, { duration: DEATH_SHAKE_MS }),
+                  withTiming(0, { duration: DEATH_SHAKE_MS + 10 }),
+                ),
+              );
+            }
+            scheduleEnd(END_DELAY_LOST_MS);
+            continue;
           }
-          scheduleEnd(END_DELAY_LOST_MS);
+          if (event.type === 'spring') {
+            soundPowerUp();
+            hapticSelection();
+            spawnPopup('¡Resorte!', '#42A5F5');
+            fx.burst(event.x, event.y, { mode: 0, count: 9, radius: 26, rise: 10 });
+            continue;
+          }
+          if (event.type === 'hat') {
+            soundPowerUp();
+            spawnPopup('¡Turbo!', '#AB47BC');
+            fx.burst(event.x, event.y, { mode: 1, count: 9, radius: 26, rise: 10 });
+            continue;
+          }
+          // kill (D18: origen = monstruo impactado; el `by` modula el color)
+          soundHit();
+          hapticCombo();
+          spawnPopup('¡Plop!', '#EC407A');
+          fx.burst(event.x, event.y, {
+            mode: event.by === 'hat' ? 3 : 2,
+            count: 11,
+            radius: 32,
+            rise: 6,
+          });
           continue;
         }
         switch (event) {
           case 'bounce':
             soundCardDrop();
             break;
-          case 'spring':
-            soundPowerUp();
-            hapticSelection();
-            spawnPopup('¡Resorte!', '#42A5F5');
-            break;
-          case 'hat':
-            soundPowerUp();
-            spawnPopup('¡Turbo!', '#AB47BC');
-            break;
-          case 'kill':
-            soundHit();
-            hapticCombo();
-            spawnPopup('¡Plop!', '#EC407A');
-            break;
-          case 'shoot':
+          case 'shoot': {
             soundCardMove();
+            // Chispa en la nariz (origen derivable del Robo, D18).
+            const g = getGame();
+            fx.burst(g.robo.x + g.robo.facing * (ROBO_W / 2 + 3), g.robo.y - 2, {
+              mode: 3,
+              count: 4,
+              radius: 9,
+              rise: 2,
+              gravity: 120,
+              duration: 320,
+              size: 5,
+            });
             break;
+          }
           case 'break':
             break; // el thud del bounce previo ya sonó
         }
       }
     },
-    [recordEnd, reduced, shakeX, spawnPopup, scheduleEnd],
+    [fx, recordEnd, reduced, shakeX, spawnPopup, scheduleEnd, triggerRoboDeath],
   );
 
   // --- disparo apuntado (D3 2×): dirección = toque − Robo (en unidades
@@ -328,6 +415,13 @@ export default function RoboJumpScreen({ onExit, onGameEnd, initialSeed }: GameS
         roboSlot.flip.set(g.robo.facing);
         roboSlot.opacity.set(1);
         roboSlot.hatOpacity.set(g.robo.hatMs > 0 ? 1 : 0);
+        // D19: estela de velocidad con turbo activo — emisión round-robin
+        // (~50 ms, TRAIL_EVERY_MS): UN tween por emisión, no un loop.
+        const now = performance.now();
+        if (g.robo.hatMs > 0 && now - lastTrailAt.current >= TRAIL_EVERY_MS) {
+          lastTrailAt.current = now;
+          fx.emit(g.robo.x, g.robo.y + ROBO_H / 2);
+        }
         // Copia de wrap: visible solo cerca del borde (riesgo §6).
         const mirrorX = g.robo.x < WORLD_W / 2 ? g.robo.x + WORLD_W : g.robo.x - WORLD_W;
         const near = g.robo.x < ROBO_W || g.robo.x > WORLD_W - ROBO_W;
@@ -352,6 +446,8 @@ export default function RoboJumpScreen({ onExit, onGameEnd, initialSeed }: GameS
         slot.x.set(monsterX(m) * s - (MONSTER_W * s) / 2);
         slot.y.set((m.y - g.camY) * s - (MONSTER_H * s) / 2);
         slot.opacity.set(1);
+        // D21: ojos que siguen al Robo (dirección horizontal al monstruo).
+        slot.lookX?.set(Math.sign(g.robo.x - monsterX(m)));
       });
       for (let i = g.monsters.length; i < MONSTER_POOL; i++) {
         const slot = slots.monsters[i];
@@ -369,7 +465,7 @@ export default function RoboJumpScreen({ onExit, onGameEnd, initialSeed }: GameS
         if (slot) slot.opacity.set(0);
       }
     },
-    [slots],
+    [fx, slots],
   );
 
   // --- loop del juego: rAF + tick + sincronía de escena + render (D8/D9)
@@ -512,7 +608,9 @@ export default function RoboJumpScreen({ onExit, onGameEnd, initialSeed }: GameS
             monsters={scene.monsters}
             bullets={scene.bullets}
             scale={scale}
+            reduced={reduced}
           />
+          {fx.node}
           {popups.map((popup) => (
             <FloatingPopup key={popup.id} popup={popup} reduced={reduced} />
           ))}

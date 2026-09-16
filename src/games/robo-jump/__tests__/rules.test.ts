@@ -156,8 +156,10 @@ describe('rules robo-jump: colisiones de plataformas', () => {
       platforms: [spring, ...state.platforms.filter((p) => p.id !== 0)],
     };
     const { states, events } = substeps(withSpring, 30);
-    const landing = events.findIndex((e) => e === 'spring');
+    const landing = events.findIndex((e) => typeof e !== 'string' && e.type === 'spring');
     expect(landing).toBeGreaterThanOrEqual(0);
+    // D18: el origen del burst es la plataforma del resorte.
+    expect(events[landing]).toMatchObject({ x: spring.x, y: spring.y });
     expect(states[landing].robo.vy).toBe(-SPRING_V);
   });
 
@@ -258,7 +260,8 @@ describe('rules robo-jump: hat, balas y monstruos', () => {
   test('el hat se activa al aterrizar: ascenso sostenido y dispara evento hat', () => {
     const { state, hatId } = withHatPlatform();
     const { state: after, events } = run(state, 300);
-    expect(events).toContain('hat');
+    // D18: el hat lleva la posición de la plataforma (origen del burst).
+    expect(events).toEqual([{ type: 'hat', x: WORLD_W / 2, y: state.robo.y + ROBO_H / 2 }]);
     expect(after.robo.hatMs).toBeGreaterThan(0);
     expect(after.robo.vy).toBe(-HAT_VY);
     expect(after.robo.y).toBeLessThan(state.robo.y);
@@ -282,7 +285,8 @@ describe('rules robo-jump: hat, balas y monstruos', () => {
       monsters: [{ id: 50, kind: 'static', x: WORLD_W / 2, y: base.robo.y - 60, phase: 0 }],
     };
     const { state: after, events } = run(hatted, 600);
-    expect(events).toContain('kill');
+    const kill = events.find((e) => typeof e !== 'string' && e.type === 'kill');
+    expect(kill).toMatchObject({ by: 'hat' });
     expect(after.monsters.some((m) => m.id === 50)).toBe(false);
     expect(after.status).toBe('playing');
   });
@@ -298,7 +302,9 @@ describe('rules robo-jump: hat, balas y monstruos', () => {
     const { state: fired } = shoot(setup);
     expect(fired.bullets).toHaveLength(1);
     const { state: after, events } = run(fired, 400);
-    expect(events).toContain('kill');
+    const kill = events.find((e) => typeof e !== 'string' && e.type === 'kill');
+    // D18: el origen del burst es el monstruo impactado (posición exacta).
+    expect(kill).toMatchObject({ by: 'bullet', x: WORLD_W / 2 + 120, y: base.robo.y });
     expect(after.monsters.some((m) => m.id === 50)).toBe(false);
     expect(after.status).toBe('playing');
   });
@@ -334,7 +340,8 @@ describe('rules robo-jump: hat, balas y monstruos', () => {
     const { state: fired } = shoot(setup, { dx: 0, dy: -1 });
     // 350 ms: la bala mata (~260 ms) y el Robo sigue vivo (muere a ~0.4 s).
     const { state: after, events } = run(fired, 350);
-    expect(events).toContain('kill');
+    const kill = events.find((e) => typeof e !== 'string' && e.type === 'kill');
+    expect(kill).toMatchObject({ by: 'bullet', x: base.robo.x });
     expect(after.monsters.some((m) => m.id === 50)).toBe(false);
     expect(after.status).toBe('playing');
   });
@@ -411,7 +418,8 @@ describe('rules robo-jump: hat, balas y monstruos', () => {
       nextSpawnY: -700,
     };
     const { state: after, events } = run(setup, 300);
-    expect(events).toContain('kill');
+    const kill = events.find((e) => typeof e !== 'string' && e.type === 'kill');
+    expect(kill).toMatchObject({ by: 'squish' });
     expect(after.monsters.some((m) => m.id === 50)).toBe(false);
     expect(after.status).toBe('playing'); // el aplaste lo salvó
   });
@@ -428,7 +436,8 @@ describe('rules robo-jump: hat, balas y monstruos', () => {
       nextSpawnY: -700,
     };
     const { state: after, events } = run(setup, 300);
-    expect(events).toContain('kill');
+    const kill = events.find((e) => typeof e !== 'string' && e.type === 'kill');
+    expect(kill).toMatchObject({ by: 'squish', x: WORLD_W / 2, y: monsterY });
     expect(after.monsters.some((m) => m.id === 50)).toBe(false);
     expect(after.status).toBe('playing'); // el aplaste lo salvó
     expect(after.robo.vy).toBeLessThan(0); // rebotó hacia arriba
@@ -446,7 +455,8 @@ describe('rules robo-jump: hat, balas y monstruos', () => {
       nextSpawnY: -700,
     };
     const { state: after, events } = run(setup, 100);
-    expect(events).toEqual([{ type: 'die', cause: 'monster' }]);
+    // D18: contacto con monstruo estático → origen del burst = el monstruo.
+    expect(events).toEqual([{ type: 'die', cause: 'monster', x: WORLD_W / 2, y: monsterY }]);
     expect(after.status).toBe('over');
   });
 
@@ -472,7 +482,10 @@ describe('rules robo-jump: muerte, generación y caps', () => {
     state = { ...state, platforms: [], nextSpawnY: -700 };
     const { state: after, events } = run(state, 3000);
     expect(events.filter((e) => typeof e === 'object')).toHaveLength(1);
-    expect(events[events.length - 1]).toEqual({ type: 'die', cause: 'fall' });
+    const die = events[events.length - 1];
+    expect(typeof die !== 'string' && die.type === 'die' && die.cause === 'fall').toBe(true);
+    // D18: origen del burst de caída = el Robo bajo la cámara.
+    expect(typeof die !== 'string' && Number.isFinite(die.x) && Number.isFinite(die.y)).toBe(true);
     expect(after.status).toBe('over');
   });
 

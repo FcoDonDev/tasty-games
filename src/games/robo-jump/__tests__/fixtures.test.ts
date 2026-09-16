@@ -19,20 +19,34 @@ import {
 import { isCompanionPlatform, platformX, type RoboJumpEvent } from '../engine/rules';
 import { MIN_GAP, PLATFORM_POOL, SPAWN_AHEAD, WORLD_H, CLEAN_MARGIN } from '../engine/tuning';
 
+/** D18: los eventos con posición son objetos — lectura tipada en tests. */
+const kind = (e: RoboJumpEvent): string => (typeof e === 'string' ? e : e.type);
+const kinds = (events: RoboJumpEvent[]): string[] => events.map(kind);
+const countOf = (events: RoboJumpEvent[], type: string): number =>
+  kinds(events).filter((t) => t === type).length;
+
 describe('fixtures robo-jump: mecánicas pautadas', () => {
   test('fix-spring — el resorte impulsa más alto que el salto y el Robo vive', () => {
     const { state, events } = replayFixture(FIX_SPRING);
-    expect(events).toContain('spring');
+    const spring = events.find((e) => typeof e !== 'string' && e.type === 'spring');
+    expect(spring).toBeDefined();
+    // D18: origen = plataforma del resorte (coincide con alguna plataforma).
+    expect(
+      state.platforms.some((p) => p.x === spring!.x && p.y === spring!.y),
+    ).toBe(true);
     expect(state.status).toBe('playing');
     expect(state.score).toBeGreaterThanOrEqual(30);
   });
 
   test('fix-hat — hat asciende, mata al atravesar y anula el disparo (D12)', () => {
     const { state, events } = replayFixture(FIX_HAT);
-    const order = events.indexOf('hat') < events.indexOf('kill');
+    const order = kinds(events).indexOf('hat') < kinds(events).indexOf('kill');
     expect(order).toBe(true);
-    expect(events).toContain('hat');
-    expect(events).toContain('kill');
+    expect(kinds(events)).toContain('hat');
+    const kill = events.find((e) => typeof e !== 'string' && e.type === 'kill');
+    expect(kill).toMatchObject({ by: 'hat' });
+    expect(Number.isFinite(kill!.x)).toBe(true);
+    expect(Number.isFinite(kill!.y)).toBe(true);
     expect(state.monsters).toHaveLength(0);
     expect(state.bullets).toHaveLength(0); // hat anula disparo
     expect(state.status).toBe('playing');
@@ -40,21 +54,30 @@ describe('fixtures robo-jump: mecánicas pautadas', () => {
 
   test('fix-squish — aplaste tipo Mario: mata, el monstruo muere y el Robo vive', () => {
     const { state, events } = replayFixture(FIX_SQUISH);
-    expect(events).toContain('kill');
+    const kill = events.find((e) => typeof e !== 'string' && e.type === 'kill');
+    expect(kill).toMatchObject({ by: 'squish' });
     expect(state.monsters).toHaveLength(0);
     expect(state.status).toBe('playing');
   });
 
   test('fix-squish-fast — caída rápida NO muere por contacto (tolerancia R4)', () => {
     const { state, events } = replayFixture(FIX_SQUISH_FAST);
-    expect(events).toContain('kill');
+    expect(kinds(events)).toContain('kill');
     expect(state.status).toBe('playing');
   });
 
   test('fix-aim — toques derecha/izquierda/arriba matan a los tres monstruos', () => {
     const { state, events } = replayFixture(FIX_AIM);
-    const kills = events.filter((e) => e === 'kill').length;
-    expect(kills).toBe(3);
+    expect(countOf(events, 'kill')).toBe(3);
+    // D18: cada kill por bala lleva la posición del monstruo impactado.
+    const kills = events.filter(
+      (e): e is Extract<RoboJumpEvent, { type: 'kill' }> =>
+        typeof e !== 'string' && e.type === 'kill',
+    );
+    for (const k of kills) {
+      expect(k.by).toBe('bullet');
+      expect(Number.isFinite(k.x) && Number.isFinite(k.y)).toBe(true);
+    }
     expect(state.monsters).toHaveLength(0);
     expect(state.status).toBe('playing');
   });
