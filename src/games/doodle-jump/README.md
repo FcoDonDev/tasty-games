@@ -24,10 +24,38 @@ Mecánicas pautadas con escenario fijo (mundo cerrado, sin generación):
 `?seed=fix-spring|hat|squish|squish-fast|aim|blue-brown|wrap` (E2E) y
 `replayFixture` en `__tests__/fixtures.test.ts` (exactitud mecánica).
 El guión vive en `engine/fixtures.ts`; la exactitud en unit, el visible
-(popups/posiciones) en E2E. Solo activos con `EXPO_PUBLIC_E2E=1`.
-En builds E2E la pantalla expone además `window.__doodleDebug()` con un
-resumen del engine (conteos, camY, plataformas en vista) para diagnosticar
-engine↔render desde Playwright.
+(popups/posiciones) en E2E.
+
+## Diagnóstico `window.__doodleDebug()` (solo builds E2E)
+
+La pantalla registra `window.__doodleDebug()` **solo cuando el bundle se
+compiló con `EXPO_PUBLIC_E2E=1`** (la env se inlinea al compilar — el gate
+vive en `DoodleJumpScreen.tsx` y en `app/juego/[id].tsx`). En producción no
+existe: si `window.__doodleDebug is not a function`, el bundle no la tuvo.
+
+```bash
+# Dev (recuerda: reload COMPLETO de la pestaña tras lanzar — Reanimated):
+EXPO_PUBLIC_E2E=1 EXPO_NO_TELEMETRY=1 pnpm exec expo start --web --offline --port 8082
+
+# Export manual (los seeds y el hook solo viven en builds con la env):
+EXPO_PUBLIC_E2E=1 CI=1 pnpm exec expo export --platform web
+```
+
+Qué devuelve (snapshot del engine en el instante de la llamada):
+
+```json
+{
+  "status": "playing", "score": 98, "camY": -690, "elapsedMs": 29040,
+  "doodler": { "x": 180, "y": -324, "hatMs": 0 },
+  "platformsInView": 9,   // plataformas del engine DENTRO de la vista
+  "platforms": 15, "monsters": 1, "bullets": 0
+}
+```
+
+Uso típico: en Playwright, `page.evaluate(() => window.__doodleDebug())`
+en el momento del síntoma y comparar contra el DOM (nodos con opacity > 0
+dentro de `[aria-label="doodle-jump-escena"]`) — es la prueba de
+consistencia engine↔render que validó R0/R7 (ver PLAN, T17a).
 
 ## Divergencias clave con serpiente/wakwak (no es un "espejo" literal)
 

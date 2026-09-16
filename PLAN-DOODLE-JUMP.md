@@ -328,8 +328,8 @@ Selectores estables (selectores de Maestro/Playwright — convención AGENTS):
       (c) hook `window.__doodleDebug` (gated E2E) para diagnóstico
       engine↔render en Playwright — verificó consistencia total
       (15 engine ↔ 15 nodos DOM) tras R7: el blanco NO se reprodujo en el
-      build actual — hipótesis principal: sesión dev stale (R7 llegó con
-      el Metro del usuario ya abierto; Reanimated exige reload completo).
+      build actual. **Documentación de uso en el README del juego**
+      (gate + comandos + salida de ejemplo).
 - [ ] T17 — Playtest manual del usuario (los 4 síntomas + feel del
       retuning + apuntado) con **reload completo del dev server**; si el
       blanco reaparece, capturar `window.__doodleDebug()` — cierre del
