@@ -119,6 +119,13 @@ process.on('SIGINT', () => cleanupAndExit(130));
 process.on('SIGTERM', () => cleanupAndExit(143));
 
 const main = async () => {
+  // Tiempo total de la corrida (wall time): export + serve + Playwright.
+  const startedAt = Date.now();
+  const elapsed = () => {
+    const totalS = Math.round((Date.now() - startedAt) / 1000);
+    return totalS >= 60 ? `${Math.floor(totalS / 60)}m${String(totalS % 60).padStart(2, '0')}s` : `${totalS}s`;
+  };
+
   if (await isServerUp()) {
     console.log(`→ [e2e] Reutilizando servidor activo en ${BASE_URL}`);
   } else {
@@ -153,7 +160,7 @@ const main = async () => {
 
   console.log(`→ [e2e] playwright test ${passthroughArgs.join(' ')}`);
   const code = await runForeground('pnpm', ['exec', 'playwright', 'test', ...passthroughArgs]);
-  console.log(`→ [e2e] Listo (código ${code}); limpiando servidor...`);
+  console.log(`→ [e2e] Listo (código ${code}; total ${elapsed()}); limpiando servidor...`);
   cleanupAndExit(code);
 };
 
