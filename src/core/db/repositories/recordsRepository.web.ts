@@ -37,7 +37,7 @@ export const recordsRepository = {
 
   async bestFor(gameId: string): Promise<GameResult | null> {
     const best = readAll()
-      .filter((r) => r.gameId === gameId && r.won)
+      .filter((r) => r.gameId === gameId)
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.durationMs - b.durationMs)[0];
     return best ?? null;
   },

@@ -32,13 +32,22 @@ describe('recordsRepository.web', () => {
     delete (globalThis as { localStorage?: unknown }).localStorage;
   });
 
-  it('save + bestFor: devuelve el récord ganador con mayor score', async () => {
+  it('save + bestFor: devuelve el récord con mayor score (gane o pierda)', async () => {
     await recordsRepository.save(result('memorice', 80));
     await recordsRepository.save(result('memorice', 95));
-    await recordsRepository.save(result('memorice', 10, false)); // derrota: no compite
+    await recordsRepository.save(result('memorice', 10, false)); // derrota: compite por score
     const best = await recordsRepository.bestFor('memorice');
     expect(best?.score).toBe(95);
     expect(await recordsRepository.bestFor('solitario')).toBeNull();
+  });
+
+  it('bestFor sin filtro won: endless con won:false muestra su mejor score', async () => {
+    await recordsRepository.save(result('robo-jump', 12, false));
+    await recordsRepository.save(result('robo-jump', 47, false));
+    await recordsRepository.save(result('robo-jump', 31, false));
+    const best = await recordsRepository.bestFor('robo-jump');
+    expect(best?.score).toBe(47);
+    expect(best?.won).toBe(false);
   });
 
   it('clearAll elimina todos los récords', async () => {

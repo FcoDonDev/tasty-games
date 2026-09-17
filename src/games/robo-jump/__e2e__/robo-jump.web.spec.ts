@@ -77,6 +77,13 @@ test('robo-jump: test-lose — monstruo en el eje mata y persiste récord (won:f
     )
     .toBeGreaterThanOrEqual(1);
 
+  // El "Mejor" del chrome muestra el récord (bestFor ya no filtra por won):
+  // se refresca tras guardar sin salir de la pantalla.
+  await expect(page.getByLabel('record-robo-jump', { exact: true })).toHaveText(
+    /\d+ pts/,
+    { timeout: 10_000 },
+  );
+
   // Reintentar conserva el seed E2E: arranca de nuevo y muere otra vez.
   await modal.getByLabel('reintentar-robo-jump', { exact: true }).click();
   await expect(modal).toBeHidden();

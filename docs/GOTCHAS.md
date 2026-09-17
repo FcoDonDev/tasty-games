@@ -363,3 +363,10 @@ background están en `AGENTS.md`, no acá.
   Implicación: TODA medición o test de gameplay en WebKit exige warm-up
   previo; un flake "score 0" como primer test de una corrida WebKit es
   warmup, no bug del juego.
+- **Playwright: `getByText` es substring-match y colisiona con el récord del
+  chrome tras el fix de refresh** (PLAN-BEST-SCORE): en wakwak, el selector
+  `page.getByText('0 pts')` (HUD reiniciado) pasó a resolver 2 elementos en
+  strict mode cuando el ScoreBoard del chrome mostró "350 pts" (el récord
+  refrescado contiene "0 pts" como substring). Regla: los assertions sobre el
+  score del juego usan `getByLabel('<label>-puntos')` + `toHaveText`, nunca
+  `getByText('N pts')`.
