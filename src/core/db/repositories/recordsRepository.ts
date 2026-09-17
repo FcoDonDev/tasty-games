@@ -32,7 +32,7 @@ export const recordsRepository = {
     const row = getDb().getFirstSync<GameRecordRow>(
       `SELECT game_id, won, score, duration_ms, finished_at
        FROM game_records
-       WHERE game_id = ? AND won = 1
+       WHERE game_id = ?
        ORDER BY score DESC, duration_ms ASC
        LIMIT 1`,
       [gameId],

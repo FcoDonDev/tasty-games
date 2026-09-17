@@ -21,10 +21,13 @@ export default function GameScreen() {
   // nunca existe un canal para alterar el reparto.
   const initialSeed = process.env.EXPO_PUBLIC_E2E === '1' ? seed : undefined;
   const [showHelp, setShowHelp] = useState(false);
+  /** Refresca el ScoreBoard del chrome tras guardar una partida. */
+  const [recordVersion, setRecordVersion] = useState(0);
 
   const handleGameEnd = useCallback(
     async (result: GameResult) => {
       await recordsRepository.save(result);
+      setRecordVersion((v) => v + 1);
     },
     [],
   );
@@ -67,7 +70,7 @@ export default function GameScreen() {
       <View style={[styles.chromeBar, { paddingTop: insets.top + 4 }]}>
         <Text style={[styles.chromeTitle, { color: theme.textMuted }]}>{game.name}</Text>
         <View style={styles.chromeRight}>
-          <ScoreBoard gameId={game.id} compact />
+          <ScoreBoard gameId={game.id} compact refreshKey={recordVersion} />
           {game.rules ? (
             <Pressable
               accessibilityRole="button"

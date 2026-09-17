@@ -8,9 +8,14 @@ interface ScoreBoardProps {
   gameId: string;
   /** Variante de una línea para GameCard */
   compact?: boolean;
+  /**
+   * Cambia para re-consultar el récord (ej: tras guardar la partida que
+   * termina en la misma pantalla). No afecta la primera consulta.
+   */
+  refreshKey?: number;
 }
 
-export function ScoreBoard({ gameId, compact = false }: ScoreBoardProps) {
+export function ScoreBoard({ gameId, compact = false, refreshKey = 0 }: ScoreBoardProps) {
   const theme = useTheme();
   const [best, setBest] = useState<GameResult | null>(null);
 
@@ -24,7 +29,7 @@ export function ScoreBoard({ gameId, compact = false }: ScoreBoardProps) {
     return () => {
       cancelled = true;
     };
-  }, [gameId]);
+  }, [gameId, refreshKey]);
 
   if (compact) {
     return (
@@ -47,7 +52,7 @@ export function ScoreBoard({ gameId, compact = false }: ScoreBoardProps) {
         accessibilityLabel={`record-${gameId}`}
         style={[styles.value, { color: theme.text }]}
       >
-        {best?.score !== undefined ? `${best.score} pts` : 'Sin partidas ganadas'}
+        {best?.score !== undefined ? `${best.score} pts` : 'Sin partidas'}
       </Text>
     </View>
   );

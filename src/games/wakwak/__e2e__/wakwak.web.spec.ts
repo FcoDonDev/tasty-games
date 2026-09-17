@@ -95,10 +95,11 @@ test('wakwak: test-win — run completa (nivel 8), récord guardado y reintentar
     }, { timeout: 10_000 })
     .toBeGreaterThanOrEqual(1);
 
-  // reintentar: partida nueva limpia
+  // reintentar: partida nueva limpia (score por label estable: el récord del
+  // chrome, ahora refrescado, contiene "0 pts" como substring y rompería getByText)
   await modal.getByLabel('reintentar-wakwak', { exact: true }).click();
   await expect(modal).toBeHidden();
-  await expect(page.getByText('0 pts')).toBeVisible();
+  await expect(page.getByLabel('marcador-puntos', { exact: true })).toHaveText('0 pts');
   await expect(page.getByLabel('tablero-wakwak', { exact: true })).toBeVisible();
 });
 

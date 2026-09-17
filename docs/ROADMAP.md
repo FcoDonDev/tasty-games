@@ -158,3 +158,9 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
       (conecta con D-WW del PLAN-PERFORMANCE) o se cierra como límite del
       motor. Los stalls residuales de WebKitGTK (32-41 por 20s en corridas
       con carga de máquina) quedan atribuidos al motor y sin attack.
+- [ ] **E2E `fix-wrap` (robo-jump) falla intermitente**: el Robo muere a mitad
+      de la coreografía de teclado (overlay "Fin del salto 11 m") y el spec
+      espera el overlay oculto. Confirmado PREEXISTENTE en `main` (falla
+      también sin los cambios de PLAN-BEST-SCORE; en suite a veces pasa).
+      Sospechoso: dependencia de timing real (keyboard.down 1500 ms + drops
+      de frame) — reproducir con `node scripts/e2e.mjs -- -g "fix-wrap"`.
