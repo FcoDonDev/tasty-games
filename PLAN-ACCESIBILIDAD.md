@@ -262,6 +262,16 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
   timing confirmado con stash (falla también en el commit T2 con árbol limpio)
   — módulo no tocado en la sesión, sin corrección (AGENTS.md). Suite E2E:
   78 passed.
+- **T3 revisión visual (4516864)**: el D-pad de filas sueltas se veía
+  descuadrado → rediseñado como **cruz contigua sobre grilla 3×3** (brazos +
+  conector central decorativo no táctil): la alineación sale de la estructura,
+  no de offsets. Tamaños reducidos a pedido: S=40/M=48/XL=56. El spec de
+  geometría ahora candea la simetría del plus (brazos verticales mismo centro
+  X; horizontales mismo centro Y y simétricos a ±1 celda del centro — ojo:
+  en un plus el brazo lateral NO comparte centro X con el vertical). Verificado
+  con screenshots (bajo tablero y overlay XL) borrados al terminar.
+  `fix-wrap` persiste fallando en aislado incluso con árbol limpio (T2):
+  investigar por separado.
 
 - Cubicación previa: total ~5-5,5 días; con la revisión, T3 sube a ~2 días
   (reescribir specs táctiles por el default 'botones') y T4 a ~3 días
