@@ -2,28 +2,50 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colOf, parseLayout, rowOf, type MazeData } from '../engine/maze';
 import { MazeStaticLayer } from '../renderer/reanimated/MazeLayer';
-import { LAB_ACTUAL, LAB_CANDIDATO } from './LAB_CANDIDATO';
-import { validateLayout } from './validateLayout';
+import { LAB_ACTUAL } from './LAB_CANDIDATO';
+import { LAB_FACIL } from './LAB_FACIL';
+import { validateLayout, validateLayoutEasy } from './validateLayout';
 
 /**
- * Preview del laberinto para iterar (PLAN-WAK-POLISH F4-iteración): muestra
- * el layout ACTIVO y el CANDIDATO con el MISMO look de render (MazeStaticLayer)
- * y valida en vivo: callejones, inaccesibles, corral sellado, pines de
- * sentinels/IA/chip y la regla del usuario de NO áreas abiertas 3×3
- * (solo pasillos). Al cerrar el diseño: el candidato pasa a maze.ts LAYOUT +
- * tests de invariantes + E2E completo.
+ * Preview del laberinto para iterar (PLAN-WAK-POLISH F4-iteración + T4b):
+ * muestra el layout ACTIVO y los CANDIDATOS con el MISMO look de render
+ * (MazeStaticLayer) y valida en vivo: callejones, inaccesibles, corral
+ * sellado, pines de sentinels/IA/chip y la regla del usuario de NO áreas
+ * abiertas 3×3 (solo pasillos). Paramétrico en dims (T4b: incluye el
+ * candidato fácil 11×13 con SUS pines). Al cerrar el diseño: el candidato
+ * pasa a maze.ts SPECS + tests de invariantes + E2E completo.
  */
 
 const CELL = 18;
 
-function MazeCard({ titulo, layout, destacado }: { titulo: string; layout: readonly string[]; destacado: boolean }) {
+function MazeCard({
+  titulo,
+  layout,
+  destacado,
+  validator,
+  expectedDrones = 4,
+}: {
+  titulo: string;
+  layout: readonly string[];
+  destacado: boolean;
+  validator: (layout: readonly string[]) => string[];
+  /** spawns 'D' esperados: 4 normal / 2 fácil (T4b) */
+  expectedDrones?: number;
+}) {
   const { maze, problemas, parseError } = useMemo(() => {
     try {
-      return { maze: parseLayout(layout) as MazeData, problemas: validateLayout(layout), parseError: false };
+      return {
+        maze: parseLayout(layout, expectedDrones) as MazeData,
+        problemas: validator(layout),
+        parseError: false,
+      };
     } catch {
       return { maze: null, problemas: ['layout: no parsea (dims o caracteres inválidos)'], parseError: true };
     }
-  }, [layout]);
+  }, [layout, validator, expectedDrones]);
+
+  const w = maze ? maze.cols * CELL : 0;
+  const h = maze ? maze.rows * CELL : 0;
 
   return (
     <View style={[styles.card, destacado && styles.cardActivo]}>
@@ -32,15 +54,15 @@ function MazeCard({ titulo, layout, destacado }: { titulo: string; layout: reado
         {destacado ? ' (activo en el juego)' : ''}
       </Text>
       {maze ? (
-        <View style={{ width: MAZE_W, height: MAZE_H }}>
+        <View style={{ width: w, height: h }}>
           <MazeStaticLayer maze={maze} cellSize={CELL} />
           {maze.batteryCells.map((cell) => (
             <View
               key={`b-${cell}`}
               style={{
                 position: 'absolute',
-                left: colOf(cell) * CELL + CELL * 0.36,
-                top: rowOf(cell) * CELL + CELL * 0.36,
+                left: colOf(cell, maze.cols) * CELL + CELL * 0.36,
+                top: rowOf(cell, maze.cols) * CELL + CELL * 0.36,
                 width: CELL * 0.28,
                 height: CELL * 0.28,
                 borderRadius: 1.5,
@@ -53,8 +75,8 @@ function MazeCard({ titulo, layout, destacado }: { titulo: string; layout: reado
               key={`s-${cell}`}
               style={{
                 position: 'absolute',
-                left: colOf(cell) * CELL + CELL * 0.22,
-                top: rowOf(cell) * CELL + CELL * 0.22,
+                left: colOf(cell, maze.cols) * CELL + CELL * 0.22,
+                top: rowOf(cell, maze.cols) * CELL + CELL * 0.22,
                 width: CELL * 0.55,
                 height: CELL * 0.55,
                 borderRadius: 3,
@@ -83,14 +105,17 @@ export function LaberintoPreview() {
         Regla: solo pasillos — sin áreas abiertas 3×3. El candidato debe validar
         sin problemas antes de reemplazar el layout del juego.
       </Text>
-      <MazeCard titulo="CANDIDATO" layout={LAB_CANDIDATO} destacado={false} />
-      <MazeCard titulo="ACTIVO" layout={LAB_ACTUAL} destacado />
+      <MazeCard
+        titulo="FÁCIL (candidato T4b, 11×13)"
+        layout={LAB_FACIL}
+        destacado={false}
+        validator={validateLayoutEasy}
+        expectedDrones={2}
+      />
+      <MazeCard titulo="NORMAL" layout={LAB_ACTUAL} destacado validator={validateLayout} />
     </View>
   );
 }
-
-const MAZE_W = 19 * CELL;
-const MAZE_H = 21 * CELL;
 
 const styles = StyleSheet.create({
   wrap: {

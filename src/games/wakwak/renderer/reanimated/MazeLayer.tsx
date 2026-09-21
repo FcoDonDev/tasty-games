@@ -44,25 +44,25 @@ interface WallRect {
 /** Fusión greedy de celdas-muro en rectángulos máximos (por franjas). */
 function mergeWalls(maze: MazeData, cellSize: number): WallRect[] {
   const isWall = (row: number, col: number): boolean =>
-    row >= 0 && row < MAZE_ROWS && col >= 0 && col < MAZE_COLS &&
-    maze.grid[toIndex(row, col)] === 'wall';
+    row >= 0 && row < maze.rows && col >= 0 && col < maze.cols &&
+    maze.grid[toIndex(row, col, maze.cols)] === 'wall';
   const used = new Set<number>();
   const rects: WallRect[] = [];
-  for (let row = 0; row < MAZE_ROWS; row++) {
-    for (let col = 0; col < MAZE_COLS; col++) {
-      const index = toIndex(row, col);
+  for (let row = 0; row < maze.rows; row++) {
+    for (let col = 0; col < maze.cols; col++) {
+      const index = toIndex(row, col, maze.cols);
       if (!isWall(row, col) || used.has(index)) continue;
       let width = 1;
-      while (isWall(row, col + width) && !used.has(toIndex(row, col + width))) width++;
+      while (isWall(row, col + width) && !used.has(toIndex(row, col + width, maze.cols))) width++;
       let height = 1;
       extend: while (isWall(row + height, col)) {
         for (let c = col; c < col + width; c++) {
-          if (!isWall(row + height, c) || used.has(toIndex(row + height, c))) break extend;
+          if (!isWall(row + height, c) || used.has(toIndex(row + height, c, maze.cols))) break extend;
         }
         height++;
       }
       for (let r = row; r < row + height; r++) {
-        for (let c = col; c < col + width; c++) used.add(toIndex(r, c));
+        for (let c = col; c < col + width; c++) used.add(toIndex(r, c, maze.cols));
       }
       rects.push({
         key: `w-${index}`,
@@ -78,8 +78,8 @@ function mergeWalls(maze: MazeData, cellSize: number): WallRect[] {
 
 /**
  * Subcapa estática de un laberinto (muros fusionados + fondo del corral).
- * Exportada también para el preview (`preview/`), que renderiza layouts
- * candidatos con el MISMO look sin tocar el MAZE del juego.
+ * Paramétrica en el maze (T4b: renderiza layouts de cualquier modo con el
+ * MISMO look sin tocar el MAZE del juego).
  */
 export const MazeStaticLayer = memo(function MazeStaticLayer({
   maze,
@@ -113,8 +113,8 @@ export const MazeStaticLayer = memo(function MazeStaticLayer({
           key={`c-${cell}`}
           style={{
             position: 'absolute',
-            left: colOf(cell) * cellSize,
-            top: rowOf(cell) * cellSize,
+            left: colOf(cell, maze.cols) * cellSize,
+            top: rowOf(cell, maze.cols) * cellSize,
             width: cellSize,
             height: cellSize,
             backgroundColor: COLORS.corral,

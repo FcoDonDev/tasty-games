@@ -105,7 +105,7 @@ export function openAreas3x3(p: LayoutParse): Array<[number, number]> {
       let all = true;
       for (let dr = 0; dr < 3 && all; dr++) {
         for (let dc = 0; dc < 3; dc++) {
-          if (p.grid[toIndex(r + dr, c + dc)] !== 'path' || p.corral.includes(toIndex(r + dr, c + dc))) {
+          if (p.grid[toIndex(r + dr, c + dc, p.cols)] !== 'path' || p.corral.includes(toIndex(r + dr, c + dc, p.cols))) {
             all = false;
             break;
           }
@@ -117,10 +117,46 @@ export function openAreas3x3(p: LayoutParse): Array<[number, number]> {
   return found;
 }
 
-export function validateLayout(layout: readonly string[]): string[] {
+/**
+ * Pines estructurales de un modo (T4b): dónde DEBEN vivir las piezas para que
+ * los sentinelas E2E y la IA funcionen. El layout fácil usa los suyos.
+ */
+export interface LayoutPins {
+  /** spawn del robot (row, col) */
+  spawn: { row: number; col: number };
+  /** corredor horizontal del spawn: [colInicio, colFin] transitables + topes */
+  corridor: { from: number; to: number };
+  /** muros a cada lado del corredor (topes del sentinela) */
+  corridorStops: [number, number];
+  /** esquinas scatter de ai.ts (rows-2/cols-2 derivados del layout) */
+  corners: ReadonlyArray<readonly [number, number]>;
+  /** celda del chip dorado: camino SIN batería */
+  bonus: { row: number; col: number };
+  expectedSupers: number;
+  expectedDrones: number;
+  dims: { cols: number; rows: number };
+}
+
+export function validateLayout(layout: readonly string[], pins?: LayoutPins): string[] {
+  const pinsMode: LayoutPins =
+    pins ?? {
+      spawn: { row: 15, col: 9 },
+      corridor: { from: 4, to: 14 },
+      corridorStops: [3, 15],
+      corners: [
+        [1, 1],
+        [1, 17],
+        [19, 1],
+        [19, 17],
+      ],
+      bonus: { row: 11, col: 9 },
+      expectedSupers: 4,
+      expectedDrones: 4,
+      dims: { cols: MAZE_COLS, rows: MAZE_ROWS },
+    };
   const problems: string[] = [];
-  const p = parseLenient(layout);
-  if (!p) return ['layout: dims o caracteres inválidos (19×21, símbolos #-. DRo)'];
+  const p = parseLenient(layout, pinsMode.dims.cols, pinsMode.dims.rows);
+  if (!p) return ['layout: dims o caracteres inválidos, símbolos #-. DRo'];
 
   // túnel y bordes
   if (p.tunnelRow < 0) problems.push('sin fila de túnel (extremos abiertos)');
@@ -136,8 +172,8 @@ export function validateLayout(layout: readonly string[]): string[] {
   const os = layout.join('').split('o').length - 1;
   const ds = layout.join('').split('D').length - 1;
   const rs = layout.join('').split('R').length - 1;
-  if (os !== 4) problems.push(`súper baterías: ${os} (deben ser 4)`);
-  if (ds !== 4) problems.push(`spawns de drone 'D': ${ds} (deben ser 4)`);
+  if (os !== pinsMode.expectedSupers) problems.push(`súper baterías: ${os} (deben ser ${pinsMode.expectedSupers})`);
+  if (ds !== pinsMode.expectedDrones) problems.push(`spawns de drone 'D': ${ds} (deben ser ${pinsMode.expectedDrones})`);
   if (rs !== 1) problems.push(`spawns de robot 'R': ${rs} (debe ser 1)`);
   if (p.door < 0) problems.push('falta la puerta del corral');
 
@@ -188,22 +224,55 @@ export function validateLayout(layout: readonly string[]): string[] {
     problems.push(`área abierta 3×3 en filas ${r}-${r + 2}, cols ${c}-${c + 2}`);
   }
 
-  // pines: sentinels E2E / IA / chip
+  // pines: sentinels E2E / IA / chip (por modo)
   const at = (r: number, c: number) => layout[r][c];
-  if (p.spawn !== toIndex(15, 9)) problems.push('spawn debe ser (15,9)');
-  for (let c = 4; c <= 14; c++) if (at(15, c) === '#') problems.push(`fila spawn: c${c} debe ser transitable`);
-  if (at(15, 3) !== '#' || at(15, 15) !== '#') problems.push('fila spawn: topes c3/c15 deben ser muro');
-  for (const [r, c] of [
-    [1, 1],
-    [1, 17],
-    [19, 1],
-    [19, 17],
-  ] as const) {
-    if (p.grid[toIndex(r, c)] !== 'path') problems.push(`esquina scatter (${r},${c}) debe ser camino`);
+  const spawnPin = toIndex(pinsMode.spawn.row, pinsMode.spawn.col, p.cols);
+  if (p.spawn !== spawnPin) problems.push(`spawn debe ser (${pinsMode.spawn.row},${pinsMode.spawn.col})`);
+  for (let c = pinsMode.corridor.from; c <= pinsMode.corridor.to; c++) {
+    if (at(pinsMode.spawn.row, c) === '#') problems.push(`fila spawn: c${c} debe ser transitable`);
   }
-  if (p.grid[toIndex(11, 9)] !== 'path' || p.batteries.includes(toIndex(11, 9)) || p.supers.includes(toIndex(11, 9))) {
-    problems.push('BONUS_CELL (11,9) debe ser camino sin batería');
+  const [stopA, stopB] = pinsMode.corridorStops;
+  if (at(pinsMode.spawn.row, stopA) !== '#' || at(pinsMode.spawn.row, stopB) !== '#') {
+    problems.push(`fila spawn: topes c${stopA}/c${stopB} deben ser muro`);
+  }
+  // corredor recto de ≥5 baterías junto al spawn (sentinelas tipo test-win)
+  let corrido = 0;
+  for (let c = pinsMode.corridor.from; c <= pinsMode.corridor.to; c++) {
+    if (at(pinsMode.spawn.row, c) === '.') corrido += 1;
+  }
+  if (corrido < 5) problems.push(`corredor del spawn: ${corrido} baterías (≥5 para sentinelas)`);
+  for (const [r, c] of pinsMode.corners) {
+    if (p.grid[toIndex(r, c, p.cols)] !== 'path') {
+      problems.push(`esquina scatter (${r},${c}) debe ser camino`);
+    }
+  }
+  const bonusPin = toIndex(pinsMode.bonus.row, pinsMode.bonus.col, p.cols);
+  if (p.grid[bonusPin] !== 'path' || p.batteries.includes(bonusPin) || p.supers.includes(bonusPin)) {
+    problems.push(`BONUS_CELL (${pinsMode.bonus.row},${pinsMode.bonus.col}) debe ser camino sin batería`);
   }
 
   return problems;
+}
+
+/** Pines del layout FÁCIL (T4b): spawn (9,2) + corredor c1..c7 con topes c0/c8,
+ * corral fila 6 con puerta (5,5), corners scatter, chip (8,5), 2 súper, 2 drones. */
+export const PINS_FACIL: LayoutPins = {
+  spawn: { row: 9, col: 2 },
+  corridor: { from: 1, to: 7 },
+  corridorStops: [0, 8],
+  corners: [
+    [1, 1],
+    [1, 9],
+    [11, 1],
+    [11, 9],
+  ],
+  bonus: { row: 8, col: 5 },
+  expectedSupers: 2,
+  expectedDrones: 2,
+  dims: { cols: 11, rows: 13 },
+};
+
+/** Valida el layout fácil con SUS pines (spawn, corredor, corners, chip). */
+export function validateLayoutEasy(layout: readonly string[]): string[] {
+  return validateLayout(layout, PINS_FACIL);
 }
