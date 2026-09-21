@@ -1,16 +1,18 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
 import { DIFFICULTIES, DIFFICULTY_LABELS, type Difficulty } from '../engine/rules';
+import type { DPadPos, DPadSize } from './DPad';
 
-export type ControlMode = 'gestos' | 'flotante';
+export type ControlMode = 'gestos' | 'flotante' | 'botones';
 
 /**
- * Ajustes (T3): borde atravesar/muro (D1) + control táctil + anillo.
- * Espejo de `ControlSettings` de wakwak con labels propios. La preferencia
- * persiste en `preferencesRepository` (SerpienteScreen); el wrap se aplica
- * en vivo vía `setWrap`.
+ * Ajustes (T3): borde atravesar/muro (D1) + control táctil + anillo +
+ * dificultad (T2) + D-pad (ubicación/tamaño, T3). Espejo de `ControlSettings`
+ * de wakwak con labels propios. Las preferencias persisten en
+ * `preferencesRepository` (SerpienteScreen); el wrap se aplica en vivo vía
+ * `setWrap`; la dificultad reinicia la run (D5).
  */
 export function SettingsButton({ onPress }: { onPress: () => void }) {
   return (
@@ -32,10 +34,15 @@ interface SettingsModalProps {
   ring: boolean;
   /** Dificultad seleccionada (T2); cambiarla reinicia la run (D5). */
   difficulty: Difficulty;
+  /** T3: ubicación y tamaño del D-pad (solo con modo 'botones'). */
+  dpadPos: DPadPos;
+  dpadSize: DPadSize;
   onChangeWrap: (wrap: boolean) => void;
   onChangeMode: (mode: ControlMode) => void;
   onChangeRing: (ring: boolean) => void;
   onChangeDifficulty: (difficulty: Difficulty) => void;
+  onChangeDpadPos: (pos: DPadPos) => void;
+  onChangeDpadSize: (size: DPadSize) => void;
   onClose: () => void;
 }
 
@@ -45,6 +52,12 @@ const DIFFICULTY_HINTS: Record<Difficulty, string> = {
   dificil: 'Arranca rápido y acelera más',
 };
 
+const DPAD_SIZE_LABELS: Record<DPadSize, string> = {
+  S: 'S',
+  M: 'M',
+  XL: 'XL',
+};
+
 export function SettingsModal({
   visible,
   touch,
@@ -52,10 +65,14 @@ export function SettingsModal({
   mode,
   ring,
   difficulty,
+  dpadPos,
+  dpadSize,
   onChangeWrap,
   onChangeMode,
   onChangeRing,
   onChangeDifficulty,
+  onChangeDpadPos,
+  onChangeDpadSize,
   onClose,
 }: SettingsModalProps) {
   if (!visible) return null;
@@ -69,80 +86,144 @@ export function SettingsModal({
       <View style={styles.card}>
         <Text style={styles.title}>Ajustes</Text>
 
-        <Text style={styles.sectionTitle}>Dificultad</Text>
-        <View style={styles.difficultyRow}>
-          {DIFFICULTIES.map((option) => (
-            <PressableScale
-              key={option}
-              accessibilityLabel={`serpiente-dificultad-${option}`}
-              onPress={() => onChangeDifficulty(option)}
-              style={[styles.difficultyOption, difficulty === option && styles.optionActive]}
-            >
-              <Text style={[styles.difficultyText, difficulty === option && styles.difficultyActive]}>
-                {DIFFICULTY_LABELS[option]}
-              </Text>
-            </PressableScale>
-          ))}
-        </View>
-        <Text style={styles.difficultyHint}>
-          {DIFFICULTY_HINTS[difficulty]} · se aplica al reiniciar
-        </Text>
-
-        <PressableScale
-          accessibilityLabel="serpiente-wrap"
-          onPress={() => onChangeWrap(!wrap)}
-          style={[styles.option, wrap && styles.optionActive]}
+        {/* El sheet creció (dificultad + control + D-pad): scroll interno
+            en pantallas bajas, con "Listo" siempre visible. */}
+        <ScrollView
+          style={styles.body}
+          contentContainerStyle={styles.bodyContent}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
         >
-          <View style={styles.optionText}>
-            <Text style={styles.optionTitle}>Atravesar bordes</Text>
-            <Text style={styles.optionHint}>
-              {wrap ? 'Salir por un borde entra por el opuesto' : 'Apagado: el muro mata'}
-            </Text>
-          </View>
-          {wrap ? <Text style={styles.check}>✓</Text> : null}
-        </PressableScale>
-
-        {touch ? (
-          <>
-            <PressableScale
-              accessibilityLabel="serpiente-modo-gestos"
-              onPress={() => onChangeMode('gestos')}
-              style={[styles.option, mode === 'gestos' && styles.optionActive]}
-            >
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>Gestos</Text>
-                <Text style={styles.optionHint}>Deslizá en cualquier parte de la pantalla</Text>
-              </View>
-              {mode === 'gestos' ? <Text style={styles.check}>✓</Text> : null}
-            </PressableScale>
-
-            <PressableScale
-              accessibilityLabel="serpiente-modo-flotante"
-              onPress={() => onChangeMode('flotante')}
-              style={[styles.option, mode === 'flotante' && styles.optionActive]}
-            >
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>Flotante</Text>
-                <Text style={styles.optionHint}>Pad invisible donde apoyes el dedo</Text>
-              </View>
-              {mode === 'flotante' ? <Text style={styles.check}>✓</Text> : null}
-            </PressableScale>
-
-            {mode === 'flotante' ? (
+          <Text style={styles.sectionTitle}>Dificultad</Text>
+          <View style={styles.difficultyRow}>
+            {DIFFICULTIES.map((option) => (
               <PressableScale
-                accessibilityLabel="serpiente-anillo-feedback"
-                onPress={() => onChangeRing(!ring)}
-                style={[styles.option, styles.optionSub, ring && styles.optionActive]}
+                key={option}
+                accessibilityLabel={`serpiente-dificultad-${option}`}
+                onPress={() => onChangeDifficulty(option)}
+                style={[styles.difficultyOption, difficulty === option && styles.optionActive]}
+              >
+                <Text style={[styles.difficultyText, difficulty === option && styles.difficultyActive]}>
+                  {DIFFICULTY_LABELS[option]}
+                </Text>
+              </PressableScale>
+            ))}
+          </View>
+          <Text style={styles.difficultyHint}>
+            {DIFFICULTY_HINTS[difficulty]} · se aplica al reiniciar
+          </Text>
+
+          <PressableScale
+            accessibilityLabel="serpiente-wrap"
+            onPress={() => onChangeWrap(!wrap)}
+            style={[styles.option, wrap && styles.optionActive]}
+          >
+            <View style={styles.optionText}>
+              <Text style={styles.optionTitle}>Atravesar bordes</Text>
+              <Text style={styles.optionHint}>
+                {wrap ? 'Salir por un borde entra por el opuesto' : 'Apagado: el muro mata'}
+              </Text>
+            </View>
+            {wrap ? <Text style={styles.check}>✓</Text> : null}
+          </PressableScale>
+
+          {touch ? (
+            <>
+              <Text style={styles.sectionTitle}>Control</Text>
+              <PressableScale
+                accessibilityLabel="serpiente-modo-botones"
+                onPress={() => onChangeMode('botones')}
+                style={[styles.option, mode === 'botones' && styles.optionActive]}
               >
                 <View style={styles.optionText}>
-                  <Text style={styles.optionTitle}>Anillo de feedback</Text>
-                  <Text style={styles.optionHint}>Marca el punto de control mientras tocás</Text>
+                  <Text style={styles.optionTitle}>Botones</Text>
+                  <Text style={styles.optionHint}>D-pad visible bajo el tablero</Text>
                 </View>
-                {ring ? <Text style={styles.check}>✓</Text> : null}
+                {mode === 'botones' ? <Text style={styles.check}>✓</Text> : null}
               </PressableScale>
-            ) : null}
-          </>
-        ) : null}
+
+              <PressableScale
+                accessibilityLabel="serpiente-modo-gestos"
+                onPress={() => onChangeMode('gestos')}
+                style={[styles.option, mode === 'gestos' && styles.optionActive]}
+              >
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>Gestos</Text>
+                  <Text style={styles.optionHint}>Deslizá en cualquier parte de la pantalla</Text>
+                </View>
+                {mode === 'gestos' ? <Text style={styles.check}>✓</Text> : null}
+              </PressableScale>
+
+              <PressableScale
+                accessibilityLabel="serpiente-modo-flotante"
+                onPress={() => onChangeMode('flotante')}
+                style={[styles.option, mode === 'flotante' && styles.optionActive]}
+              >
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>Flotante</Text>
+                  <Text style={styles.optionHint}>Pad invisible donde apoyes el dedo</Text>
+                </View>
+                {mode === 'flotante' ? <Text style={styles.check}>✓</Text> : null}
+              </PressableScale>
+
+              {mode === 'flotante' ? (
+                <PressableScale
+                  accessibilityLabel="serpiente-anillo-feedback"
+                  onPress={() => onChangeRing(!ring)}
+                  style={[styles.option, styles.optionSub, ring && styles.optionActive]}
+                >
+                  <View style={styles.optionText}>
+                    <Text style={styles.optionTitle}>Anillo de feedback</Text>
+                    <Text style={styles.optionHint}>Marca el punto de control mientras tocás</Text>
+                  </View>
+                  {ring ? <Text style={styles.check}>✓</Text> : null}
+                </PressableScale>
+              ) : null}
+
+              {mode === 'botones' ? (
+                <>
+                  <View style={styles.pairRow}>
+                    <PressableScale
+                      accessibilityLabel="serpiente-dpad-bajo"
+                      onPress={() => onChangeDpadPos('bajo')}
+                      style={[styles.option, styles.pairOption, dpadPos === 'bajo' && styles.optionActive]}
+                    >
+                      <View style={styles.optionText}>
+                        <Text style={styles.optionTitle}>Bajo el tablero</Text>
+                      </View>
+                      {dpadPos === 'bajo' ? <Text style={styles.check}>✓</Text> : null}
+                    </PressableScale>
+                    <PressableScale
+                      accessibilityLabel="serpiente-dpad-overlay"
+                      onPress={() => onChangeDpadPos('overlay')}
+                      style={[styles.option, styles.pairOption, dpadPos === 'overlay' && styles.optionActive]}
+                    >
+                      <View style={styles.optionText}>
+                        <Text style={styles.optionTitle}>Sobre el tablero</Text>
+                      </View>
+                      {dpadPos === 'overlay' ? <Text style={styles.check}>✓</Text> : null}
+                    </PressableScale>
+                  </View>
+                  <View style={styles.pairRow}>
+                    {(['S', 'M', 'XL'] as DPadSize[]).map((size) => (
+                      <PressableScale
+                        key={size}
+                        accessibilityLabel={`serpiente-dpad-${size.toLowerCase()}`}
+                        onPress={() => onChangeDpadSize(size)}
+                        style={[styles.difficultyOption, dpadSize === size && styles.optionActive]}
+                      >
+                        <Text style={[styles.difficultyText, dpadSize === size && styles.difficultyActive]}>
+                          {DPAD_SIZE_LABELS[size]}
+                        </Text>
+                      </PressableScale>
+                    ))}
+                  </View>
+                  <Text style={styles.difficultyHint}>Ubicación y tamaño del D-pad</Text>
+                </>
+              ) : null}
+            </>
+          ) : null}
+        </ScrollView>
 
         <PressableScale
           accessibilityLabel="cerrar-ajustes-serpiente"
@@ -190,6 +271,14 @@ const styles = StyleSheet.create({
     padding: 20,
     width: '100%',
     maxWidth: 320,
+    maxHeight: '100%',
+  },
+  body: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  bodyContent: {
+    gap: 8,
   },
   title: {
     color: '#E2E8F0',
@@ -207,6 +296,13 @@ const styles = StyleSheet.create({
   difficultyRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  pairRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  pairOption: {
+    flex: 1,
   },
   difficultyOption: {
     flex: 1,

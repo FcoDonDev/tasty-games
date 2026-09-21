@@ -35,12 +35,12 @@ describe('rules serpiente', () => {
     expect(stepMs(100)).toBe(70);
   });
 
-  test('dificultad fácil (T2): tabla exacta 180 / -2 / piso 110', () => {
-    expect(stepMs(0, 'facil')).toBe(180);
-    expect(stepMs(5, 'facil')).toBe(170);
-    expect(stepMs(34, 'facil')).toBe(112);
-    expect(stepMs(35, 'facil')).toBe(110);
-    expect(stepMs(100, 'facil')).toBe(110);
+  test('dificultad fácil (T2): tabla exacta 250 / -2 / piso 140', () => {
+    expect(stepMs(0, 'facil')).toBe(250);
+    expect(stepMs(5, 'facil')).toBe(240);
+    expect(stepMs(54, 'facil')).toBe(142);
+    expect(stepMs(55, 'facil')).toBe(140);
+    expect(stepMs(100, 'facil')).toBe(140);
   });
 
   test('dificultad difícil (T2): tabla exacta 110 / -5 / piso 55', () => {

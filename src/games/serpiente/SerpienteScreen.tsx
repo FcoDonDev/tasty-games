@@ -35,6 +35,7 @@ import { Board } from './components/Board';
 import { Hud } from './components/Hud';
 import { EndOverlay, PauseOverlay } from './components/Overlays';
 import { SettingsButton, SettingsModal, type ControlMode } from './components/SettingsSheet';
+import { DPad, type DPadPos, type DPadSize } from './components/DPad';
 import {
   beginFloatingDrag,
   keyToDirection,
@@ -58,6 +59,8 @@ const PREF_WRAP = 'serpiente.wrap';
 const PREF_CONTROL = 'serpiente.controlMode';
 const PREF_RING = 'serpiente.floatingRing';
 const PREF_DIFFICULTY = 'serpiente.dificultad';
+const PREF_DPAD_POS = 'serpiente.dpadPos';
+const PREF_DPAD_SIZE = 'serpiente.dpadSize';
 /** Presupuesto de frame ~16.7ms: dt > 25ms = stall del loop rAF (JS thread). */
 const STALL_BUDGET_MS = 25;
 /** Coreografía del shake de muerte (los tiempos van en `engine/feel.ts`). */
@@ -97,8 +100,15 @@ export default function SerpienteScreen({
   const reduced = useReducedMotion();
 
   const isTouch = useIsTouchDevice();
+  /**
+   * T3 (D7): default 'botones' en táctil (D-pad visible para 3ª edad); la
+   * preferencia persistida manda. En no-táctil el valor es irrelevante (el
+   * gesto no existe y el modal oculta las opciones).
+   */
   const [controlMode, setControlMode] = useState<ControlMode>('gestos');
   const [ringEnabled, setRingEnabled] = useState(false);
+  const [dpadPos, setDpadPos] = useState<DPadPos>('bajo');
+  const [dpadSize, setDpadSize] = useState<DPadSize>('M');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [difficulty, setDifficultyState] = useState<Difficulty>('medio');
   const [popups, setPopups] = useState<ScorePopup[]>([]);
@@ -239,13 +249,22 @@ export default function SerpienteScreen({
     if (!isTouch) return;
     let cancelled = false;
     void (async () => {
-      const [modeRaw, ringRaw] = await Promise.all([
+      const [modeRaw, ringRaw, posRaw, sizeRaw] = await Promise.all([
         preferencesRepository.get(PREF_CONTROL),
         preferencesRepository.get(PREF_RING),
+        preferencesRepository.get(PREF_DPAD_POS),
+        preferencesRepository.get(PREF_DPAD_SIZE),
       ]);
       if (cancelled) return;
-      if (modeRaw === 'flotante') setControlMode('flotante');
+      if (modeRaw === 'flotante' || modeRaw === 'gestos' || modeRaw === 'botones') {
+        setControlMode(modeRaw);
+      } else {
+        // Sin preferencia: D-pad visible por defecto (D7).
+        setControlMode('botones');
+      }
       setRingEnabled(ringRaw === '1');
+      if (posRaw === 'overlay') setDpadPos('overlay');
+      if (sizeRaw === 'S' || sizeRaw === 'XL') setDpadSize(sizeRaw);
     })();
     return () => {
       cancelled = true;
@@ -285,6 +304,21 @@ export default function SerpienteScreen({
   const changeRing = useCallback((ring: boolean) => {
     setRingEnabled(ring);
     void preferencesRepository.set(PREF_RING, ring ? '1' : '0');
+  }, []);
+
+  const changeDpadPos = useCallback((pos: DPadPos) => {
+    setDpadPos(pos);
+    void preferencesRepository.set(PREF_DPAD_POS, pos);
+  }, []);
+
+  const changeDpadSize = useCallback((size: DPadSize) => {
+    setDpadSize(size);
+    void preferencesRepository.set(PREF_DPAD_SIZE, size);
+  }, []);
+
+  /** D-pad (T3): encola la dirección con feedback de selección. */
+  const onDPadDirection = useCallback((dir: Direction) => {
+    useSerpienteStore.getState().setDirection(dir);
   }, []);
 
   const changeDifficulty = useCallback((next: Difficulty) => {
@@ -478,7 +512,8 @@ export default function SerpienteScreen({
   const ringOpacity = useSharedValue(0);
 
   const panGesture = useMemo(() => {
-    if (!isTouch) return null;
+    // T3: con el modo 'botones' el input es el D-pad (sin gesto full-screen).
+    if (!isTouch || controlMode === 'botones') return null;
     // Callbacks planos (JS thread): tocan zustand/haptics; runOnJS(true) lo
     // hace explícito y silencia el warning de RNGH.
     const pan = Gesture.Pan().runOnJS(true);
@@ -576,6 +611,11 @@ export default function SerpienteScreen({
     </View>
   );
 
+  const showDPad = isTouch && controlMode === 'botones';
+  const dpad = showDPad ? (
+    <DPad size={dpadSize} pos={dpadPos} onDirection={onDPadDirection} />
+  ) : null;
+
   const area = (
     <View style={styles.area}>
       <Hud />
@@ -583,6 +623,7 @@ export default function SerpienteScreen({
       {controlMode === 'flotante' && ringEnabled && panGesture ? (
         <FloatingRing x={ringX} y={ringY} opacity={ringOpacity} />
       ) : null}
+      {showDPad && dpadPos === 'bajo' ? dpad : null}
     </View>
   );
 
@@ -611,6 +652,8 @@ export default function SerpienteScreen({
         }
       />
       {panGesture ? <GestureDetector gesture={panGesture}>{area}</GestureDetector> : area}
+      {/* D-pad overlay: translúcido sobre la parte inferior del área (D2). */}
+      {showDPad && dpadPos === 'overlay' ? <View style={styles.dpadOverlayHost} pointerEvents="box-none">{dpad}</View> : null}
       {/* B3: ajustes en TODAS las plataformas (D1: el borde es setting de
           juego); las opciones de control táctil las gatea el propio modal. */}
       <SettingsModal
@@ -620,10 +663,14 @@ export default function SerpienteScreen({
         mode={controlMode}
         ring={ringEnabled}
         difficulty={difficulty}
+        dpadPos={dpadPos}
+        dpadSize={dpadSize}
         onChangeWrap={changeWrap}
         onChangeMode={changeControlMode}
         onChangeRing={changeRing}
         onChangeDifficulty={changeDifficulty}
+        onChangeDpadPos={changeDpadPos}
+        onChangeDpadSize={changeDpadSize}
         onClose={closeSettings}
       />
       {paused && status === 'playing' && !settingsOpen ? (
@@ -751,6 +798,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     flexDirection: 'row',
     gap: 3,
+  },
+  dpadOverlayHost: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 12,
+    alignItems: 'center',
+    zIndex: 40,
   },
   pauseBar: {
     width: 4,

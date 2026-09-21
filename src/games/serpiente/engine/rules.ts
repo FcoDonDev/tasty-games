@@ -36,11 +36,11 @@ export const DIFFICULTIES: readonly Difficulty[] = ['facil', 'medio', 'dificil']
 /**
  * Tabla de velocidad por dificultad: paso base, descenso por comida y piso
  * (ms por celda — más alto = más lento). Medio conserva los números D2
- * originales (140/-4/70); fácil ≈5,5 celdas/s de inicio; difícil arranca
- * rápido y acelera más.
+ * originales (140/-4/70); fácil arranca a ~4 celdas/s y no supera nunca
+ * ~7 celdas/s (piso 140); difícil arranca rápido y acelera más.
  */
 export const DIFFICULTY_SPEEDS: Record<Difficulty, { startMs: number; perFood: number; floorMs: number }> = {
-  facil: { startMs: 180, perFood: 2, floorMs: 110 },
+  facil: { startMs: 250, perFood: 2, floorMs: 140 },
   medio: { startMs: 140, perFood: 4, floorMs: 70 },
   dificil: { startMs: 110, perFood: 5, floorMs: 55 },
 };

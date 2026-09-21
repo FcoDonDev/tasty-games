@@ -152,21 +152,29 @@ Cubre juegos existentes y core (registro, tipos). No crea juegos nuevos.
 
 ### T3 — Serpiente: controles visibles (M-L, ~1,5-2 días)
 
-- [ ] `ControlMode` suma `'botones'`; **default en táctil = 'botones'** (D7).
-- [ ] D-pad 4 direcciones (`PressableScale`, feedback ya aprobado): targets
+- [x] `ControlMode` suma `'botones'`; **default en táctil = 'botones'** (D7).
+      → Con preferencia persistida manda; sin preferencia en táctil → botones.
+- [x] D-pad 4 direcciones (`PressableScale`, feedback ya aprobado): targets
       ≈64px en XL (≥48dp mínimo, separación ≥8dp), `accessibilityLabel`
       estables (`serpiente-btn-arriba`, etc.); presionar encola dirección vía
       `queued`; haptics vía wrapper (`hapticSelection`).
-- [ ] Configurable (D2): ubicación (bajo tablero / overlay translúcido) y
-      tamaño (S/M/XL) en Ajustes, persistidos.
-- [ ] Layout D4 derivado del tamaño real medido; a 360×640 sin scroll.
-- [ ] Escritorio (no táctil): solo teclado; sin D-pad. Detección táctil = el
+      → `components/DPad.tsx`: targets S=48/M=56/XL=64, gap 10 entre filas y
+      botones de la fila media (gap REAL entre Pressables — ver hallazgo
+      del spec).
+- [x] Configurable (D2): ubicación (bajo tablero / overlay translúcido) y
+      tamaño (S/M/XL) en Ajustes, persistidos (`serpiente.dpadPos`,
+      `serpiente.dpadSize`).
+- [x] Layout D4 derivado del tamaño real medido; a 360×640 sin scroll
+      (candeado por el spec).
+- [x] Escritorio (no táctil): solo teclado; sin D-pad. Detección táctil = el
       flag ya usado por `SettingsModal` (E5).
-- [ ] Specs: los NUEVOS usan `hasTouch: true` + `click()` sobre botones (E5);
+- [x] Specs: los NUEVOS usan `hasTouch: true` + `click()` sobre botones (E5);
       los specs táctiles existentes de gestos/flotante se REESCRIBEN (el
       default cambió, D7). Spec que candea geometría: `boundingBox()` ≥48px y
       separación ≥8dp a 360×640 (M5).
-- [ ] Tests unitarios del componente.
+      → El spec de swipe se reescribió sembrando la preferencia
+      'gestos' vía `addInitScript` (no hay query param de control).
+- [x] Tests unitarios del componente.
 
 ### T4 — Wak Wak: toggle Fácil/Normal con laberinto reducido ×2 (L, ~3 días)
 
@@ -245,6 +253,15 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
   tenía la run auto-pausada dejaba `autoPausedRef` pegado → al cerrar el
   modal se re-pausaba la partida ya reiniciada; reconciliado en
   `changeDifficulty` (`autoPausedRef = false`). Suite E2E: 75 passed.
+- **T3 ejecutada**: gap del D-pad — el margen en el hijo interno de
+  PressableScale no separa los boxes de los `Pressable` wrappers (boundingBox
+  incluía el gap): reestructurado a filas con `gap` REAL entre botones; el
+  spec de geometría mide los Pressables, no los inner Views. El modal de
+  Ajustes quedó largo (dificultad + wrap + control + D-pad) → scroll interno
+  con "Listo" fijo. `fix-wrap` (robo-jump) falló 4× y pasó luego: flake de
+  timing confirmado con stash (falla también en el commit T2 con árbol limpio)
+  — módulo no tocado en la sesión, sin corrección (AGENTS.md). Suite E2E:
+  78 passed.
 
 - Cubicación previa: total ~5-5,5 días; con la revisión, T3 sube a ~2 días
   (reescribir specs táctiles por el default 'botones') y T4 a ~3 días

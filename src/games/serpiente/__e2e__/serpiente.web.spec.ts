@@ -202,11 +202,16 @@ test.describe('serpiente táctil (emulación móvil, puntero coarse)', () => {
    * Swipe REAL (CDP dispatchTouchEvent) iniciado sobre el HUD — fuera del
    * tablero — para candar que el gesto vale en cualquier parte de la pantalla
    * (modo gestos, emite al cruzar el umbral sin esperar el lift).
+   * T3 (D7): el default táctil es 'botones'; el modo 'gestos' se siembra en
+   * la preferencia antes de cargar la página.
    */
   test('serpiente táctil: swipe sobre el HUD (fuera del tablero) gira hacia abajo', async ({
     page,
   }) => {
     test.setTimeout(60_000);
+    await page.addInitScript(() => {
+      localStorage.setItem('preferences', JSON.stringify({ 'serpiente.controlMode': 'gestos' }));
+    });
     await openGame(page);
 
     const hud = page.getByLabel('hud-serpiente', { exact: true });

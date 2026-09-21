@@ -13,7 +13,7 @@ const RULES = [
   '· Cada 5 comidas aparece un especial violeta que caduca en 8 s: vale 50.',
   '· Muere al chocar contra tu propio cuerpo (y contra el muro si el setting de atravesar está apagado).',
   '· Llénalo todo para ganar; al cerrar sumas +1 punto por segundo sobrevivido.',
-  '· Control: flechas/WASD en PC, swipe o control flotante en táctil.',
+  '· Control: flechas/WASD en PC; botones (D-pad), swipe o control flotante en táctil.',
   '',
   'Puntaje: comida ×10 · especial ×50 · supervivencia +1/s.',
   '',
