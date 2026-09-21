@@ -93,19 +93,23 @@ Cubre juegos existentes y core (registro, tipos). No crea juegos nuevos.
 
 ### T1 — Damas oculta del listado (S, ~3 h)
 
-- [ ] `GameDefinition` (`src/core/types.ts`): campo opcional `hidden?: boolean`.
-- [ ] `src/games/damas/index.ts`: `hidden: true` + nota en RULES/README.
-- [ ] `app/index.tsx`: filtrar `GAME_REGISTRY` para el listado del Home
+- [x] `GameDefinition` (`src/core/types.ts`): campo opcional `hidden?: boolean`.
+- [x] `src/games/damas/index.ts`: `hidden: true` + nota en RULES/README.
+- [x] `app/index.tsx`: filtrar `GAME_REGISTRY` para el listado del Home
       (`getGameById` intacto → deep link sigue funcionando).
-- [ ] **Antes de editar**: verificar en `app/index.tsx` si algún breakpoint usa
+- [x] **Antes de editar**: verificar en `app/index.tsx` si algún breakpoint usa
       `numColumns > 1` (hueco en la grilla tras filtrar; el spec 900×800 candea
       una sola columna en web). Si hay columnas, decidir re-flow.
-- [ ] Test unitario del filtro Home (hidden) — lógica nueva → exige tests.
-- [ ] Specs: ajustar `responsive.web.spec.ts` (tile "Jugar Damas" + posiciones);
+      → RESUELTO: web siempre numColumns=1, sin hueco posible.
+- [x] Test unitario del filtro Home (hidden) — lógica nueva → exige tests.
+      → `getVisibleGames()` en `game-registry.ts` (lógica pura) + test.
+- [x] Specs: ajustar `responsive.web.spec.ts` (tile "Jugar Damas" + posiciones);
       revisar `help.web.spec.ts` y test del registro si cuentan juegos.
       `pwa.web.spec.ts` NO cambia (verificado).
-- [ ] Specs que NO cambian: `performance.web.spec.ts` y
-      `damas.web.spec.ts` (deep link).
+      → help no toca Home/Jugar; navigation usa Memorice (sin cambios).
+      Además `damas.web.spec.ts` "salir vuelve al Home" entraba tocando la
+      card (ya no existe): se movió a deep link directo.
+- [x] Specs que NO cambian: `performance.web.spec.ts` (deep link) — confirmado.
 
 ### T2 — Serpiente: niveles de dificultad (M, ~1 día)
 
@@ -216,6 +220,12 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
 ## Notas / hallazgos
 
 (completar durante la implementación)
+
+- **T1 ejecutada**: `getVisibleGames()` vive en `game-registry.ts` (no en el
+  Home) para que el filtro sea lógica pura testeable sin render. `navigation.web.spec.ts`
+  y `help.web.spec.ts` no referencian la card de Damas (sin cambios). Único
+  E2E adicional al previsto: `damas.web.spec.ts` "salir vuelve al Home" usaba
+  la card del Home como entrada → deep link directo. Suite: 73 passed.
 
 - Cubicación previa: total ~5-5,5 días; con la revisión, T3 sube a ~2 días
   (reescribir specs táctiles por el default 'botones') y T4 a ~3 días

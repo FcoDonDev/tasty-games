@@ -23,6 +23,12 @@ const damas: GameDefinition = {
   description: 'Damas chilenas para 2 jugadores: captura obligatoria, multi-salto y dama voladora.',
   minDurationHint: '5-10 min',
   rules: RULES,
+  /**
+   * Oculto del Home hasta implementar CPU como contrincante y mejorar la
+   * UI/UX multijugador (PLAN-ACCESIBILIDAD T1 / docs/ROADMAP.md). El deep
+   * link /juego/damas sigue vivo: specs E2E y usuarios con link entran igual.
+   */
+  hidden: true,
   Component: DamasScreen,
 };
 

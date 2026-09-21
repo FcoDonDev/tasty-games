@@ -3,6 +3,15 @@
 Implementación del contrato `GameDefinition` para damas chilenas 8×8, 2 jugadores
 locales en el mismo dispositivo (MVP sin récord — [ADR 0007](../../../docs/adr/0007-damas-mvp-local.md)).
 
+## Estado visible
+
+`hidden: true` en el registro: la card del Home no se muestra hasta
+implementar CPU como contrincante y mejorar la UI/UX multijugador
+([PLAN-ACCESIBILIDAD](../../../PLAN-ACCESIBILIDAD.md), [ROADMAP](../../../docs/ROADMAP.md)).
+El deep link `/juego/damas` sigue vivo — specs E2E (`damas.web.spec.ts`,
+`responsive.web.spec.ts`, `performance.web.spec.ts`) y usuarios con link
+guardado entran igual.
+
 ## Estructura
 
 ```

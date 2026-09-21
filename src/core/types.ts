@@ -43,5 +43,11 @@ export interface GameDefinition {
    * (lock/unlock por juego en app/juego/[id].tsx). Default: false.
    */
   supportsLandscape?: boolean;
+  /**
+   * Oculta la card del Home (app/index.tsx) sin desactivar la ruta: el deep
+   * link /juego/<id> sigue vivo. Para juegos con UI/UX pendiente que no
+   * queremos exponer a usuarios nuevos. Default: false.
+   */
+  hidden?: boolean;
   Component: ComponentType<GameScreenProps>;
 }

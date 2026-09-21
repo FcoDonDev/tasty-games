@@ -94,8 +94,8 @@ test('damas: victoria forzada → modal sin récord + jugar de nuevo reinicia', 
 
 test('damas: salir vuelve al Home', async ({ page }) => {
   test.setTimeout(30_000);
-  await page.goto('/');
-  await page.getByLabel('Jugar Damas').click();
+  // Damas oculta del Home (deep link vivo): la entrada es por URL directa
+  await page.goto('/juego/damas');
   await expect(page.getByLabel('damas-turno-1', { exact: true })).toBeVisible({ timeout: 15_000 });
 
   // Reparto estándar: 24 fichas sobre 32 casillas oscuras

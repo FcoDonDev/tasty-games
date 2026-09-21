@@ -14,3 +14,8 @@ export const GAME_REGISTRY: GameDefinition[] = [memorice, solitario, damas, wakw
 export function getGameById(id: string): GameDefinition | undefined {
   return GAME_REGISTRY.find((game) => game.id === id);
 }
+
+/** Juegos visibles en el Home: `hidden` saca la card pero mantiene el deep link. */
+export function getVisibleGames(): GameDefinition[] {
+  return GAME_REGISTRY.filter((game) => !game.hidden);
+}

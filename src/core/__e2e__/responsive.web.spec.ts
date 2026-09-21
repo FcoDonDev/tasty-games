@@ -51,17 +51,19 @@ for (const game of GAMES) {
   });
 }
 
-test('responsive 360×640: Home — la 3ª tarjeta es alcanzable con scroll interno', async ({ page }) => {
+test('responsive 360×640: Home — la última tarjeta es alcanzable con scroll interno', async ({ page }) => {
   test.setTimeout(30_000);
   await page.goto('/');
   await expect(page.getByText('Tasty Games')).toBeVisible({ timeout: 15_000 });
 
-  const damaCard = page.getByLabel('Jugar Damas');
+  // Damas está oculta del Home (deep link vivo): la última tarjeta es Robo Jump
+  const roboCard = page.getByLabel('Jugar Robo Jump');
   await expect(page.getByLabel('Jugar Memorice')).toBeVisible();
+  await expect(page.getByLabel('Jugar Damas')).toHaveCount(0);
 
   // La lista interna (FlatList) debe permitir llegar a la última tarjeta
-  await damaCard.scrollIntoViewIfNeeded();
-  await expect(damaCard).toBeVisible();
+  await roboCard.scrollIntoViewIfNeeded();
+  await expect(roboCard).toBeVisible();
 
   // La página en sí sigue sin scrollear (la lista scrollea por dentro)
   await assertNoPageScroll(page);
@@ -77,17 +79,18 @@ test.describe('responsive ancho 900×800: Home con 1 columna (web = comportamien
 
     const memoriceBox = await page.getByLabel('Jugar Memorice').boundingBox();
     const solitarioBox = await page.getByLabel('Jugar Solitario').boundingBox();
-    const damasBox = await page.getByLabel('Jugar Damas').boundingBox();
+    // Damas está oculta del Home (deep link vivo): la 3ª tarjeta es Wak Wak
+    const wakwakBox = await page.getByLabel('Jugar Wak Wak').boundingBox();
     expect(memoriceBox).not.toBeNull();
     expect(solitarioBox).not.toBeNull();
-    expect(damasBox).not.toBeNull();
+    expect(wakwakBox).not.toBeNull();
 
     // Una sola columna: filas distintas (apiladas verticalmente)
     expect(solitarioBox!.y).toBeGreaterThan(memoriceBox!.y + memoriceBox!.height - 8);
-    expect(damasBox!.y).toBeGreaterThan(solitarioBox!.y + solitarioBox!.height - 8);
+    expect(wakwakBox!.y).toBeGreaterThan(solitarioBox!.y + solitarioBox!.height - 8);
 
     // Misma columna: x idéntico entre tarjetas
-    expect(damasBox!.x).toBe(memoriceBox!.x);
+    expect(wakwakBox!.x).toBe(memoriceBox!.x);
 
     // Columna centrada con ancho tope ~600px (x izquierdo ≈ (900−600)/2)
     expect(memoriceBox!.x).toBeGreaterThan(100);

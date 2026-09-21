@@ -4,7 +4,7 @@ import { Easing } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GAME_REGISTRY } from '@/core/game-registry';
+import { GAME_REGISTRY, getVisibleGames } from '@/core/game-registry';
 import { GameCard } from '@/core/ui/GameCard';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
@@ -65,7 +65,7 @@ export default function HomeScreen() {
           <FlatList
             key={numColumns}
             style={styles.listScroll}
-            data={GAME_REGISTRY}
+            data={getVisibleGames()}
             keyExtractor={(game) => game.id}
             numColumns={numColumns}
             columnWrapperStyle={numColumns > 1 ? styles.column : undefined}
