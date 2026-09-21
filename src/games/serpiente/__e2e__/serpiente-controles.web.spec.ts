@@ -66,7 +66,7 @@ test('serpiente táctil: D-pad visible por defecto y los botones dirigen', async
     .toBeGreaterThan(rowOf(before));
 });
 
-test('serpiente táctil: targets ≥48px y separación ≥8dp a 360×640', async ({ page }) => {
+test('serpiente táctil: D-pad en cruz alineado (targets ≥48px) a 360×640', async ({ page }) => {
   test.setTimeout(60_000);
   await openGame(page);
 
@@ -75,22 +75,35 @@ test('serpiente táctil: targets ≥48px y separación ≥8dp a 360×640', async
     const box = await page.getByLabel(label, { exact: true }).boundingBox();
     expect(box).not.toBeNull();
     boxes[label] = box!;
-    // Target ≥48dp en ambas dimensiones (criterio Google Playables).
+    // Default M: target ≥48px en ambas dimensiones.
     expect(box!.width).toBeGreaterThanOrEqual(48);
     expect(box!.height).toBeGreaterThanOrEqual(48);
   }
 
-  // Separación vertical entre arriba y la fila media ≥8dp.
+  // Cruz ALINEADA: brazos verticales comparten centro X; los horizontales
+  // comparten centro Y y son simétricos alrededor del centro de la cruz
+  // (desplazados exactamente 1 celda: así es un plus).
+  const centerOf = (b: { x: number; width: number }): number => b.x + b.width / 2;
+  const cell = boxes['serpiente-btn-arriba'].width;
+  const cx = centerOf(boxes['serpiente-btn-arriba']);
+  expect(Math.abs(centerOf(boxes['serpiente-btn-abajo']) - cx)).toBeLessThanOrEqual(2);
+  const cyLeft = boxes['serpiente-btn-izquierda'].y + boxes['serpiente-btn-izquierda'].height / 2;
+  const cyRight = boxes['serpiente-btn-derecha'].y + boxes['serpiente-btn-derecha'].height / 2;
+  expect(Math.abs(cyLeft - cyRight)).toBeLessThanOrEqual(2);
+  expect(Math.abs(centerOf(boxes['serpiente-btn-izquierda']) - (cx - cell))).toBeLessThanOrEqual(2);
+  expect(Math.abs(centerOf(boxes['serpiente-btn-derecha']) - (cx + cell))).toBeLessThanOrEqual(2);
+
+  // Sin solapes: arriba termina donde empieza la fila media (plus contiguo).
   const upBottom = boxes['serpiente-btn-arriba'].y + boxes['serpiente-btn-arriba'].height;
   const middleTop = Math.min(
     boxes['serpiente-btn-izquierda'].y,
     boxes['serpiente-btn-derecha'].y,
   );
-  expect(middleTop - upBottom).toBeGreaterThanOrEqual(8);
+  expect(Math.abs(middleTop - upBottom)).toBeLessThanOrEqual(1);
 
-  // Separación horizontal entre izquierda y derecha ≥8dp.
+  // Izquierda y derecha no se solapan (el conector central las separa).
   const leftRight = boxes['serpiente-btn-izquierda'].x + boxes['serpiente-btn-izquierda'].width;
-  expect(boxes['serpiente-btn-derecha'].x - leftRight).toBeGreaterThanOrEqual(8);
+  expect(boxes['serpiente-btn-derecha'].x).toBeGreaterThanOrEqual(leftRight);
 });
 
 test('serpiente táctil: ubicación y tamaño del D-pad persisten', async ({ page }) => {
@@ -106,10 +119,11 @@ test('serpiente táctil: ubicación y tamaño del D-pad persisten', async ({ pag
   await page.getByLabel('cerrar-ajustes-serpiente', { exact: true }).click();
   await expect(modal).toBeHidden();
 
-  // XL = 64px de target, aún en overlay.
+  // XL reducido = 56px de target, aún en overlay.
   const box = await page.getByLabel('serpiente-btn-arriba', { exact: true }).boundingBox();
-  expect(box!.width).toBeGreaterThanOrEqual(64);
-  expect(box!.height).toBeGreaterThanOrEqual(64);
+  expect(box!.width).toBeGreaterThanOrEqual(52);
+  expect(box!.height).toBeGreaterThanOrEqual(52);
+  expect(box!.width).toBeLessThanOrEqual(60);
   await expect(page.getByLabel('serpiente-dpad', { exact: true })).toBeVisible();
 
   await expect

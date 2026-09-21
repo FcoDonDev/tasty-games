@@ -4,49 +4,55 @@ import { hapticSelection } from '@/core/ui/haptics';
 import type { Direction } from '../engine/grid';
 
 /**
- * D-pad visible (T3, PLAN-ACCESIBILIDAD): 4 direcciones en cruz para jugar sin
- * gestos. Targets S=48 / M=56 / XL=64 con separación 10 (Google Playables:
- * ≥48dp con separación ≥8dp — el spec E2E lo candea con boundingBox).
- * `overlay` lo posiciona translúcido sobre la parte inferior del tablero;
- * sin overlay vive como fila propia bajo el tablero (default).
- * El press encola la dirección vía `queued` (setDirection del store) con
- * feedback de press ya integrado en PressableScale.
+ * D-pad en cruz (T3, PLAN-ACCESIBILIDAD): grilla 3×3 con brazos arriba/
+ * abajo/izquierda/derecha y celda central conectora — el plus queda contiguo
+ * y centrado POR CONSTRUCCIÓN (nada alineado a ojo). Targets S=40 / M=48 /
+ * XL=56 (reducidos a pedido; hitSlop de PressableScale compensa el target
+ * táctil en S). El press encola la dirección vía `queued` (setDirection del
+ * store) con feedback de press ya integrado en PressableScale.
  */
 
 export type DPadSize = 'S' | 'M' | 'XL';
 export type DPadPos = 'bajo' | 'overlay';
 
-/** Tamaño del target por preset (px). Todos ≥48dp. */
-export const DPAD_SIZES: Record<DPadSize, number> = { S: 48, M: 56, XL: 64 };
-/** Separación entre filas y entre botones de la fila media (px). ≥8dp. */
-export const DPAD_GAP = 10;
+/** Celda de la grilla por preset (px): brazo = target táctil. */
+export const DPAD_SIZES: Record<DPadSize, number> = { S: 40, M: 48, XL: 56 };
 
-function DPadButton({
-  label,
-  glyph,
-  size,
-  onDirection,
-  dir,
-}: {
+interface ArmSpec {
+  dir: Direction;
   label: string;
   glyph: string;
-  size: number;
+}
+
+const ARMS: Record<'up' | 'left' | 'right' | 'down', ArmSpec> = {
+  up: { dir: 'up', label: 'serpiente-btn-arriba', glyph: '↑' },
+  down: { dir: 'down', label: 'serpiente-btn-abajo', glyph: '↓' },
+  left: { dir: 'left', label: 'serpiente-btn-izquierda', glyph: '←' },
+  right: { dir: 'right', label: 'serpiente-btn-derecha', glyph: '→' },
+};
+
+function Arm({
+  spec,
+  cell,
+  onDirection,
+}: {
+  spec: ArmSpec;
+  cell: number;
   onDirection: (dir: Direction) => void;
-  dir: Direction;
 }) {
   return (
     <PressableScale
-      accessibilityLabel={label}
+      accessibilityLabel={spec.label}
       accessibilityHint="Encola la dirección en la serpiente"
       hitSlop={4}
       onPress={() => {
         hapticSelection();
-        onDirection(dir);
+        onDirection(spec.dir);
       }}
-      style={[styles.cell, { width: size, height: size }]}
+      style={[styles.arm, { width: cell, height: cell }]}
     >
-      <Text style={[styles.glyph, { fontSize: Math.round(size * 0.42) }]} accessible={false}>
-        {glyph}
+      <Text style={[styles.glyph, { fontSize: Math.round(cell * 0.42) }]} accessible={false}>
+        {spec.glyph}
       </Text>
     </PressableScale>
   );
@@ -59,23 +65,29 @@ interface DPadProps {
 }
 
 export function DPad({ size, pos, onDirection }: DPadProps) {
-  const button = DPAD_SIZES[size];
+  const cell = DPAD_SIZES[size];
+  const spacer = <View style={{ width: cell, height: cell }} />;
   return (
     <View
       accessibilityLabel="serpiente-dpad"
       style={[styles.wrapper, pos === 'overlay' && styles.wrapperOverlay]}
     >
-      {/* Gap REAL entre Pressables (el spec candea boundingBox): filas con
-          gap y fila media con gap lateral; sin márgenes en hijos internos. */}
       <View style={styles.row}>
-        <DPadButton dir="up" label="serpiente-btn-arriba" glyph="↑" size={button} onDirection={onDirection} />
+        {spacer}
+        <Arm spec={ARMS.up} cell={cell} onDirection={onDirection} />
+        {spacer}
       </View>
       <View style={styles.row}>
-        <DPadButton dir="left" label="serpiente-btn-izquierda" glyph="←" size={button} onDirection={onDirection} />
-        <DPadButton dir="right" label="serpiente-btn-derecha" glyph="→" size={button} onDirection={onDirection} />
+        <Arm spec={ARMS.left} cell={cell} onDirection={onDirection} />
+        {/* Conector central: da el plus contiguo (estilo mando); no es
+            táctil, solo decora la unión de los 4 brazos. */}
+        <View style={[styles.center, { width: cell, height: cell }]} />
+        <Arm spec={ARMS.right} cell={cell} onDirection={onDirection} />
       </View>
       <View style={styles.row}>
-        <DPadButton dir="down" label="serpiente-btn-abajo" glyph="↓" size={button} onDirection={onDirection} />
+        {spacer}
+        <Arm spec={ARMS.down} cell={cell} onDirection={onDirection} />
+        {spacer}
       </View>
     </View>
   );
@@ -84,29 +96,27 @@ export function DPad({ size, pos, onDirection }: DPadProps) {
 const styles = StyleSheet.create({
   wrapper: {
     alignSelf: 'center',
-    gap: 10,
-    paddingVertical: 8,
+    padding: 10,
+    borderRadius: 18,
+    backgroundColor: '#0B1F14',
+    borderWidth: 1,
+    borderColor: '#14532B',
   },
   wrapperOverlay: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#07120C66',
-    borderWidth: 1,
-    borderColor: '#14532B66',
+    backgroundColor: '#07120C99',
+    borderColor: '#14532B99',
   },
   row: {
     flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
   },
-  cell: {
+  arm: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#0E2417',
-    borderWidth: 1,
-    borderColor: '#14532B',
+    borderRadius: 10,
+    backgroundColor: '#16351F',
+  },
+  center: {
+    backgroundColor: '#16351F',
   },
   glyph: {
     color: '#86EFAC',

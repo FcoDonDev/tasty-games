@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { DPad, DPAD_GAP, DPAD_SIZES, type DPadSize } from '../components/DPad';
+import { DPad, DPAD_SIZES, type DPadSize } from '../components/DPad';
 import type { Direction } from '../engine/grid';
 
 describe('DPad serpiente (T3)', () => {
@@ -27,11 +27,11 @@ describe('DPad serpiente (T3)', () => {
     expect(pressed).toEqual(['up', 'down', 'left', 'right']);
   });
 
-  it('targets ≥48dp en todos los presets y separación ≥8dp', () => {
+  it('presets reducidos: celda ≥40px en todos (S=40, M=48, XL=56)', () => {
+    expect(DPAD_SIZES).toEqual({ S: 40, M: 48, XL: 56 });
     const presets = Object.keys(DPAD_SIZES) as DPadSize[];
     for (const preset of presets) {
-      expect(DPAD_SIZES[preset]).toBeGreaterThanOrEqual(48);
+      expect(DPAD_SIZES[preset]).toBeGreaterThanOrEqual(40);
     }
-    expect(DPAD_GAP).toBeGreaterThanOrEqual(8);
   });
 });
