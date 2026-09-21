@@ -9,6 +9,7 @@ const RULES = [
   'Serpiente: guía a la serpiente por el tablero 20×20 comiendo sin chocar.',
   '',
   '· Come para crecer: cada comida suma 10 puntos y acelera el paso.',
+  '· Dificultad (fácil/medio/difícil) en Ajustes: cada nivel tiene su propia velocidad y su propio récord.',
   '· Cada 5 comidas aparece un especial violeta que caduca en 8 s: vale 50.',
   '· Muere al chocar contra tu propio cuerpo (y contra el muro si el setting de atravesar está apagado).',
   '· Llénalo todo para ganar; al cerrar sumas +1 punto por segundo sobrevivido.',

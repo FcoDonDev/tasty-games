@@ -25,6 +25,18 @@ export interface GameScreenProps {
    * app/juego/[id].tsx cuando el build se exporta con EXPO_PUBLIC_E2E=1.
    */
   initialSeed?: string;
+  /**
+   * Modo de juego pedido por URL (E2E, ej. dificultad `facil|medio|dificil`
+   * de serpiente). Solo se propaga con EXPO_PUBLIC_E2E=1; en producción no
+   * existe canal para alterarlo. Los juegos que no lo usan lo ignoran.
+   */
+  initialDifficulty?: string;
+  /**
+   * Informa el id de registro EFECTIVO de la partida activa (ej. dificultad
+   * → `serpiente-facil`). `app/juego/[id].tsx` lo usa para que el ScoreBoard
+   * del header consulte la clave correcta (D6). Opcional.
+   */
+  onActiveGameId?: (gameId: string) => void;
 }
 
 export interface GameDefinition {

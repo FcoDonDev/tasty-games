@@ -151,4 +151,56 @@ describe('store serpiente (T2)', () => {
     expect(store().game.score).toBe(0);
     expect(score).toBeGreaterThanOrEqual(0);
   });
+
+  test('setDifficulty a mitad de partida reinicia con la nueva tabla (D5)', () => {
+    store().tick(5000);
+    expect(store().game.elapsedMs).toBeGreaterThan(0);
+    store().setDifficulty('dificil');
+    expect(store().difficulty).toBe('dificil');
+    // Run nueva: estado fresco con la dificultad aplicada.
+    expect(store().game.status).toBe('playing');
+    expect(store().game.difficulty).toBe('dificil');
+    expect(store().game.elapsedMs).toBe(0);
+    expect(store().game.snake).toHaveLength(4);
+    // La nueva cadencia es la de difícil (110ms: 109 no avanza, 110 sí).
+    const after = store().game;
+    expect(store().tick(109)).toEqual([]);
+    expect(store().game).toBe(after);
+    store().tick(110);
+    expect(store().game).not.toBe(after);
+  });
+
+  test('setDifficulty sin run activa solo fija el setting', () => {
+    store().tick(5000);
+    store().reset('test-lose'); // muere en el primer tick → status lost
+    store().tick(140);
+    expect(store().game.status).toBe('lost');
+    store().setDifficulty('facil');
+    expect(store().difficulty).toBe('facil');
+    // NO reinicia: el juego sigue terminado y conserva su dificultad.
+    expect(store().game.status).toBe('lost');
+    expect(store().game.difficulty).toBe('medio');
+  });
+
+  test('la dificultad del setting no pisa al sentinela (test-crecer sigue en medio)', () => {
+    store().setDifficulty('dificil');
+    store().startRun('test-crecer');
+    // El sentinela fija 'medio' explícito: manda sobre el setting.
+    expect(store().game.difficulty).toBe('medio');
+  });
+
+  test('el parámetro de URL manda sobre el config del sentinela (E2E)', () => {
+    store().startRun('test-crecer', 'dificil');
+    expect(store().game.difficulty).toBe('dificil');
+    // Y sobre el setting del usuario en runs normales.
+    store().setDifficulty('medio');
+    store().startRun(undefined, 'facil');
+    expect(store().game.difficulty).toBe('facil');
+  });
+
+  test('startRun sin parámetros conserva el setting de dificultad', () => {
+    store().setDifficulty('facil');
+    store().startRun();
+    expect(store().game.difficulty).toBe('facil');
+  });
 });

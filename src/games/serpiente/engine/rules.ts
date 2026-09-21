@@ -27,6 +27,36 @@ const SPAWN_SAMPLES = 60;
 
 export type GameStatus = 'playing' | 'won' | 'lost';
 
+/** Nivel de dificultad (PLAN-ACCESIBILIDAD T2): decide la tabla de velocidad. */
+export type Difficulty = 'facil' | 'medio' | 'dificil';
+
+/** Orden de presentación en Ajustes/overlay. */
+export const DIFFICULTIES: readonly Difficulty[] = ['facil', 'medio', 'dificil'];
+
+/**
+ * Tabla de velocidad por dificultad: paso base, descenso por comida y piso
+ * (ms por celda — más alto = más lento). Medio conserva los números D2
+ * originales (140/-4/70); fácil ≈5,5 celdas/s de inicio; difícil arranca
+ * rápido y acelera más.
+ */
+export const DIFFICULTY_SPEEDS: Record<Difficulty, { startMs: number; perFood: number; floorMs: number }> = {
+  facil: { startMs: 180, perFood: 2, floorMs: 110 },
+  medio: { startMs: 140, perFood: 4, floorMs: 70 },
+  dificil: { startMs: 110, perFood: 5, floorMs: 55 },
+};
+
+/** Id de registro de la partida: la dificultad tiene su propia clave (D1). */
+export function recordGameId(difficulty: Difficulty): string {
+  return difficulty === 'medio' ? 'serpiente' : `serpiente-${difficulty}`;
+}
+
+/** Labels de presentación (HUD/overlay/Ajustes). */
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  facil: 'Fácil',
+  medio: 'Medio',
+  dificil: 'Difícil',
+};
+
 /**
  * Evento `die` con payload (B2): `cause` distingue muro (fuera del tablero,
  * `cell: null`) de auto-colisión (`cell` = celda del cuerpo contra la que
@@ -54,6 +84,8 @@ export interface GameState {
   score: number;
   elapsedMs: number;
   wrap: boolean;
+  /** Dificultad de la run en curso (fija al crear el estado, D5). */
+  difficulty: Difficulty;
   status: GameStatus;
   /** Estado serializable del PRNG (sin closures). */
   rngSeed: number;
@@ -62,6 +94,8 @@ export interface GameState {
 export interface SerpienteConfig {
   rngSeed?: number;
   wrap?: boolean;
+  /** La dificultad EXPLÍCITA del config manda sobre el setting del usuario. */
+  difficulty?: Difficulty;
   snake?: number[];
   dir?: Direction;
   food?: number;
@@ -70,9 +104,10 @@ export interface SerpienteConfig {
   score?: number;
 }
 
-/** Velocidad progresiva D2: `max(70, 140 - eaten*4)` (~7 → 14 celdas/s). */
-export function stepMs(eaten: number): number {
-  return Math.max(70, 140 - eaten * 4);
+/** Velocidad progresiva D2 por dificultad: `max(piso, inicio - eaten*descenso)`. */
+export function stepMs(eaten: number, difficulty: Difficulty = 'medio'): number {
+  const { startMs, perFood, floorMs } = DIFFICULTY_SPEEDS[difficulty];
+  return Math.max(floorMs, startMs - eaten * perFood);
 }
 
 /**
@@ -156,6 +191,7 @@ export function createGameState(config: SerpienteConfig = {}): GameState {
     score: config.score ?? 0,
     elapsedMs: 0,
     wrap: config.wrap ?? true,
+    difficulty: config.difficulty ?? 'medio',
     status: 'playing',
     rngSeed,
   };
@@ -180,7 +216,7 @@ function endRun(state: GameState, status: 'won' | 'lost'): GameState {
 
 function stepOnce(state: GameState): { state: GameState; events: SerpienteEvent[] } {
   const events: SerpienteEvent[] = [];
-  const cost = stepMs(state.eaten);
+  const cost = stepMs(state.eaten, state.difficulty);
   const dir = state.queued.length > 0 ? state.queued[0] : state.dir;
   const queued = state.queued.slice(1);
   const next = stepIndex(state.snake[0], dir, state.wrap);
@@ -258,8 +294,8 @@ export function advance(
   let current = state;
   let leftover = Math.max(0, dtMs);
   let guard = 0;
-  while (current.status === 'playing' && leftover >= stepMs(current.eaten) && guard < MAX_STEPS_PER_FRAME) {
-    leftover -= stepMs(current.eaten);
+  while (current.status === 'playing' && leftover >= stepMs(current.eaten, current.difficulty) && guard < MAX_STEPS_PER_FRAME) {
+    leftover -= stepMs(current.eaten, current.difficulty);
     const result = stepOnce(current);
     events.push(...result.events);
     current = result.state;

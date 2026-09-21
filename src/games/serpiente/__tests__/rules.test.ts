@@ -2,11 +2,15 @@ import { toIndex } from '../engine/grid';
 import {
   advance,
   createGameState,
+  DIFFICULTY_SPEEDS,
+  DIFFICULTIES,
+  recordGameId,
   SCORE_FOOD,
   SCORE_SPECIAL,
   SPECIAL_TTL_MS,
   setDirection,
   stepMs,
+  type Difficulty,
   type GameState,
   type SerpienteEvent,
 } from '../engine/rules';
@@ -29,6 +33,60 @@ describe('rules serpiente', () => {
     expect(stepMs(17)).toBe(72);
     expect(stepMs(18)).toBe(70);
     expect(stepMs(100)).toBe(70);
+  });
+
+  test('dificultad fácil (T2): tabla exacta 180 / -2 / piso 110', () => {
+    expect(stepMs(0, 'facil')).toBe(180);
+    expect(stepMs(5, 'facil')).toBe(170);
+    expect(stepMs(34, 'facil')).toBe(112);
+    expect(stepMs(35, 'facil')).toBe(110);
+    expect(stepMs(100, 'facil')).toBe(110);
+  });
+
+  test('dificultad difícil (T2): tabla exacta 110 / -5 / piso 55', () => {
+    expect(stepMs(0, 'dificil')).toBe(110);
+    expect(stepMs(5, 'dificil')).toBe(85);
+    expect(stepMs(11, 'dificil')).toBe(55);
+    expect(stepMs(100, 'dificil')).toBe(55);
+  });
+
+  test('más comida nunca hace más rápida la serpiente (piso monótono)', () => {
+    for (const difficulty of DIFFICULTIES) {
+      let prev = stepMs(0, difficulty);
+      for (let eaten = 1; eaten <= 400; eaten++) {
+        const ms = stepMs(eaten, difficulty);
+        expect(ms).toBeLessThanOrEqual(prev);
+        expect(ms).toBeGreaterThanOrEqual(DIFFICULTY_SPEEDS[difficulty].floorMs);
+        prev = ms;
+      }
+    }
+  });
+
+  test('fácil nunca es más rápido que medio en todo el rango de comidas', () => {
+    for (let eaten = 0; eaten <= 400; eaten++) {
+      expect(stepMs(eaten, 'facil')).toBeGreaterThanOrEqual(stepMs(eaten, 'medio'));
+      expect(stepMs(eaten, 'medio')).toBeGreaterThanOrEqual(stepMs(eaten, 'dificil'));
+    }
+  });
+
+  test('createGameState fija la dificultad del config (default medio)', () => {
+    expect(createGameState().difficulty).toBe('medio');
+    expect(createGameState({ difficulty: 'facil' }).difficulty).toBe('facil');
+    expect(createGameState({ difficulty: 'dificil' }).difficulty).toBe('dificil');
+  });
+
+  test('advance usa la tabla de la dificultad del estado', () => {
+    const state = createGameState({ difficulty: 'dificil' });
+    // Con dificultad difícil el primer paso cuesta 110ms: 109ms no alcanza.
+    const early = advance(state, 109);
+    expect(early.state).toBe(state);
+    const late = advance(state, 110);
+    expect(late.state).not.toBe(state);
+  });
+
+  test('recordGameId: medio = clave base, fácil/difícil con sufijo (D1)', () => {
+    const ids = DIFFICULTIES.map((difficulty: Difficulty) => recordGameId(difficulty));
+    expect(ids).toEqual(['serpiente-facil', 'serpiente', 'serpiente-dificil']);
   });
 
   test('comer crece +10 con evento eat y respawnea comida libre', () => {

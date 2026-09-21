@@ -42,7 +42,7 @@ import {
   updateFloatingDrag,
 } from './engine/controls';
 import { GRID_COLS, GRID_ROWS, colOf, rowOf, type Direction } from './engine/grid';
-import { parseSerpienteSeed } from './engine/seed';
+import { parseSerpienteDifficulty, parseSerpienteSeed } from './engine/seed';
 import {
   DEATH_FREEZE_MS,
   END_DELAY_LOST_MS,
@@ -51,12 +51,13 @@ import {
   hitStopForEvent,
   popupForEvent,
 } from './engine/feel';
-import { SPECIAL_EVERY, type SerpienteEvent } from './engine/rules';
+import { SPECIAL_EVERY, type Difficulty, type SerpienteEvent, recordGameId, DIFFICULTY_LABELS } from './engine/rules';
 import { drainTickStats, getStepProgress, setTickStatsEnabled, useSerpienteStore } from './engine/state';
 
 const PREF_WRAP = 'serpiente.wrap';
 const PREF_CONTROL = 'serpiente.controlMode';
 const PREF_RING = 'serpiente.floatingRing';
+const PREF_DIFFICULTY = 'serpiente.dificultad';
 /** Presupuesto de frame ~16.7ms: dt > 25ms = stall del loop rAF (JS thread). */
 const STALL_BUDGET_MS = 25;
 /** Coreografía del shake de muerte (los tiempos van en `engine/feel.ts`). */
@@ -77,12 +78,21 @@ interface ScorePopup {
  * hit-stop del especial, freeze+shake+flash de muerte y overlays. Sonido,
  * haptics, prime, auto-pausa y `onGameEnd`/récord: T4.
  */
-export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: GameScreenProps) {
+export default function SerpienteScreen({
+  onExit,
+  onGameEnd,
+  initialSeed,
+  initialDifficulty,
+  onActiveGameId,
+}: GameScreenProps) {
   const { size, onLayout } = useContainerSize();
   const [cellSize, setCellSize] = useState(0);
   // T4: récord vía onGameEnd (solo app/juego/[id].tsx escribe récords, D11).
   const onGameEndRef = useRef(onGameEnd);
   onGameEndRef.current = onGameEnd;
+  // D6: el ScoreBoard del header consulta la clave de la run activa.
+  const onActiveGameIdRef = useRef(onActiveGameId);
+  onActiveGameIdRef.current = onActiveGameId;
   const endedRef = useRef(false);
   const reduced = useReducedMotion();
 
@@ -90,6 +100,7 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
   const [controlMode, setControlMode] = useState<ControlMode>('gestos');
   const [ringEnabled, setRingEnabled] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [difficulty, setDifficultyState] = useState<Difficulty>('medio');
   const [popups, setPopups] = useState<ScorePopup[]>([]);
   const [endShown, setEndShown] = useState(false);
   const [deathCell, setDeathCell] = useState<number | null>(null);
@@ -111,6 +122,8 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
   const elapsedMs = useSerpienteStore((s) => s.game.elapsedMs);
   // B1: hook a nivel de componente (nunca condicional en el JSX).
   const wrap = useSerpienteStore((s) => s.wrap);
+  /** Dificultad de la RUN en curso (fija al crear el estado; D5). */
+  const runDifficulty = useSerpienteStore((s) => s.game.difficulty);
 
   // Shake de muerte en UI-thread (reduced motion: sin shake).
   const shakeX = useSharedValue(0);
@@ -136,7 +149,8 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     };
   }, []);
 
-  const restart = useCallback(() => {
+  /** Limpieza de FX de pantalla entre runs (compartido por restart/cambio). */
+  const clearRunFx = useCallback(() => {
     endedRef.current = false;
     setEndShown(false);
     setPopups([]);
@@ -147,8 +161,18 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     shakeX.value = 0;
     if (endTimerRef.current) clearTimeout(endTimerRef.current);
     if (deathTimerRef.current) clearTimeout(deathTimerRef.current);
-    useSerpienteStore.getState().reset(initialSeed);
-  }, [initialSeed, shakeX]);
+  }, [shakeX, stepProgress]);
+
+  // E2E: la dificultad pedida por URL (`?difficulty=`) manda en cada reset.
+  const difficultyParam = useMemo(
+    () => parseSerpienteDifficulty(initialDifficulty),
+    [initialDifficulty],
+  );
+
+  const restart = useCallback(() => {
+    clearRunFx();
+    useSerpienteStore.getState().reset(initialSeed, difficultyParam);
+  }, [clearRunFx, initialSeed, difficultyParam]);
 
   // --- partida: reset al montar y al reintentar (conserva seed E2E)
   useEffect(() => {
@@ -228,6 +252,26 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     };
   }, [isTouch]);
 
+  // --- dificultad (T2): la preferencia persistida (default medio) rige las
+  // runs normales; con sentinela E2E el config manda y no se carga (patrón
+  // wrap). Cambiarla a mitad de partida reinicia la run (D5, en el store).
+  useEffect(() => {
+    if (parseSerpienteSeed(initialSeed)) return;
+    let cancelled = false;
+    void preferencesRepository.get(PREF_DIFFICULTY).then((raw) => {
+      if (cancelled) return;
+      if (raw !== 'facil' && raw !== 'dificil') return;
+      setDifficultyState(raw);
+      if (useSerpienteStore.getState().difficulty !== raw) {
+        // La run acaba de arrancar con el default: reiniciarla es invisible.
+        useSerpienteStore.getState().setDifficulty(raw);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialSeed]);
+
   const changeWrap = useCallback((wrap: boolean) => {
     useSerpienteStore.getState().setWrap(wrap);
     void preferencesRepository.set(PREF_WRAP, wrap ? '1' : '0');
@@ -242,6 +286,17 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     setRingEnabled(ring);
     void preferencesRepository.set(PREF_RING, ring ? '1' : '0');
   }, []);
+
+  const changeDifficulty = useCallback((next: Difficulty) => {
+    // D5: el store reinicia la run si estaba jugando; la pantalla limpia FX.
+    // La run nueva arranca DESPAUSADA: se cancela la auto-pausa del modal
+    // (si no, cerrar ajustes re-pausaría una partida que ya reinició).
+    clearRunFx();
+    autoPausedRef.current = false;
+    useSerpienteStore.getState().setDifficulty(next);
+    setDifficultyState(next);
+    void preferencesRepository.set(PREF_DIFFICULTY, next);
+  }, [clearRunFx]);
 
   // --- D3: abrir ajustes pausa la partida (sin inputs accidentales mientras
   // se configura); si la pausa la puso el modal, se reanuda sola al cerrar.
@@ -294,13 +349,18 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
     endedRef.current = true;
     const game = useSerpienteStore.getState().game;
     onGameEndRef.current({
-      gameId: 'serpiente',
+      gameId: recordGameId(game.difficulty),
       won,
       score: game.score,
       durationMs: game.elapsedMs,
       finishedAt: new Date().toISOString(),
     });
   }, []);
+
+  // D6: el header consulta la clave de registro de la run activa.
+  useEffect(() => {
+    onActiveGameIdRef.current?.(recordGameId(runDifficulty));
+  }, [runDifficulty]);
 
   const scheduleEnd = useCallback((delayMs: number) => {
     if (endTimerRef.current) clearTimeout(endTimerRef.current);
@@ -559,9 +619,11 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
         wrap={wrap}
         mode={controlMode}
         ring={ringEnabled}
+        difficulty={difficulty}
         onChangeWrap={changeWrap}
         onChangeMode={changeControlMode}
         onChangeRing={changeRing}
+        onChangeDifficulty={changeDifficulty}
         onClose={closeSettings}
       />
       {paused && status === 'playing' && !settingsOpen ? (
@@ -573,6 +635,7 @@ export default function SerpienteScreen({ onExit, onGameEnd, initialSeed }: Game
           score={score}
           eaten={eaten}
           seconds={Math.floor(elapsedMs / 1000)}
+          difficulty={runDifficulty}
           onRestart={restart}
           onExit={onExit}
         />

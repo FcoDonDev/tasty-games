@@ -113,30 +113,42 @@ Cubre juegos existentes y core (registro, tipos). No crea juegos nuevos.
 
 ### T2 — Serpiente: niveles de dificultad (M, ~1 día)
 
-- [ ] `engine/rules.ts`: tipo `Difficulty = 'facil' | 'medio' | 'dificil'`;
-      tabla de velocidad por dificultad; `stepMs(eaten, difficulty)`:
+- [x] `engine/rules.ts`: tipo `Difficulty = 'facil' | 'medio' | 'dificil'`;
+      tabla de velocidad por dificultad (`DIFFICULTY_SPEEDS`); `stepMs(eaten, difficulty)`:
       - **Fácil**: inicio 180ms (≈5,5 celdas/s), -2/comida, piso 110ms.
       - **Medio**: números actuales (140 / -4 / piso 70).
       - **Difícil**: inicio 110ms, -5/comida, piso 55ms.
-      `advance()` usa la dificultad del estado.
-- [ ] `SerpienteConfig.difficulty?: Difficulty` (default `'medio'`), campo en
+      `advance()` usa la dificultad del estado. + `DIFFICULTIES`, `DIFFICULTY_LABELS`
+      y `recordGameId(difficulty)`.
+- [x] `SerpienteConfig.difficulty?: Difficulty` (default `'medio'`), campo en
       `GameState` + store: `setDifficulty` reinicia la partida si estaba
       `playing` (D5); el selector indica el efecto.
-- [ ] Seeds E2E: config de cada sentinela con dificultad explícita ('medio') +
+      → Store: `startRun(seed?, difficultyParam?)` con prioridad URL >
+      config del sentinela > setting; `runSeed` conservado al cambiar en
+      caliente (los sentinelas sobreviven al cambio).
+- [x] Seeds E2E: config de cada sentinela con dificultad explícita ('medio') +
       parse de `?difficulty=` en la URL (E3); la preferencia persistida nunca
       pisa el config de seed.
-- [ ] Récords (D1+D6): gameId = `serpiente` / `serpiente-facil` /
+      → `parseSerpienteDifficulty()` en seed.ts; `app/juego/[id].tsx` gatea el
+      param con EXPO_PUBLIC_E2E=1 y lo pasa como `initialDifficulty`.
+- [x] Récords (D1+D6): gameId = `serpiente` / `serpiente-facil` /
       `serpiente-dificil` según la dificultad de la partida; header/EndOverlay
       consultan la clave activa; card del Home siempre `serpiente`.
-- [ ] UI: selector fácil/medio/difícil en `SettingsSheet.tsx` +
+      → `GameScreenProps.onActiveGameId` (types.ts core) + `activeGameId` en
+      `app/juego/[id].tsx` alimentando `<ScoreBoard>`.
+- [x] UI: selector fácil/medio/difícil en `SettingsSheet.tsx` +
       persistencia `PREF_DIFFICULTY`; dificultad visible en HUD/EndOverlay.
-- [ ] Specs E2E de dificultad escritos con TECLADO (flechas), no swipe ni
+- [x] Specs E2E de dificultad escritos con TECLADO (flechas), no swipe ni
       botones (M4): no dependen de T3 ni de carreras de gesto.
-- [ ] Specs existentes de récords intactos: corren sin `?difficulty` → clave
+      → `serpiente-dificultad.web.spec.ts`: récord en clave propia
+      (`?seed=test-lose&difficulty=facil`) + selector/reinicio/persistencia
+      (clicks sobre Ajustes, sin input de movimiento).
+- [x] Specs existentes de récords intactos: corren sin `?difficulty` → clave
       base (E2).
-- [ ] Tests: `rules.test.ts` candea las tres tablas exactas (180/-2/110,
+- [x] Tests: `rules.test.ts` candea las tres tablas exactas (180/-2/110,
       140/-4/70, 110/-5/55), piso monótono, y que el piso de fácil nunca es
-      menor que el de medio en todo el rango de `eaten` (M5).
+      menor que el de medio en todo el rango de `eaten` (M5). + store
+      (`setDifficulty` reinicia/solo fija, prioridades) + seed (parse).
 
 ### T3 — Serpiente: controles visibles (M-L, ~1,5-2 días)
 
@@ -226,6 +238,13 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
   y `help.web.spec.ts` no referencian la card de Damas (sin cambios). Único
   E2E adicional al previsto: `damas.web.spec.ts` "salir vuelve al Home" usaba
   la card del Home como entrada → deep link directo. Suite: 73 passed.
+- **T2 ejecutada**: prioridad de dificultad implementada como
+  URL > config sentinela > setting (`startRun(seed?, difficultyParam?)`);
+  `setDifficulty` conserva `runSeed` para que el cambio en caliente no
+  descarte un sentinela. Hallazgo de UX: cambiar dificultad mientras Ajustes
+  tenía la run auto-pausada dejaba `autoPausedRef` pegado → al cerrar el
+  modal se re-pausaba la partida ya reiniciada; reconciliado en
+  `changeDifficulty` (`autoPausedRef = false`). Suite E2E: 75 passed.
 
 - Cubicación previa: total ~5-5,5 días; con la revisión, T3 sube a ~2 días
   (reescribir specs táctiles por el default 'botones') y T4 a ~3 días

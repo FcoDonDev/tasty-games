@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
+import { DIFFICULTIES, DIFFICULTY_LABELS, type Difficulty } from '../engine/rules';
 
 export type ControlMode = 'gestos' | 'flotante';
 
@@ -29,11 +30,20 @@ interface SettingsModalProps {
   wrap: boolean;
   mode: ControlMode;
   ring: boolean;
+  /** Dificultad seleccionada (T2); cambiarla reinicia la run (D5). */
+  difficulty: Difficulty;
   onChangeWrap: (wrap: boolean) => void;
   onChangeMode: (mode: ControlMode) => void;
   onChangeRing: (ring: boolean) => void;
+  onChangeDifficulty: (difficulty: Difficulty) => void;
   onClose: () => void;
 }
+
+const DIFFICULTY_HINTS: Record<Difficulty, string> = {
+  facil: 'Paso lento, ideal para empezar',
+  medio: 'Velocidad clásica',
+  dificil: 'Arranca rápido y acelera más',
+};
 
 export function SettingsModal({
   visible,
@@ -41,9 +51,11 @@ export function SettingsModal({
   wrap,
   mode,
   ring,
+  difficulty,
   onChangeWrap,
   onChangeMode,
   onChangeRing,
+  onChangeDifficulty,
   onClose,
 }: SettingsModalProps) {
   if (!visible) return null;
@@ -56,6 +68,25 @@ export function SettingsModal({
     >
       <View style={styles.card}>
         <Text style={styles.title}>Ajustes</Text>
+
+        <Text style={styles.sectionTitle}>Dificultad</Text>
+        <View style={styles.difficultyRow}>
+          {DIFFICULTIES.map((option) => (
+            <PressableScale
+              key={option}
+              accessibilityLabel={`serpiente-dificultad-${option}`}
+              onPress={() => onChangeDifficulty(option)}
+              style={[styles.difficultyOption, difficulty === option && styles.optionActive]}
+            >
+              <Text style={[styles.difficultyText, difficulty === option && styles.difficultyActive]}>
+                {DIFFICULTY_LABELS[option]}
+              </Text>
+            </PressableScale>
+          ))}
+        </View>
+        <Text style={styles.difficultyHint}>
+          {DIFFICULTY_HINTS[difficulty]} · se aplica al reiniciar
+        </Text>
 
         <PressableScale
           accessibilityLabel="serpiente-wrap"
@@ -165,6 +196,37 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 4,
+  },
+  sectionTitle: {
+    color: '#86EFAC',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  difficultyRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  difficultyOption: {
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#14532B',
+    borderRadius: 12,
+    paddingVertical: 10,
+  },
+  difficultyText: {
+    color: '#E2E8F0',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  difficultyActive: {
+    color: '#4ADE80',
+  },
+  difficultyHint: {
+    color: '#86EFAC',
+    fontSize: 12,
   },
   option: {
     flexDirection: 'row',

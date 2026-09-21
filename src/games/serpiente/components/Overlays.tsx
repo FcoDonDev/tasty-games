@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { overlayEnter, overlayExit } from '@/core/ui/overlayAnimation';
-import type { GameStatus } from '../engine/rules';
+import { DIFFICULTY_LABELS, type Difficulty, type GameStatus } from '../engine/rules';
 
 export function PauseOverlay({ onResume }: { onResume: () => void }) {
   return (
@@ -27,6 +27,7 @@ export function EndOverlay({
   score,
   eaten,
   seconds,
+  difficulty,
   onRestart,
   onExit,
 }: {
@@ -34,6 +35,7 @@ export function EndOverlay({
   score: number;
   eaten: number;
   seconds: number;
+  difficulty: Difficulty;
   onRestart: () => void;
   onExit: () => void;
 }) {
@@ -48,7 +50,7 @@ export function EndOverlay({
       <View style={styles.card}>
         <Text style={styles.title}>{won ? '¡Tablero lleno!' : 'Fin del juego'}</Text>
         <Text style={styles.stats}>
-          {score} pts · {eaten} comidas · {seconds}s
+          {score} pts · {eaten} comidas · {seconds}s · {DIFFICULTY_LABELS[difficulty]}
         </Text>
         <PressableScale accessibilityLabel="reintentar-serpiente" onPress={onRestart} style={styles.button}>
           <Text style={styles.buttonText}>Jugar de nuevo</Text>

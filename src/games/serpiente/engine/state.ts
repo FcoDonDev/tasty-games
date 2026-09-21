@@ -11,6 +11,7 @@ import {
   createGameState,
   setDirection as setDirectionRule,
   stepMs,
+  type Difficulty,
   type GameState,
   type SerpienteEvent,
 } from './rules';
@@ -21,14 +22,24 @@ export interface SerpienteStore {
   paused: boolean;
   /** Setting D1 (la pantalla lo persiste en `preferencesRepository`, T3). */
   wrap: boolean;
-  /** Inicia una run; `seed` solo llega en builds E2E (D12). */
-  startRun: (seed?: string) => void;
-  reset: (seed?: string) => void;
+  /** Setting de dificultad (la pantalla lo persiste, T2). Default: medio. */
+  difficulty: Difficulty;
+  /** Seed de la run activa (sentinela E2E): `setDifficulty` lo conserva. */
+  runSeed?: string;
+  /**
+   * Inicia una run; `seed` solo llega en builds E2E (D12). Prioridad de
+   * dificultad: parámetro de URL (E2E) > config del sentinela > setting del
+   * usuario.
+   */
+  startRun: (seed?: string, difficultyParam?: Difficulty) => void;
+  reset: (seed?: string, difficultyParam?: Difficulty) => void;
   /** Avanza la simulación; devuelve los eventos discretos (sonido/haptics). */
   tick: (dtMs: number) => SerpienteEvent[];
   setDirection: (dir: Direction) => void;
   togglePause: () => void;
   setWrap: (wrap: boolean) => void;
+  /** D5: fija el setting y REINICIA la run si estaba jugando. */
+  setDifficulty: (difficulty: Difficulty) => void;
 }
 
 /**
@@ -79,26 +90,33 @@ let tickAccumMs = 0;
 export function getStepProgress(): number {
   const { game, paused } = useSerpienteStore.getState();
   if (paused || game.status !== 'playing') return 0;
-  return Math.min(1, Math.max(0, tickAccumMs) / stepMs(game.eaten));
+  return Math.min(1, Math.max(0, tickAccumMs) / stepMs(game.eaten, game.difficulty));
 }
 
 export const useSerpienteStore = create<SerpienteStore>()((set, get) => ({
   game: createGameState(seedConfig(undefined)),
   paused: false,
   wrap: true,
+  difficulty: 'medio',
 
-  startRun: (seed) => {
+  startRun: (seed, difficultyParam) => {
     const config = seedConfig(parseSerpienteSeed(seed));
     tickAccumMs = 0;
     set(() => ({
+      runSeed: seed,
       // El sentinela manda en `wrap` si lo fija (test-lose); si no, se
-      // conserva el setting del usuario.
-      game: createGameState({ ...config, wrap: config.wrap ?? get().wrap }),
+      // conserva el setting del usuario. La dificultad respeta la prioridad
+      // URL > config del sentinela > setting del usuario.
+      game: createGameState({
+        ...config,
+        wrap: config.wrap ?? get().wrap,
+        difficulty: difficultyParam ?? config.difficulty ?? get().difficulty,
+      }),
       paused: false,
     }));
   },
 
-  reset: (seed) => get().startRun(seed),
+  reset: (seed, difficultyParam) => get().startRun(seed, difficultyParam),
 
   tick: (dtMs) => {
     const { game, paused } = get();
@@ -138,5 +156,17 @@ export const useSerpienteStore = create<SerpienteStore>()((set, get) => ({
     // Aplicación inmediata: el setting rige también la run en curso.
     const { game } = get();
     set(() => ({ wrap, game: game.status === 'playing' ? { ...game, wrap } : game }));
+  },
+
+  setDifficulty: (difficulty) => {
+    // D5: no se muta el timing de la run en caliente. Cambiar la dificultad a
+    // mitad de partida reinicia la partida con la nueva tabla (conservando el
+    // sentinela E2E si la run lo tenía); fuera de una run activa solo queda
+    // fijado para la próxima.
+    const { game, runSeed } = get();
+    set(() => ({ difficulty }));
+    if (game.status === 'playing') {
+      get().startRun(runSeed, difficulty);
+    }
   },
 }));

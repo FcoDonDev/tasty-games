@@ -13,16 +13,26 @@ import type { GameResult } from '@/core/types';
 
 export default function GameScreen() {
   const router = useRouter();
-  const { id, seed } = useLocalSearchParams<{ id: string; seed?: string }>();
+  const { id, seed, difficulty } = useLocalSearchParams<{
+    id: string;
+    seed?: string;
+    difficulty?: string;
+  }>();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const game = getGameById(id);
-  // El seed solo llega al juego en builds E2E (EXPO_PUBLIC_E2E=1): en producción
-  // nunca existe un canal para alterar el reparto.
+  // Seed y modo (dificultad) solo llegan al juego en builds E2E
+  // (EXPO_PUBLIC_E2E=1): en producción nunca existe un canal para alterarlo.
   const initialSeed = process.env.EXPO_PUBLIC_E2E === '1' ? seed : undefined;
+  const initialDifficulty = process.env.EXPO_PUBLIC_E2E === '1' ? difficulty : undefined;
   const [showHelp, setShowHelp] = useState(false);
   /** Refresca el ScoreBoard del chrome tras guardar una partida. */
   const [recordVersion, setRecordVersion] = useState(0);
+  /** D6: id de registro EFECTIVO de la run activa (ej. serpiente-facil). */
+  const [activeGameId, setActiveGameId] = useState(game?.id ?? id);
+  useEffect(() => {
+    setActiveGameId(game?.id ?? id);
+  }, [game, id]);
 
   const handleGameEnd = useCallback(
     async (result: GameResult) => {
@@ -70,7 +80,7 @@ export default function GameScreen() {
       <View style={[styles.chromeBar, { paddingTop: insets.top + 4 }]}>
         <Text style={[styles.chromeTitle, { color: theme.textMuted }]}>{game.name}</Text>
         <View style={styles.chromeRight}>
-          <ScoreBoard gameId={game.id} compact refreshKey={recordVersion} />
+          <ScoreBoard gameId={activeGameId} compact refreshKey={recordVersion} />
           {game.rules ? (
             <Pressable
               accessibilityRole="button"
@@ -85,7 +95,13 @@ export default function GameScreen() {
         </View>
       </View>
       <View style={styles.gameArea}>
-        <GameComponent onExit={() => exitToHome(router)} onGameEnd={handleGameEnd} initialSeed={initialSeed} />
+        <GameComponent
+          onExit={() => exitToHome(router)}
+          onGameEnd={handleGameEnd}
+          initialSeed={initialSeed}
+          initialDifficulty={initialDifficulty}
+          onActiveGameId={setActiveGameId}
+        />
       </View>
       {game.rules ? (
         <HelpModal gameId={game.id} rules={game.rules} visible={showHelp} onClose={() => setShowHelp(false)} />

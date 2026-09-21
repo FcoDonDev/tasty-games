@@ -1,5 +1,5 @@
 import { advance, createGameState, stepMs } from '../engine/rules';
-import { parseSerpienteSeed, seedConfig } from '../engine/seed';
+import { parseSerpienteDifficulty, parseSerpienteSeed, seedConfig } from '../engine/seed';
 
 describe('seeds serpiente (D12)', () => {
   test('parsea los 3 sentinelas y rechaza el resto', () => {
@@ -10,6 +10,15 @@ describe('seeds serpiente (D12)', () => {
     expect(parseSerpienteSeed('test-move')).toBeUndefined();
     expect(parseSerpienteSeed(undefined)).toBeUndefined();
     expect(parseSerpienteSeed(null)).toBeUndefined();
+  });
+
+  test('parseSerpienteDifficulty (T2): acepta los 3 modos, rechaza el resto', () => {
+    expect(parseSerpienteDifficulty('facil')).toBe('facil');
+    expect(parseSerpienteDifficulty('medio')).toBe('medio');
+    expect(parseSerpienteDifficulty('dificil')).toBe('dificil');
+    expect(parseSerpienteDifficulty('hard')).toBeUndefined();
+    expect(parseSerpienteDifficulty(undefined)).toBeUndefined();
+    expect(parseSerpienteDifficulty(null)).toBeUndefined();
   });
 
   test('test-win: un tick gana', () => {

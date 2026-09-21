@@ -5,7 +5,7 @@
  */
 
 import { CELL_COUNT, toIndex } from './grid';
-import type { SerpienteConfig } from './rules';
+import type { Difficulty, SerpienteConfig } from './rules';
 
 export const TEST_WIN_SEED = '__serpiente_test_win__';
 export const TEST_LOSE_SEED = '__serpiente_test_lose__';
@@ -29,13 +29,23 @@ export function parseSerpienteSeed(initialSeed?: string | null): SerpienteSeed |
 }
 
 /**
+ * Query param `difficulty` (E2E, PLAN-ACCESIBILIDAD T2) → Difficulty, o
+ * `undefined`. Prioridad en `startRun`: URL param > config del sentinela >
+ * setting del usuario.
+ */
+export function parseSerpienteDifficulty(difficulty?: string | null): Difficulty | undefined {
+  if (difficulty === 'facil' || difficulty === 'medio' || difficulty === 'dificil') return difficulty;
+  return undefined;
+}
+
+/**
  * A un paso de ganar: serpiente de 399 (todo menos la celda 0) con la cabeza
  * en la 1 mirando a la comida en la 0. Un tick come → tablero lleno → `won`.
  */
 function testWinConfig(): SerpienteConfig {
   const snake: number[] = [1];
   for (let i = 2; i < CELL_COUNT; i++) snake.push(i);
-  return { rngSeed: 1, wrap: true, snake, dir: 'left', food: 0, eaten: 399, score: 3990 };
+  return { rngSeed: 1, wrap: true, difficulty: 'medio', snake, dir: 'left', food: 0, eaten: 399, score: 3990 };
 }
 
 /** Muerte contra el muro: cabeza en (0,5) subiendo con `wrap=false`. */
@@ -43,6 +53,7 @@ function testLoseConfig(): SerpienteConfig {
   return {
     rngSeed: 2,
     wrap: false,
+    difficulty: 'medio',
     snake: [toIndex(0, 5), toIndex(1, 5), toIndex(2, 5)],
     dir: 'up',
     food: toIndex(10, 10),
@@ -54,6 +65,7 @@ function testGrowConfig(): SerpienteConfig {
   return {
     rngSeed: 3,
     wrap: true,
+    difficulty: 'medio',
     snake: [toIndex(10, 10), toIndex(10, 9), toIndex(10, 8)],
     dir: 'right',
     food: toIndex(10, 11),
@@ -76,6 +88,7 @@ function perfLongConfig(): SerpienteConfig {
   return {
     rngSeed: 4,
     wrap: true,
+    difficulty: 'medio',
     snake: [...tailFirst].reverse(),
     dir: 'down',
     food: toIndex(15, 10),

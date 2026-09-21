@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { useSerpienteStore } from '../engine/state';
+import { DIFFICULTY_LABELS } from '../engine/rules';
 
 /**
  * HUD B2 flotante + chip (D14): score grande centrado + chip violeta con la
@@ -12,6 +13,7 @@ export function Hud() {
     s.game.special ? Math.max(0, Math.ceil(s.game.special.ttlMs / 1000)) : null,
   );
   const len = useSerpienteStore((s) => s.game.snake.length);
+  const difficulty = useSerpienteStore((s) => s.game.difficulty);
 
   return (
     <View style={styles.hud} accessibilityLabel="hud-serpiente">
@@ -22,6 +24,9 @@ export function Hud() {
       <View style={styles.chip} accessibilityLabel={secs !== null ? `hud-especial-${secs}s` : 'hud-longitud'}>
         <Text style={styles.chipText}>{secs !== null ? `${secs}s` : `⬢ ${len}`}</Text>
       </View>
+      <Text style={styles.difficulty} accessibilityLabel="hud-dificultad">
+        {DIFFICULTY_LABELS[difficulty]}
+      </Text>
     </View>
   );
 }
@@ -58,5 +63,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
+  },
+  difficulty: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });
