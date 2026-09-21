@@ -134,18 +134,19 @@ const DIR_VECTORS: Record<string, { dx: number; dy: number }> = {
  * (proyección de su velocidad reduce la distancia).
  */
 export function threatsOf(state: import('./rules').GameState): Threat[] {
-  const robotPos = floatPos(state.robot, false);
+  const robotPos = floatPos(state.robot, false, state.maze);
   const threats: Threat[] = [];
   for (const drone of state.drones) {
     if (drone.mode !== 'roaming' && drone.mode !== 'exiting') continue;
     if (!drone.dir) continue;
-    const dronePos = floatPos(drone, drone.mode === 'exiting');
-    const distance = wrappedDistance(robotPos, dronePos);
+    const dronePos = floatPos(drone, drone.mode === 'exiting', state.maze);
+    const distance = wrappedDistance(robotPos, dronePos, state.maze.cols);
     const vec = DIR_VECTORS[drone.dir];
     const closing =
       wrappedDistance(
         { x: dronePos.x + vec.dx * 0.1, y: dronePos.y + vec.dy * 0.1 },
         robotPos,
+        state.maze.cols,
       ) < distance;
     threats.push({ distance, closing });
   }

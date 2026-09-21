@@ -47,6 +47,14 @@ export interface SeedConfig {
   droneStart?: Array<{ id: number; cell: number; mode: 'waiting' | 'roaming' }>;
   /** Fase inicial scatter/chase (E2E); default 'scatter' */
   startPhase?: 'scatter' | 'chase';
+  /**
+   * Modo de laberinto de la partida (T4). Los sentinelas EXISTENTES lo PINNEAN
+   * a 'normal' a propósito: su geometría (fila del robot, corral, súper c8)
+   * vive en el layout normal — si una pref `wakwak.modo='facil'` persistida
+   * los re-escribiera, las baterías 19×21 caerían fuera de la grilla 11×13
+   * y el sentinela jamás ganaría (prioridad: sentinela > URL > setting).
+   */
+  mode?: MazeMode;
 }
 
 const DEFAULT_RNG_SEED = 20260908;
@@ -54,7 +62,7 @@ const DEFAULT_RNG_SEED = 20260908;
 /** Seed base de una run normal; cada nivel deriva su stream con `levelRngSeed`. */
 export const RUN_BASE_SEED = DEFAULT_RNG_SEED;
 
-import { MAZE, MAZE_COLS } from './maze';
+import { MAZE, MAZE_COLS, type MazeMode } from './maze';
 
 const TEST_WIN_SEED = '__test_win__';
 const TEST_LOSE_SEED = '__test_lose__';
@@ -99,6 +107,7 @@ export function levelRngSeed(base: number, level: number): number {
 function defaultConfig(level: number): SeedConfig {
   return {
     label: 'default',
+    mode: 'normal',
     rngSeed: levelRngSeed(DEFAULT_RNG_SEED, level),
     level,
     batteryCells: MAZE.batteryCells,
@@ -118,6 +127,7 @@ function testWinConfig(): SeedConfig {
   for (let col = 8; col >= 4; col--) batteryCells.push(15 * MAZE_COLS + col);
   return {
     label: TEST_WIN_SEED,
+    mode: 'normal',
     rngSeed: DEFAULT_RNG_SEED,
     level: 8,
     batteryCells,
@@ -137,6 +147,7 @@ function testLevelConfig(): SeedConfig {
   return {
     ...win,
     label: TEST_LEVEL_SEED,
+    mode: 'normal',
     level: 1,
     releaseBase: 600_000,
     releaseStagger: 0,
@@ -147,6 +158,7 @@ function testLevelConfig(): SeedConfig {
 function testLoseConfig(): SeedConfig {
   return {
     label: TEST_LOSE_SEED,
+    mode: 'normal',
     rngSeed: DEFAULT_RNG_SEED,
     level: 3,
     batteryCells: MAZE.batteryCells,
@@ -166,6 +178,7 @@ function testPowerConfig(): SeedConfig {
   const batteryCells = MAZE.batteryCells.filter((cell) => cell !== superCell);
   return {
     label: TEST_POWER_SEED,
+    mode: 'normal',
     rngSeed: DEFAULT_RNG_SEED,
     level: 3,
     batteryCells,
@@ -191,6 +204,7 @@ function testComboConfig(): SeedConfig {
   );
   return {
     label: TEST_COMBO_SEED,
+    mode: 'normal',
     rngSeed: DEFAULT_RNG_SEED,
     level: 3,
     batteryCells,

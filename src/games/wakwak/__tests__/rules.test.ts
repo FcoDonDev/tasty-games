@@ -35,6 +35,19 @@ function playingGame(): GameState {
 }
 
 describe('rules: creación y determinismo', () => {
+  it('el estado carga el laberinto del modo (default normal, T4a)', () => {
+    const state = playingGame();
+    expect(state.mode).toBe('normal');
+    expect(state.maze).toBe(MAZE);
+    expect(state.drones).toHaveLength(4); // el fácil (T4c) tendrá 2
+  });
+
+  it('modo explícito en la config se respeta (createGameState es la resolución por modo)', () => {
+    const config = { ...seedConfig(), mode: 'facil' as const };
+    // T4a: 'facil' aún no tiene laberinto (T4b); createGameState propaga el error
+    expect(() => createGameState(config)).toThrow(/facil/);
+  });
+
   it('estado inicial: robot en spawn, drones en corral esperando', () => {
     const state = playingGame();
     expect(state.robot.cell).toBe(MAZE.robotSpawn);

@@ -11,12 +11,15 @@
 
 import {
   MAZE,
-  MAZE_COLS,
+  bonusCellFor,
   colOf,
   isCorralCell,
+  mazeFor,
   neighbor,
   oppositeDirection,
-  toIndex,
+  rowOf,
+  type MazeData,
+  type MazeMode,
   type Direction,
 } from './maze';
 import { chooseDroneDirection, type Personality } from './ai';
@@ -41,9 +44,10 @@ export const RESPAWN_MS = 6000;
 export const BONUS_WINDOW_MS = 10000;
 export const BONUS_TRIGGER = 0.5; // fracción de comestibles que activa el chip
 
-/** Celda del chip dorado: camino SIN batería (el pickup corre cada tick mientras
- * el robot está en la celda; si tuviera batería se la comería antes que el chip). */
-export const BONUS_CELL = toIndex(11, 9);
+/** Celda del chip dorado del modo NORMAL (camino SIN batería; el pickup corre
+ * cada tick mientras el robot está en la celda; si tuviera batería se la
+ * comería antes que el chip). El estado usa `bonusCellFor(game.mode)`. */
+export const BONUS_CELL = MAZE.bonusCell;
 
 /**
  * Puntos por el drone N comido dentro del MISMO modo power (D3, CE DX+):
@@ -99,6 +103,10 @@ export interface GameState {
   level: number;
   /** knobs de dificultad del nivel (levels.ts) */
   cfg: LevelConfig;
+  /** laberinto del modo activo: fuente de TODA la geometría del engine */
+  maze: MazeData;
+  /** modo de laberinto de la run (normal/fácil; récord y HUD lo leen) */
+  mode: MazeMode;
   /** comestibles consumidos (baterías + súper; el chip no cuenta) */
   eaten: number;
   totalEdibles: number;
@@ -150,9 +158,15 @@ interface Mover {
   progress: number;
 }
 
-function droneSpeed(drone: Drone, cfg: LevelConfig, powerMode: boolean, elroy: boolean): number {
+function droneSpeed(
+  drone: Drone,
+  cfg: LevelConfig,
+  powerMode: boolean,
+  elroy: boolean,
+  maze: MazeData,
+): number {
   if (drone.mode === 'waiting' || drone.mode === 'eaten') return 0;
-  if (drone.mode === 'exiting' || isCorralCell(drone.cell)) return cfg.speeds.droneCorral;
+  if (drone.mode === 'exiting' || isCorralCell(drone.cell, maze)) return cfg.speeds.droneCorral;
   const chase = cfg.speeds.droneChase * (elroy ? cfg.elroyBoost : 1);
   return powerMode ? cfg.speeds.droneFrightened : chase;
 }
@@ -167,11 +181,12 @@ function moveEntity(
   speed: number,
   nextDir: (cell: number) => Direction | null,
   canUseDoor: () => boolean,
+  maze: MazeData,
 ): void {
   if (!entity.dir || speed <= 0) return;
   let progress = entity.progress + speed * dtSec;
   while (progress >= 1) {
-    const target = neighbor(entity.cell, entity.dir, canUseDoor());
+    const target = neighbor(entity.cell, entity.dir, canUseDoor(), maze);
     if (target < 0) {
       progress = 0;
       break;
@@ -179,7 +194,7 @@ function moveEntity(
     progress -= 1;
     entity.cell = target;
     const dir = nextDir(target);
-    if (!dir || neighbor(target, dir, canUseDoor()) < 0) {
+    if (!dir || neighbor(target, dir, canUseDoor(), maze) < 0) {
       entity.dir = null;
       entity.progress = 0;
       return;
@@ -190,14 +205,14 @@ function moveEntity(
 }
 
 /** Invierte la marcha (reversa del swipe, cambio de fase o activación de power). */
-function reverseEntity(entity: Mover, canUseDoor: boolean): void {
+function reverseEntity(entity: Mover, canUseDoor: boolean, maze: MazeData): void {
   if (!entity.dir) return;
   if (entity.progress <= 0) {
     const back = oppositeDirection(entity.dir);
-    if (neighbor(entity.cell, back, canUseDoor) >= 0) entity.dir = back;
+    if (neighbor(entity.cell, back, canUseDoor, maze) >= 0) entity.dir = back;
     return;
   }
-  const target = neighbor(entity.cell, entity.dir, canUseDoor);
+  const target = neighbor(entity.cell, entity.dir, canUseDoor, maze);
   if (target < 0) {
     entity.dir = null;
     entity.progress = 0;
@@ -209,24 +224,32 @@ function reverseEntity(entity: Mover, canUseDoor: boolean): void {
 }
 
 /** Posición interpolada en unidades de celda (para render y colisiones). */
-export function floatPos(entity: Mover, canUseDoor: boolean): { x: number; y: number } {
-  const baseX = colOf(entity.cell) + 0.5;
-  const baseY = Math.floor(entity.cell / MAZE_COLS) + 0.5;
+export function floatPos(
+  entity: Mover,
+  canUseDoor: boolean,
+  maze: MazeData = MAZE,
+): { x: number; y: number } {
+  const baseX = colOf(entity.cell, maze.cols) + 0.5;
+  const baseY = rowOf(entity.cell, maze.cols) + 0.5;
   if (!entity.dir || entity.progress <= 0) return { x: baseX, y: baseY };
-  const target = neighbor(entity.cell, entity.dir, canUseDoor);
+  const target = neighbor(entity.cell, entity.dir, canUseDoor, maze);
   if (target < 0) return { x: baseX, y: baseY };
-  const tx = colOf(target) + 0.5;
-  const ty = Math.floor(target / MAZE_COLS) + 0.5;
+  const tx = colOf(target, maze.cols) + 0.5;
+  const ty = rowOf(target, maze.cols) + 0.5;
   // wrap de túnel: interpolar hacia fuera del borde, no cruzar todo el mapa
   const wrapped = Math.abs(tx - baseX) > 1;
-  const dx = wrapped ? (colOf(entity.cell) === 0 ? -1 : 1) : tx - baseX;
+  const dx = wrapped ? (colOf(entity.cell, maze.cols) === 0 ? -1 : 1) : tx - baseX;
   return { x: baseX + dx * entity.progress, y: baseY + (ty - baseY) * entity.progress };
 }
 
 /** Distancia con wrap horizontal (para colisiones y slow-mo en el túnel). */
-export function wrappedDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
+export function wrappedDistance(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  cols: number = MAZE.cols,
+): number {
   let dx = Math.abs(a.x - b.x);
-  if (dx > MAZE_COLS / 2) dx = MAZE_COLS - dx;
+  if (dx > cols / 2) dx = cols - dx;
   return Math.hypot(dx, a.y - b.y);
 }
 
@@ -251,10 +274,10 @@ export function worldSnapshot(state: GameState): {
     ? Math.max(0, Math.min(1, (state.powerUntil! - state.elapsedMs) / state.cfg.powerMs))
     : 0;
   return {
-    robot: { ...floatPos(state.robot, false), dir: state.robot.dir, powered },
+    robot: { ...floatPos(state.robot, false, state.maze), dir: state.robot.dir, powered },
     drones: state.drones.map((d) => ({
       id: d.id,
-      ...floatPos(d, d.mode === 'exiting'),
+      ...floatPos(d, d.mode === 'exiting', state.maze),
       dir: d.dir,
       mode: d.mode,
       powered,
@@ -269,10 +292,12 @@ export function worldSnapshot(state: GameState): {
 const PERSONALITIES: readonly Personality[] = [0, 1, 2, 3];
 
 export function createGameState(config: SeedConfig): GameState {
+  const mode: MazeMode = config.mode ?? 'normal';
+  const maze = mazeFor(mode);
   const cfg = levelConfig(config.level ?? 1);
   const releaseBase = config.releaseBase ?? cfg.releaseBase;
   const releaseStagger = config.releaseStagger ?? cfg.releaseStagger;
-  const drones = MAZE.droneSpawns.map((cell, i) => ({
+  const drones = maze.droneSpawns.map((cell, i) => ({
     id: i,
     personality: PERSONALITIES[i],
     cell,
@@ -290,7 +315,7 @@ export function createGameState(config: SeedConfig): GameState {
     }
   }
   return {
-    robot: { cell: MAZE.robotSpawn, dir: null, progress: 0, queued: [] },
+    robot: { cell: maze.robotSpawn, dir: null, progress: 0, queued: [] },
     drones,
     batteries: [...config.batteryCells].sort((a, b) => a - b),
     supers: [...config.superCells].sort((a, b) => a - b),
@@ -298,6 +323,8 @@ export function createGameState(config: SeedConfig): GameState {
     lives: 3,
     level: cfg.level,
     cfg,
+    maze,
+    mode,
     eaten: 0,
     totalEdibles: config.batteryCells.length + config.superCells.length,
     elapsedMs: 0,
@@ -321,10 +348,11 @@ export function createGameState(config: SeedConfig): GameState {
 /** Registra una dirección deseada (swipe/teclado). Reversa inmediata si aplica. */
 export function queueDirection(state: GameState, dir: Direction): GameState {
   const robot = state.robot;
+  const maze = state.maze;
   if (robot.dir && dir === oppositeDirection(robot.dir)) {
     // reversa inmediata: el último input prevalece (descarta lo encolado viejo)
     const reversed = { ...robot };
-    reverseEntity(reversed, false);
+    reverseEntity(reversed, false, maze);
     return { ...state, robot: { ...reversed, queued: [] } };
   }
   // buffer de 2 con prioridad al nuevo: el más reciente queda al final
@@ -332,7 +360,7 @@ export function queueDirection(state: GameState, dir: Direction): GameState {
   if (!robot.dir) {
     // robot detenido: aplica el primer viable desde el MÁS NUEVO
     for (let i = queued.length - 1; i >= 0; i--) {
-      if (neighbor(robot.cell, queued[i], false) >= 0) {
+      if (neighbor(robot.cell, queued[i], false, maze) >= 0) {
         return { ...state, robot: { ...robot, dir: queued[i], progress: 0, queued: [] } };
       }
     }
@@ -363,6 +391,9 @@ function step(state: GameState, dtMs: number): StepResult {
   const events: GameEvent[] = [];
   const elapsed = state.elapsedMs + dtMs;
   const dtSec = dtMs / 1000;
+  // el maze viaja en el estado: TODA la geometría de este tick es del modo activo
+  const maze = state.maze;
+  const bonusCell = bonusCellFor(state.mode);
 
   // --- fases scatter/chase (solo alternan fuera del modo power)
   const cfg = state.cfg;
@@ -375,7 +406,7 @@ function step(state: GameState, dtMs: number): StepResult {
     drones = drones.map((d) => {
       if (d.mode !== 'roaming') return d;
       const moved = { ...d };
-      reverseEntity(moved, false);
+      reverseEntity(moved, false, maze);
       return moved;
     });
   }
@@ -393,7 +424,7 @@ function step(state: GameState, dtMs: number): StepResult {
   if (!robot.dir && robot.queued.length > 0) {
     // detenido tras muro: primer viable desde el MÁS NUEVO (prioridad al nuevo)
     for (let i = robot.queued.length - 1; i >= 0; i--) {
-      if (neighbor(robot.cell, robot.queued[i], false) >= 0) {
+      if (neighbor(robot.cell, robot.queued[i], false, maze) >= 0) {
         robot.dir = robot.queued[i];
         robot.queued = [];
         robot.progress = 0;
@@ -406,15 +437,15 @@ function step(state: GameState, dtMs: number): StepResult {
     // en la intersección: el input más nuevo tiene prioridad; si se aplica
     // CUALQUIERA, el buffer se limpia (la última instrucción prevalece)
     for (let i = queue.length - 1; i >= 0; i--) {
-      if (neighbor(cell, queue[i], false) >= 0) {
+      if (neighbor(cell, queue[i], false, maze) >= 0) {
         robot.queued = [];
         return queue[i];
       }
     }
-    if (robot.dir && neighbor(cell, robot.dir, false) >= 0) return robot.dir;
+    if (robot.dir && neighbor(cell, robot.dir, false, maze) >= 0) return robot.dir;
     return null;
   };
-  moveEntity(robot, dtSec, cfg.speeds.robot, robotArrive, () => false);
+  moveEntity(robot, dtSec, cfg.speeds.robot, robotArrive, () => false, maze);
 
   // --- recolección al llegar a una celda
   let batteries = state.batteries;
@@ -436,7 +467,7 @@ function step(state: GameState, dtMs: number): StepResult {
       eaten += 1;
       powerUntil = elapsed + cfg.powerMs;
       events.push({ type: 'super' });
-    } else if (bonus && cell === BONUS_CELL) {
+    } else if (bonus && cell === bonusCell) {
       bonus = null;
       bonusTaken = true;
       score += SCORE_BONUS;
@@ -470,7 +501,7 @@ function step(state: GameState, dtMs: number): StepResult {
       if (drone.respawnAt !== null && elapsed >= drone.respawnAt) {
         return {
           ...drone,
-          cell: MAZE.droneSpawns[drone.id],
+          cell: maze.droneSpawns[drone.id],
           dir: null,
           progress: 0,
           mode: 'waiting' as DroneMode,
@@ -487,11 +518,11 @@ function step(state: GameState, dtMs: number): StepResult {
     const moved: Drone = { ...drone };
     const decision = (cell: number): Direction | null => {
       if (moved.mode === 'exiting') {
-        if (cell === MAZE.doorIndex) return 'up';
-        if (isCorralCell(cell)) {
+        if (cell === maze.doorIndex) return 'up';
+        if (isCorralCell(cell, maze)) {
           // dentro del corral: hacia la columna de la puerta y luego arriba
-          if (colOf(cell) < colOf(MAZE.doorIndex)) return 'right';
-          if (colOf(cell) > colOf(MAZE.doorIndex)) return 'left';
+          if (colOf(cell, maze.cols) < colOf(maze.doorIndex, maze.cols)) return 'right';
+          if (colOf(cell, maze.cols) > colOf(maze.doorIndex, maze.cols)) return 'left';
           return 'up';
         }
         moved.mode = 'roaming';
@@ -506,18 +537,19 @@ function step(state: GameState, dtMs: number): StepResult {
         scatter,
         personality: moved.personality,
         rng: state.rng,
+        maze,
       });
     };
 
     if (!moved.dir) {
       const dir = decision(moved.cell);
-      if (!dir || neighbor(moved.cell, dir, moved.mode === 'exiting') < 0) return moved;
+      if (!dir || neighbor(moved.cell, dir, moved.mode === 'exiting', maze) < 0) return moved;
       moved.dir = dir;
       moved.progress = 0;
     }
     const elroyDrone = elroy && moved.mode === 'roaming' && moved.personality === 0;
-    const speed = droneSpeed(moved, cfg, powerMode, elroyDrone);
-    moveEntity(moved, dtSec, speed, decision, () => moved.mode === 'exiting');
+    const speed = droneSpeed(moved, cfg, powerMode, elroyDrone, maze);
+    moveEntity(moved, dtSec, speed, decision, () => moved.mode === 'exiting', maze);
     return moved;
   });
 
@@ -526,13 +558,13 @@ function step(state: GameState, dtMs: number): StepResult {
   let caught = false;
   const caughtAt = { x: 0, y: 0 }; // sitio de la colisión (el close-up encuadra acá)
   let bestChain = state.bestChain;
-  const robotPosNow = floatPos(robot, false);
+  const robotPosNow = floatPos(robot, false, maze);
   const finalDrones = newDrones.map((drone) => {
     if (caught) return drone;
     if (drone.mode !== 'roaming' && drone.mode !== 'exiting') return drone;
     const robotPos = robotPosNow;
-    const dronePos = floatPos(drone, drone.mode === 'exiting');
-    if (wrappedDistance(robotPos, dronePos) > 0.7) return drone;
+    const dronePos = floatPos(drone, drone.mode === 'exiting', maze);
+    if (wrappedDistance(robotPos, dronePos, maze.cols) > 0.7) return drone;
     if (powerMode) {
       chain += 1;
       const points = droneChainPoints(chain);
@@ -580,11 +612,11 @@ function step(state: GameState, dtMs: number): StepResult {
 
   const next: GameState = {
     ...state,
-    robot: resetPositions ? { cell: MAZE.robotSpawn, dir: null, progress: 0, queued: [] } : robot,
+    robot: resetPositions ? { cell: maze.robotSpawn, dir: null, progress: 0, queued: [] } : robot,
     drones: resetPositions
       ? finalDrones.map((d, i) => ({
           ...d,
-          cell: MAZE.droneSpawns[i],
+          cell: maze.droneSpawns[i],
           dir: null,
           progress: 0,
           mode: 'waiting' as DroneMode,

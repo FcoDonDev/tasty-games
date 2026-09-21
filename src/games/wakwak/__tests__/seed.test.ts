@@ -44,6 +44,21 @@ describe('seed: parseGameSeed', () => {
 });
 
 describe('seed: seedConfig', () => {
+  it('TODOS los sentinelas y el default pinnean mode normal (T4a)', () => {
+    for (const seed of [
+      'test-win',
+      'test-lose',
+      'test-power',
+      'test-combo',
+      'test-level',
+      'perf-level-1',
+      'perf-level-8',
+    ] as const) {
+      expect(seedConfig(parseGameSeed(seed)).mode).toBe('normal');
+    }
+    expect(seedConfig(undefined, 1).mode).toBe('normal');
+  });
+
   it('default: laberinto completo; knobs de salida vienen del nivel', () => {
     const config = seedConfig(undefined, 1);
     expect(config.level).toBe(1);

@@ -180,7 +180,7 @@ Cubre juegos existentes y core (registro, tipos). No crea juegos nuevos.
 
 Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
 
-- [ ] **T4a — Refactor paramétrico de dims (~1 día, sin cambio de
+- [x] **T4a — Refactor paramétrico de dims (~1 día, sin cambio de
       comportamiento)**: parametrizar dims de `maze.ts` (hoy `MAZE_COLS=19` /
       `MAZE_ROWS=21` constantes de módulo); 12 callers: `rules.ts`, `seed.ts`,
       `ai.ts`, `MazeLayer.tsx`, `WakWakScreen.tsx`, `validateLayout`/preview,
@@ -188,6 +188,24 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
       `rules.ts`), `robotSpawn`, `droneSpawns`, baterías (E4). Los seeds
       existentes quedan scoped a Normal (D-4). Verde con el layout actual como
       único modo — red de seguridad para el resto.
+      → Ejecutada (con refinamiento de critical-plan-review):
+      `MazeData` auto-descrito (`cols/rows/bonusCell`); `mazeFor(mode)` +
+      `bonusCellFor(mode)` en maze.ts (SPECS: solo 'normal' hasta T4b; 'facil'
+      lanza). **El maze viaja en el estado** (`GameState.maze/mode`): step/
+      moveEntity/reverseEntity/floatPos(entity, canUseDoor, maze)/
+      wrappedDistance(a, b, cols)/droneSpeed/worldSnapshot/threatsOf leen
+      `state.maze`; `chooseDroneDirection` recibe `maze` en `DroneDecision`.
+      Minas de import-time eliminadas: `HOME_CORNERS` → `homeCorners(maze)`
+      (ai.ts; alias legacy intacto) y clamp de `aheadCell` por maze.rows.
+      Helpers `rowOf/colOf/toIndex/neighbor/isCorralCell/cellCenter/
+      cellDistance` con parámetro opcional default-MAZE (tests intactos).
+      `parseLayout(layout, expectedDrones=4)`; `parseLenient`/`openAreas3x3`/
+      `validateLayout` paramétricos en dims (pines por modo → T4b).
+      `SeedConfig.mode?`; los 7 sentinelas + default PINNEAN `mode:'normal'`
+      (geometría fila 15; candea seed.test). `state.startRun(level, seed,
+      modeParam?)` con prioridad sentinela > URL param > 'normal';
+      `advanceLevel` propaga el modo (nivel 2+ de run fácil = fácil). Suite:
+      524 unit + E2E 78 passed (0 cambios de comportamiento).
 - [ ] **T4b — Sesión de diseño del layout fácil (checkpoint con el usuario)**:
       iterar el laberinto reducido (~11×13, solo pasillos, corral sellado para
       2 drones, 2 súper, túnel) en `preview/LaberintoPreview.tsx` con un
@@ -272,6 +290,20 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
   con screenshots (bajo tablero y overlay XL) borrados al terminar.
   `fix-wrap` persiste fallando en aislado incluso con árbol limpio (T2):
   investigar por separado.
+- **T4a ejecutada**: blast radius mayor al previsto (revisión crítica): el
+  maze no podía ir por "default args sueltos" — `neighbor` lee grid/tunnelRow/
+  corral, `HOME_CORNERS` era constante evaluada en import-time (fila 19 fuera
+  de grilla en 11×13) y `aheadCell` clampaba con 19 hardcodeado. Decisión:
+  `GameState.maze` (referencia compartida, no copia) es la única fuente de
+  geometría del tick. `BONUS_CELL` sigue exportándose (render + tests) pero
+  el pickup usa `bonusCellFor(state.mode)`. Verificado: wakwak NO persiste
+  partida a mitad (solo récords/prefs) → restaurar estado con maze viejo no
+  aplica. Pendiente T4c (renderer): `MazeLayer` prop `maze`/`bonusCell`,
+  `EntitiesLayer` con N drones dinámicos (hoy hardcodea 4 → fantasmas en
+  fácil), cellSize/spawnPopup derivados del maze activo, contrato
+  `WorldSnapshot` ("siempre 4 drones").
+  `fix-wrap` (robo-jump) flake CONFIRMADO: falla y pasa alternando en el mismo
+  árbol limpio (falló 4×, pasó en 2 corridas completas) — investigar aparte.
 
 - Cubicación previa: total ~5-5,5 días; con la revisión, T3 sube a ~2 días
   (reescribir specs táctiles por el default 'botones') y T4 a ~3 días

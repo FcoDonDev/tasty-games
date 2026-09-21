@@ -7,13 +7,36 @@ import {
   cellCenter,
   colOf,
   isCorralCell,
+  mazeFor,
+  bonusCellFor,
   neighbor,
   oppositeDirection,
+  parseLayout,
   rowOf,
   toIndex,
+  type MazeData,
 } from '../engine/maze';
-import { HOME_CORNERS } from '../engine/ai';
+import { homeCorners, HOME_CORNERS } from '../engine/ai';
 import { BONUS_CELL } from '../engine/rules';
+
+/** Layout mínimo paramétrico (5×6, 2 drones): fixture del parseo por modo. */
+const LAYOUT_MINI = [
+  '#####',
+  '#D-.#',
+  '#D .#',
+  '#-..#',
+  '#R..#',
+  '#####',
+];
+// fila de túnel del mini (extremos no-muro): ninguna — se agrega abajo.
+const LAYOUT_MINI_TUNNEL = [
+  '#####',
+  '#D-.#',
+  '#D .#',
+  '  .. ',
+  '#R..#',
+  '#####',
+];
 
 /** Celdas transitables por el robot (path, sin corral ni puerta). */
 function robotWalkable(): number[] {
@@ -177,5 +200,68 @@ describe('maze: utilidades', () => {
   it('cellCenter y cellDistance', () => {
     expect(cellCenter(toIndex(3, 4))).toEqual({ x: 4.5, y: 3.5 });
     expect(cellDistance(toIndex(0, 0), toIndex(3, 4))).toBe(5);
+  });
+});
+
+describe('maze: refactor paramétrico por modo (T4a)', () => {
+  it('mazeFor(normal) ES el maze activo: 19×21, 4 drones, bonus cell (11,9)', () => {
+    expect(MAZE).toBe(mazeFor('normal')); // buildMaze delega en mazeFor
+    expect(MAZE.cols).toBe(19);
+    expect(MAZE.rows).toBe(21);
+    expect(MAZE.droneSpawns).toHaveLength(4);
+    expect(MAZE.bonusCell).toBe(BONUS_CELL);
+    expect(bonusCellFor('normal')).toBe(BONUS_CELL);
+  });
+
+  it('mazeFor(facil) lanza hasta que T4b diseña el layout fácil', () => {
+    expect(() => mazeFor('facil')).toThrow(/facil/);
+  });
+
+  it('parseLayout paramétrico: layout mini 5×6 con 2 drones', () => {
+    const mini: MazeData = parseLayout(LAYOUT_MINI_TUNNEL, 2);
+    expect(mini.cols).toBe(5);
+    expect(mini.rows).toBe(6);
+    expect(mini.grid).toHaveLength(30);
+    expect(mini.droneSpawns).toHaveLength(2);
+    expect(mini.robotSpawn).toBe(toIndex(4, 1, 5));
+    expect(mini.tunnelRow).toBe(3);
+    expect(mini.doorIndex).toBe(toIndex(1, 2, 5));
+    // helpers con maze explícito (default cols=19 no sirve acá)
+    expect(rowOf(toIndex(4, 1, 5), 5)).toBe(4);
+    expect(colOf(toIndex(4, 1, 5), 5)).toBe(1);
+    expect(isCorralCell(toIndex(1, 1, 5), mini)).toBe(true);
+    expect(isCorralCell(toIndex(4, 1, 5), mini)).toBe(false);
+  });
+
+  it('parseLayout paramétrico: el túnel del mini hace wrap en SU ancho', () => {
+    const mini = parseLayout(LAYOUT_MINI_TUNNEL, 2);
+    // (3,0) ' ← (3,4) ' con wrap en cols=5
+    expect(neighbor(toIndex(3, 0, 5), 'left', false, mini)).toBe(toIndex(3, 4, 5));
+    expect(neighbor(toIndex(3, 4, 5), 'right', false, mini)).toBe(toIndex(3, 0, 5));
+    // fuera del túnel, el borde bloquea
+    expect(neighbor(toIndex(4, 0, 5), 'left', false, mini)).toBe(-1);
+  });
+
+  it('parseLayout valida anchos consistentes, carácter desconocido y drones esperados', () => {
+    const anchoRoto = [...LAYOUT_MINI_TUNNEL];
+    anchoRoto[1] = '#D-#'; // 4 chars != 5
+    expect(() => parseLayout(anchoRoto, 2)).toThrow(/ancho/);
+    const caracterRaro = [...LAYOUT_MINI_TUNNEL];
+    caracterRaro[4] = '#R.X#';
+    expect(() => parseLayout(caracterRaro, 2)).toThrow(/desconocido/);
+    // 2 spawns en el layout, se pidieron 3
+    expect(() => parseLayout(LAYOUT_MINI_TUNNEL, 3)).toThrow(/3 spawns/);
+    // sin fila de túnel (LAYOUT_MINI: todas las filas con extremos en muro)
+    expect(() => parseLayout(LAYOUT_MINI, 2)).toThrow(/túnel/);
+  });
+
+  it('homeCorners es función del maze: normal ≡ HOME_CORNERS legacy', () => {
+    expect(homeCorners(MAZE)).toEqual(HOME_CORNERS);
+    expect(HOME_CORNERS).toEqual([
+      toIndex(1, 1),
+      toIndex(1, 17),
+      toIndex(19, 1),
+      toIndex(19, 17),
+    ]);
   });
 });

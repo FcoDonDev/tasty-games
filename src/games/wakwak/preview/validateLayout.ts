@@ -23,11 +23,19 @@ export interface LayoutParse {
   tunnelRow: number;
   batteries: number[];
   supers: number[];
+  /** dims derivadas del layout (T4a: parseo paramétrico por modo) */
+  cols: number;
+  rows: number;
 }
 
-/** Parseo tolerante: no lanza; devuelve null si dims/caracteres inválidos. */
-export function parseLenient(layout: readonly string[]): LayoutParse | null {
-  if (layout.length !== MAZE_ROWS) return null;
+/** Parseo tolerante: no lanza; devuelve null si dims/caracteres inválidos.
+ * Paramétrico en dims (T4a); los pines por modo se validan aparte. */
+export function parseLenient(
+  layout: readonly string[],
+  cols: number = MAZE_COLS,
+  rows: number = MAZE_ROWS,
+): LayoutParse | null {
+  if (layout.length !== rows) return null;
   const grid: LayoutParse['grid'] = [];
   const corral: number[] = [];
   const batteries: number[] = [];
@@ -35,12 +43,12 @@ export function parseLenient(layout: readonly string[]): LayoutParse | null {
   let door = -1;
   let spawn = -1;
   let tunnelRow = -1;
-  for (let r = 0; r < MAZE_ROWS; r++) {
+  for (let r = 0; r < rows; r++) {
     const line = layout[r];
-    if (line.length !== MAZE_COLS) return null;
-    if (line[0] !== '#' && line[MAZE_COLS - 1] !== '#') tunnelRow = r;
-    for (let c = 0; c < MAZE_COLS; c++) {
-      const i = toIndex(r, c);
+    if (line.length !== cols) return null;
+    if (line[0] !== '#' && line[cols - 1] !== '#') tunnelRow = r;
+    for (let c = 0; c < cols; c++) {
+      const i = toIndex(r, c, cols);
       const ch = line[c];
       if (ch === '#') {
         grid.push('wall');
@@ -67,22 +75,22 @@ export function parseLenient(layout: readonly string[]): LayoutParse | null {
       }
     }
   }
-  return { grid, corral, door, spawn, tunnelRow, batteries, supers };
+  return { grid, corral, door, spawn, tunnelRow, batteries, supers, cols, rows };
 }
 
 /** Vecino transitable para el robot (sin puerta ni corral), con wrap de túnel. */
 function neighbor(p: LayoutParse, i: number, dir: keyof typeof DIRS): number {
-  const r = Math.floor(i / MAZE_COLS);
-  const c = i % MAZE_COLS;
+  const r = Math.floor(i / p.cols);
+  const c = i % p.cols;
   let nr = r + DIRS[dir][0];
   let nc = c + DIRS[dir][1];
-  if (nc < 0 || nc >= MAZE_COLS) {
+  if (nc < 0 || nc >= p.cols) {
     // wrap lateral SOLO en la fila de túnel (misma regla del engine)
     if (r !== p.tunnelRow) return -1;
-    nc = nc < 0 ? MAZE_COLS - 1 : 0;
+    nc = nc < 0 ? p.cols - 1 : 0;
   }
-  if (nr < 0 || nr >= MAZE_ROWS) return -1;
-  const next = nr * MAZE_COLS + nc;
+  if (nr < 0 || nr >= p.rows) return -1;
+  const next = nr * p.cols + nc;
   const cell = p.grid[next];
   if (cell === 'wall' || cell === 'door') return -1;
   if (p.corral.includes(next)) return -1;
@@ -92,8 +100,8 @@ function neighbor(p: LayoutParse, i: number, dir: keyof typeof DIRS): number {
 /** Bloques abiertos 3×3 (todo transitable): la regla del usuario (solo pasillos). */
 export function openAreas3x3(p: LayoutParse): Array<[number, number]> {
   const found: Array<[number, number]> = [];
-  for (let r = 0; r + 2 < MAZE_ROWS; r++) {
-    for (let c = 0; c + 2 < MAZE_COLS; c++) {
+  for (let r = 0; r + 2 < p.rows; r++) {
+    for (let c = 0; c + 2 < p.cols; c++) {
       let all = true;
       for (let dr = 0; dr < 3 && all; dr++) {
         for (let dc = 0; dc < 3; dc++) {
@@ -117,11 +125,11 @@ export function validateLayout(layout: readonly string[]): string[] {
   // túnel y bordes
   if (p.tunnelRow < 0) problems.push('sin fila de túnel (extremos abiertos)');
   let tunnels = 0;
-  for (let r = 0; r < MAZE_ROWS; r++) if (p.grid[toIndex(r, 0)] === 'path') tunnels++;
+  for (let r = 0; r < p.rows; r++) if (p.grid[toIndex(r, 0, p.cols)] === 'path') tunnels++;
   if (tunnels !== 1) problems.push(`filas con borde abierto: ${tunnels} (debe ser 1)`);
-  for (let c = 0; c < MAZE_COLS; c++) {
-    if (p.grid[toIndex(0, c)] !== 'wall') problems.push(`borde superior abierto en c${c}`);
-    if (p.grid[toIndex(MAZE_ROWS - 1, c)] !== 'wall') problems.push(`borde inferior abierto en c${c}`);
+  for (let c = 0; c < p.cols; c++) {
+    if (p.grid[toIndex(0, c, p.cols)] !== 'wall') problems.push(`borde superior abierto en c${c}`);
+    if (p.grid[toIndex(p.rows - 1, c, p.cols)] !== 'wall') problems.push(`borde inferior abierto en c${c}`);
   }
 
   // piezas
@@ -137,14 +145,14 @@ export function validateLayout(layout: readonly string[]): string[] {
   for (const cell of p.corral) {
     for (const dir of Object.keys(DIRS) as Array<keyof typeof DIRS>) {
       if (neighbor(p, cell, dir) >= 0) {
-        problems.push(`corral NO sellado en (${Math.floor(cell / MAZE_COLS)},${cell % MAZE_COLS}) ${dir}`);
+        problems.push(`corral NO sellado en (${Math.floor(cell / p.cols)},${cell % p.cols}) ${dir}`);
       }
     }
   }
 
   // conectividad + callejones
   const walk = new Set<number>();
-  for (let i = 0; i < MAZE_ROWS * MAZE_COLS; i++) {
+  for (let i = 0; i < p.rows * p.cols; i++) {
     if (p.grid[i] !== 'path' || p.corral.includes(i)) continue;
     const dirs = Object.keys(DIRS) as Array<keyof typeof DIRS>;
     if (dirs.some((d) => neighbor(p, i, d) >= 0) || i === p.spawn) walk.add(i);
@@ -163,16 +171,16 @@ export function validateLayout(layout: readonly string[]): string[] {
       }
     }
     for (const c of walk) {
-      if (!seen.has(c)) problems.push(`inaccesible (${Math.floor(c / MAZE_COLS)},${c % MAZE_COLS})`);
+      if (!seen.has(c)) problems.push(`inaccesible (${Math.floor(c / p.cols)},${c % p.cols})`);
     }
   }
   for (const cell of [...p.batteries, ...p.supers]) {
-    if (!walk.has(cell)) problems.push(`batería inaccesible (${Math.floor(cell / MAZE_COLS)},${cell % MAZE_COLS})`);
+    if (!walk.has(cell)) problems.push(`batería inaccesible (${Math.floor(cell / p.cols)},${cell % p.cols})`);
   }
   for (const c of walk) {
     const dirs = Object.keys(DIRS) as Array<keyof typeof DIRS>;
     const exits = dirs.filter((d) => neighbor(p, c, d) >= 0).length;
-    if (exits < 2) problems.push(`CALLEJÓN (${Math.floor(c / MAZE_COLS)},${c % MAZE_COLS})`);
+    if (exits < 2) problems.push(`CALLEJÓN (${Math.floor(c / p.cols)},${c % p.cols})`);
   }
 
   // NO áreas abiertas 3×3 (regla del usuario: solo pasillos)

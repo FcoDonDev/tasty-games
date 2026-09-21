@@ -5,7 +5,7 @@ import {
   chooseDroneDirection,
   type DroneDecision,
 } from '../engine/ai';
-import { toIndex, type Direction } from '../engine/maze';
+import { MAZE, toIndex, type Direction } from '../engine/maze';
 
 function decision(overrides: Partial<DroneDecision>): DroneDecision {
   return {
@@ -17,6 +17,7 @@ function decision(overrides: Partial<DroneDecision>): DroneDecision {
     scatter: false,
     personality: 0,
     rng: () => 0.5,
+    maze: MAZE, // los tests de IA corren sobre el layout normal (T4a)
     ...overrides,
   };
 }
