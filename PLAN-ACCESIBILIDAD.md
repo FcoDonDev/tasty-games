@@ -2,8 +2,8 @@
 
 > Estado: PLAN aprobado + revisión crítica (critical-plan-review) incorporada.
 > Implementación NO iniciada.
-> Orden de ejecución: T1 → T2 → T3 → T4 (desglosada en T4a-T4d). Cada tarea
-> cierra con la verificación estándar verde antes de pasar a la siguiente.
+> Orden de ejecución: T1 → T2 → T3 → T4 (desglosada en T4a-T4d) → T5. Cada
+> tarea cierra con la verificación estándar verde antes de pasar a la siguiente.
 
 ## Contexto y objetivo
 
@@ -30,6 +30,7 @@ Cubre juegos existentes y core (registro, tipos). No crea juegos nuevos.
 | D6 | ScoreBoard con claves separadas | **Header dinámico**: el "Mejor" del header/EndOverlay muestra el récord de la dificultad/modo ACTIVO; la card del Home muestra siempre el de normal/medio | Header fijo en normal/medio |
 | D7 | ControlMode default en táctil | **`'botones'`** (D-pad visible por defecto en dispositivos táctiles, orientado a 3ª edad). Los specs E2E táctiles existentes de gestos/flotante se reescriben | Mantener 'gestos' default |
 | D8 | Desbloqueo Wak Wak | **Separado por modo**: `PREF_MAX_LEVEL` (normal) + nueva clave para fácil. Default del toggle = **Normal** (protege las baselines de perf de ADR 0011) | Desbloqueo compartido |
+| D9 | Modal de dificultad en primer inicio | **En el Home**: al tocar por primera vez un juego con modos (serpiente, wakwak), el Home muestra un modal pidiendo la dificultad deseada ANTES de navegar; la elección se persiste y no vuelve a preguntar. Descartar el modal = default (medio/normal) persistido | Modal dentro de cada juego / modal global de ajustes |
 
 ## Referencias (buenas prácticas, punto 2 del requerimiento)
 
@@ -183,7 +184,26 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
       fácil ganado/perdido vía seed); ajustar contadores de récords si algún
       spec pasa a correr en fácil (los existentes quedan en Normal).
 
-### T5 — Verificación estándar (por tarea y al cierre)
+### T5 — Modal de dificultad en el Home, primer inicio (M, ~0,5-1 día)
+
+- [ ] Lógica de gate en `app/index.tsx`: al tocar la card de un juego con
+      modos (serpiente, wakwak), si no hay preferencia persistida
+      (`PREF_DIFFICULTY` / clave de modo wakwak) mostrar modal ANTES de
+      navegar; al elegir → persistir + navegar pasando la dificultad como
+      param (evita el race de preferencia async al montar la pantalla, D-3).
+- [ ] Descartar el modal sin elegir = default persistido (medio / normal):
+      no vuelve a preguntar. Ya elegido → navegación directa; el cambio sigue
+      disponible en Ajustes (serpiente) y en el picker (wakwak).
+- [ ] Modal con `PressableScale` + `overlayAnimation` (patrón de los modales
+      de los juegos), targets grandes (público 3ª edad), `accessibilityLabel`
+      estables (`modal-dificultad-home`, `elegir-dificultad-facil`, etc.).
+- [ ] E2E: el gate se salta si la URL/navegación lleva dificultad explícita;
+      verificar specs existentes que navegan Home→serpiente/wakwak (el modal
+      inesperado podría romperlos si asumen navegación directa).
+- [ ] Tests unitarios del gate (sin preferencia → modal; con preferencia →
+      navega directo).
+
+### T6 — Verificación estándar (por tarea y al cierre)
 
 - [ ] `pnpm typecheck` → `pnpm test` → `node scripts/e2e.mjs` (suite entera
       verde).
@@ -200,6 +220,9 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
 - Cubicación previa: total ~5-5,5 días; con la revisión, T3 sube a ~2 días
   (reescribir specs táctiles por el default 'botones') y T4 a ~3 días
   (BONUS_CELL/validador paramétrico no estaban en la cubicación inicial).
+  T5 (modal Home) suma ~0,5-1 día → **total revisado ~6-6,5 días**.
+- Home verificado: web SIEMPRE numColumns=1 (`app/index.tsx:29-30`) → filtrar
+  damas (T1) no puede dejar hueco en grilla; riesgo D-1 descartado.
 - El renderer de wakwak ya es paramétrico en `cellSize` → con ~11×13 celdas el
   escalado ×2 sale casi gratis en render; el costo real está en el engine.
 - T2 y T3 comparten `SettingsSheet.tsx` y `SerpienteScreen.tsx` (D-7): tocar el
