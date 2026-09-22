@@ -341,6 +341,15 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
   que NO existe en este worktree: crearlo inline en el comando, no como
   archivo. (3) `droneChainPoints` con 2 drones: cadena 1 = 200, cadena 2 =
   400, suma máx por power = 600 (SCORE_DRONE_MAX 3200 queda intocado).
+  (4) BUG post-T4c detectado por el usuario: `defaultConfig` clavaba
+  `batteryCells/superCells = MAZE.*` (índices en espacio 19-wide) mientras
+  `createGameState` resolvía el maze por modo → en fácil las baterías se
+  pintaban sobre muros (índices normal re-proyectados a la grilla 11×13) y
+  solo aparecían los 2 súper normales con índice <143. FIX: `SeedConfig`
+  hace opcionales las listas y `createGameState` las toma del maze del modo
+  resuelto salvo override explícito (sentinelas); `defaultConfig` ya no las
+  clava (regresión en rules.test: pickups ⊆ path del maze fácil, 4 súper).
+  Verificado en app viva: 0 dots sobre muros, 4 súper, 2 drones, HUD FÁCIL.
 
 - Cubicación previa: total ~5-5,5 días; con la revisión, T3 sube a ~2 días
   (reescribir specs táctiles por el default 'botones') y T4 a ~3 días

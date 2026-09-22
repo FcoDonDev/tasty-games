@@ -35,10 +35,15 @@ export interface SeedConfig {
   rngSeed: number;
   /** Nivel de la partida (1-based); default 1. Los sentinelas E2E se fijan. */
   level?: number;
-  /** Celdas (índices) que inician con batería normal */
-  batteryCells: number[];
-  /** Celdas que inician con súper batería */
-  superCells: number[];
+  /**
+   * Celdas (índices) que inician con batería normal. OPCIONAL: si faltan,
+   * `createGameState` usa las del maze del modo resuelto (T4c: un config
+   * default no debe clavar índices del normal — en fácil caerían fuera de la
+   * grilla 11×13). Los sentinelas las pasan SIEMPRE explícitas.
+   */
+  batteryCells?: number[];
+  /** Celdas que inician con súper batería (default: las del maze del modo). */
+  superCells?: number[];
   /** ms de juego hasta que sale el primer drone; luego + stagger por drone.
    * Si faltan, valen los knobs del nivel (levels.ts). */
   releaseBase?: number;
@@ -104,15 +109,16 @@ export function levelRngSeed(base: number, level: number): number {
 }
 
 /** Config de la partida normal: todo el laberinto, salida escalonada de drones.
- * SIN `mode`: el modo lo resuelve el store (setting del picker / URL param);
- * los SENTINELAS pinnean 'normal' (cargan geometría de 19×21). */
+ * SIN `mode` ni listas de pickups: el modo lo resuelve el store (setting del
+ * picker / URL param) y `createGameState` toma las baterías del maze del modo
+ * (clavar MAZE.batteryCells acá rompía las runs fáciles: índices 19-wide sobre
+ * la grilla 11×13 — hallazgo T4c). Los SENTINELAS pinnean 'normal' y pasan sus
+ * listas explícitas (geometría de 19×21). */
 function defaultConfig(level: number): SeedConfig {
   return {
     label: 'default',
     rngSeed: levelRngSeed(DEFAULT_RNG_SEED, level),
     level,
-    batteryCells: MAZE.batteryCells,
-    superCells: MAZE.superCells,
   };
 }
 

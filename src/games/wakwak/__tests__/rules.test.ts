@@ -56,6 +56,23 @@ describe('rules: creación y determinismo', () => {
     expect(state.cfg.powerMs).toBeGreaterThanOrEqual(1.5 * levelConfig(1, 'normal').powerMs);
   });
 
+  it('modo fácil: pickups del MAZE fácil (regresión T4c: config default no clava índices del normal)', () => {
+    const config = { ...seedConfig(), mode: 'facil' as const };
+    const state = createGameState(config);
+    const maze = mazeFor('facil');
+    const pathSet = new Set(
+      maze.grid.map((cell, i) => (cell === 'path' ? i : -1)).filter((i) => i >= 0),
+    );
+    // Todas las baterías/súper caen en celdas transitables del layout fácil
+    for (const cell of state.batteries) expect(pathSet.has(cell)).toBe(true);
+    for (const cell of state.supers) expect(pathSet.has(cell)).toBe(true);
+    // 4 súper (r1/r11 del layout fácil) y exactamente las del maze
+    expect(state.supers).toEqual([...maze.superCells].sort((a, b) => a - b));
+    expect(state.supers).toHaveLength(4);
+    expect(state.batteries).toEqual([...maze.batteryCells].sort((a, b) => a - b));
+    expect(state.totalEdibles).toBe(state.batteries.length + state.supers.length);
+  });
+
   it('estado inicial: robot en spawn, drones en corral esperando', () => {
     const state = playingGame();
     expect(state.robot.cell).toBe(MAZE.robotSpawn);

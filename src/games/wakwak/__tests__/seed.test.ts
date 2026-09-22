@@ -61,12 +61,14 @@ describe('seed: seedConfig', () => {
     expect(seedConfig(undefined, 1).mode).toBeUndefined();
   });
 
-  it('default: laberinto completo; knobs de salida vienen del nivel', () => {
+  it('default: SIN listas de pickups (el maze del modo las aporta en createGameState, T4c); knobs de salida vienen del nivel', () => {
     const config = seedConfig(undefined, 1);
     expect(config.level).toBe(1);
     expect(config.label).toBe('default');
-    expect(config.batteryCells).toEqual([...MAZE.batteryCells].sort((a, b) => a - b));
-    expect(config.superCells).toEqual([...MAZE.superCells].sort((a, b) => a - b));
+    // El default queda abierto: createGameState toma las pickups del maze del
+    // modo resuelto (clavar MAZE.batteryCells acá rompía las runs fáciles)
+    expect(config.batteryCells).toBeUndefined();
+    expect(config.superCells).toBeUndefined();
     expect(config.releaseBase).toBeUndefined(); // fallback al knob del nivel
     expect(config.releaseStagger).toBeUndefined();
     expect(config.rngSeed).not.toBe(seedConfig(undefined, 2).rngSeed); // stream por nivel
@@ -81,8 +83,9 @@ describe('seed: seedConfig', () => {
     const config = seedConfig('__test_win__');
     expect(config.level).toBe(8);
     expect(config.superCells).toHaveLength(0);
-    expect(config.batteryCells).toHaveLength(5);
-    for (const cell of config.batteryCells) {
+    const batteryCells = config.batteryCells!;
+    expect(batteryCells).toHaveLength(5);
+    for (const cell of batteryCells) {
       expect(Math.floor(cell / 19)).toBe(15);
       expect(cell).toBeLessThan(15 * 19 + 9); // a la izquierda del spawn (f15,c9)
     }
@@ -109,9 +112,10 @@ describe('seed: seedConfig', () => {
     ] as const) {
       const config = seedConfig(seed);
       expect(config.level).toBe(level);
-      // Reparto normal: laberinto completo, knobs del nivel (sin overrides E2E)
-      expect(config.batteryCells).toEqual([...MAZE.batteryCells].sort((a, b) => a - b));
-      expect(config.superCells).toEqual([...MAZE.superCells].sort((a, b) => a - b));
+      // Los perf van SIN overrides: pick-ups las aporta el maze del modo en
+      // createGameState (T4c); knobs de salida del nivel (sin overrides E2E)
+      expect(config.batteryCells).toBeUndefined();
+      expect(config.superCells).toBeUndefined();
       expect(config.releaseBase).toBeUndefined();
       // Determinista: dos llamadas producen la misma config (mismo stream)
       expect(seedConfig(seed)).toEqual(config);

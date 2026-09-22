@@ -296,6 +296,10 @@ export function createGameState(config: SeedConfig): GameState {
   const cfg = levelConfig(config.level ?? 1, mode);
   const releaseBase = config.releaseBase ?? cfg.releaseBase;
   const releaseStagger = config.releaseStagger ?? cfg.releaseStagger;
+  // Pickups: los del config si el sentinela los pasa; si no, los del maze del
+  // modo resuelto (defaultConfig no los clava — T4c).
+  const batteryCells = config.batteryCells ?? maze.batteryCells;
+  const superCells = config.superCells ?? maze.superCells;
   const drones = maze.droneSpawns.map((cell, i) => ({
     id: i,
     personality: PERSONALITIES[i],
@@ -316,8 +320,8 @@ export function createGameState(config: SeedConfig): GameState {
   return {
     robot: { cell: maze.robotSpawn, dir: null, progress: 0, queued: [] },
     drones,
-    batteries: [...config.batteryCells].sort((a, b) => a - b),
-    supers: [...config.superCells].sort((a, b) => a - b),
+    batteries: [...batteryCells].sort((a, b) => a - b),
+    supers: [...superCells].sort((a, b) => a - b),
     score: 0,
     lives: 3,
     level: cfg.level,
@@ -325,7 +329,7 @@ export function createGameState(config: SeedConfig): GameState {
     maze,
     mode,
     eaten: 0,
-    totalEdibles: config.batteryCells.length + config.superCells.length,
+    totalEdibles: batteryCells.length + superCells.length,
     elapsedMs: 0,
     powerUntil: null,
     chain: 0,
