@@ -40,7 +40,12 @@ import {
   threatsOf,
 } from './engine/feel';
 import { MAX_LEVEL } from './engine/levels';
-import { MAZE_COLS, MAZE_ROWS, type Direction } from './engine/maze';
+import {
+  bonusCellFor,
+  recordGameId,
+  type MazeMode,
+  type Direction,
+} from './engine/maze';
 import { worldSnapshot, type GameEvent } from './engine/rules';
 import { useWakWakStore, drainTickStats, setTickStatsEnabled } from './engine/state';
 import { EntitiesLayer, type EntitiesHandle } from './renderer/reanimated/EntitiesLayer';
@@ -53,6 +58,9 @@ const STALL_BUDGET_MS = 25;
 const PREF_CONTROL = 'wakwak.controlMode';
 const PREF_RING = 'wakwak.floatingRing';
 const PREF_MAX_LEVEL = 'wakwak.maxLevel';
+/** T4c: setting de modo y desbloqueo separado (D8). */
+const PREF_MODO = 'wakwak.modo';
+const PREF_MAX_LEVEL_FACIL = 'wakwak.maxLevelFacil';
 /** Duración del interstitial entre niveles (D8). */
 const INTERSTITIAL_MS = 1500;
 
@@ -99,13 +107,15 @@ interface DeathClip {
  * muestra el interstitial y avanza solo (D8); la run termina en derrota o al
  * ganar el nivel 8 (D1).
  */
-export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScreenProps) {
+export default function WakWakScreen({ onExit, onGameEnd, initialSeed, initialDifficulty, onActiveGameId }: GameScreenProps) {
   const { size, onLayout } = useContainerSize();
   const [cellSize, setCellSize] = useState(0);
   const entitiesRef = useRef<EntitiesHandle | null>(null);
   const endedRef = useRef(false);
   const onGameEndRef = useRef(onGameEnd);
   onGameEndRef.current = onGameEnd;
+  const onActiveGameIdRef = useRef(onActiveGameId);
+  onActiveGameIdRef.current = onActiveGameId;
   const reduced = useReducedMotion();
 
   const isTouch = useIsTouchDevice();
@@ -115,6 +125,11 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   const [pickerOpen, setPickerOpen] = useState(false);
   const [maxLevel, setMaxLevel] = useState(1);
   const maxLevelRef = useRef(1);
+  /** T4c: desbloqueo separado por modo (D8). */
+  const [maxLevelFacil, setMaxLevelFacil] = useState(1);
+  const maxLevelFacilRef = useRef(1);
+  /** T4c: setting de modo del picker (la run activa usa game.mode). */
+  const [modo, setModoState] = useState<MazeMode>('normal');
   const [interstitial, setInterstitial] = useState<number | null>(null);
   const [endShown, setEndShown] = useState(false);
   const [popups, setPopups] = useState<ScorePopup[]>([]);
@@ -131,6 +146,8 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
   const paused = useWakWakStore((s) => s.paused);
   const status = useWakWakStore((s) => s.game.status);
   const runLevel = useWakWakStore((s) => s.runLevel);
+  const maze = useWakWakStore((s) => s.game.maze);
+  const runMode = useWakWakStore((s) => s.game.mode);
   const batteries = useWakWakStore((s) => s.game.batteries);
   const supers = useWakWakStore((s) => s.game.supers);
   const bonusActive = useWakWakStore((s) => s.game.bonus !== null);
@@ -175,9 +192,12 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     zoom.value = 1;
     threatZoomRef.current = 1;
     threatZoomSV.value = 1;
-    useWakWakStore.getState().reset(initialSeed);
+    // ?difficulty= (E2E, gateado por [id].tsx): prioridad sobre el setting;
+    // los sentinelas la ignoran (pinneados a normal, cargan geometría).
+    const modeParam = initialDifficulty === 'facil' || initialDifficulty === 'normal' ? (initialDifficulty as MazeMode) : undefined;
+    useWakWakStore.getState().reset(initialSeed, modeParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSeed]);
+  }, [initialSeed, initialDifficulty]);
 
   // --- limpieza de timers al desmontar
   useEffect(
@@ -189,7 +209,7 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     [],
   );
 
-  // --- nivel máximo desbloqueado (persistido; D1)
+  // --- nivel máximo desbloqueado por modo (persistido; D1/D8)
   useEffect(() => {
     let cancelled = false;
     void preferencesRepository.get(PREF_MAX_LEVEL).then((raw) => {
@@ -200,10 +220,36 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
         setMaxLevel(maxLevelRef.current);
       }
     });
+    void preferencesRepository.get(PREF_MAX_LEVEL_FACIL).then((raw) => {
+      if (cancelled || !raw) return;
+      const value = Number(raw);
+      if (Number.isFinite(value) && value >= 1) {
+        maxLevelFacilRef.current = Math.min(MAX_LEVEL, Math.floor(value));
+        setMaxLevelFacil(maxLevelFacilRef.current);
+      }
+    });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // --- setting de modo persistido (T4c): default Normal (D8)
+  useEffect(() => {
+    let cancelled = false;
+    void preferencesRepository.get(PREF_MODO).then((raw) => {
+      if (cancelled || (raw !== 'facil' && raw !== 'normal')) return;
+      setModoState(raw);
+      useWakWakStore.getState().setMode(raw);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // T4c/D6: el ScoreBoard del header consulta la clave del modo activo
+  useEffect(() => {
+    onActiveGameIdRef.current?.(recordGameId(runMode));
+  }, [runMode]);
 
   useEffect(() => {
     cellSizeRef.current = cellSize;
@@ -242,8 +288,8 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     const cell = cellSizeRef.current;
     if (cell <= 0) return;
     const game = useWakWakStore.getState().game;
-    const col = game.robot.cell % MAZE_COLS;
-    const row = Math.floor(game.robot.cell / MAZE_COLS);
+    const col = game.robot.cell % game.maze.cols;
+    const row = Math.floor(game.robot.cell / game.maze.cols);
     const id = ++popupIdRef.current;
     setPopups((prev) => [
       ...prev.slice(-5),
@@ -258,7 +304,7 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
       endedRef.current = true;
       const game = useWakWakStore.getState().game;
       onGameEndRef.current({
-        gameId: 'wakwak',
+        gameId: recordGameId(game.mode),
         won,
         score: game.score,
         durationMs: game.elapsedMs,
@@ -281,11 +327,19 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     nextLevelTimerRef.current = setTimeout(() => {
       setInterstitial(null);
       useWakWakStore.getState().advanceLevel();
-      // desbloqueo persistido del nuevo nivel
-      if (nextLevel > maxLevelRef.current) {
-        maxLevelRef.current = nextLevel;
-        setMaxLevel(nextLevel);
-        void preferencesRepository.set(PREF_MAX_LEVEL, String(nextLevel));
+      // desbloqueo persistido del nuevo nivel, en la clave del modo de la run
+      const easy = useWakWakStore.getState().game.mode === 'facil';
+      const currentMax = easy ? maxLevelFacilRef.current : maxLevelRef.current;
+      if (nextLevel > currentMax) {
+        if (easy) {
+          maxLevelFacilRef.current = nextLevel;
+          setMaxLevelFacil(nextLevel);
+          void preferencesRepository.set(PREF_MAX_LEVEL_FACIL, String(nextLevel));
+        } else {
+          maxLevelRef.current = nextLevel;
+          setMaxLevel(nextLevel);
+          void preferencesRepository.set(PREF_MAX_LEVEL, String(nextLevel));
+        }
       }
     }, INTERSTITIAL_MS);
   }, []);
@@ -507,12 +561,12 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
       });
   }, [isTouch, controlMode, ringEnabled, ringX, ringY, ringOpacity]);
 
-  // --- celda derivada del tamaño real medido (ADR 0004)
+  // --- celda derivada del tamaño real medido (ADR 0004) y del maze del modo
   useEffect(() => {
     if (!size) return;
-    const next = Math.floor(Math.min(size.width / MAZE_COLS, size.height / MAZE_ROWS));
+    const next = Math.floor(Math.min(size.width / maze.cols, size.height / maze.rows));
     setCellSize((prev) => (prev === next ? prev : Math.max(0, next)));
-  }, [size]);
+  }, [size, maze]);
 
   const startLevel = useCallback((level: number) => {
     endedRef.current = false;
@@ -527,6 +581,13 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     useWakWakStore.getState().startRun(level);
   }, [zoom, threatZoomSV]);
 
+  /** T4c: toggle de modo (aplica a la PRÓXIMA run, D8); persiste. */
+  const changeModo = useCallback((next: MazeMode) => {
+    setModoState(next);
+    useWakWakStore.getState().setMode(next);
+    void preferencesRepository.set(PREF_MODO, next);
+  }, []);
+
   const restart = useCallback(() => {
     endedRef.current = false;
     setEndShown(false);
@@ -539,8 +600,8 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
     useWakWakStore.getState().reset(initialSeed);
   }, [initialSeed, zoom, threatZoomSV]);
 
-  const boardWidth = cellSize * MAZE_COLS;
-  const boardHeight = cellSize * MAZE_ROWS;
+  const boardWidth = cellSize * maze.cols;
+  const boardHeight = cellSize * maze.rows;
 
   // Zoom del tablero centrado en el sitio de la colisión (F5) × zoom de
   // muerte inminente (v3): sin transformOrigin (soporte desigual) —
@@ -567,12 +628,14 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
           <PerfProfiler gameId="wakwak" id="maze-pickup">
             <MazeLayer
               cellSize={cellSize}
+              maze={maze}
+              bonusCell={bonusCellFor(runMode)}
               batteries={batteries}
               supers={supers}
               bonusActive={bonusActive}
             />
           </PerfProfiler>
-          <EntitiesLayer ref={entitiesRef} cellSize={cellSize} />
+          <EntitiesLayer ref={entitiesRef} cellSize={cellSize} droneCount={maze.droneSpawns.length} />
           <BoardBanner powerFraction={powerFractionSV} />
           {death ? (
             <DeathFx
@@ -660,8 +723,23 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
         <View style={styles.pickerOverlay} accessibilityLabel="modal-niveles-wakwak">
           <View style={styles.pickerCard}>
             <Text style={styles.pickerTitle}>Nivel de inicio</Text>
+            {/* T4c: toggle de modo (D8); el pick de nivel arranca la nueva run */}
+            <View style={styles.modoRow}>
+              {(['normal', 'facil'] as const).map((m) => (
+                <PressableScale
+                  key={m}
+                  accessibilityLabel={`wakwak-modo-${m}`}
+                  onPress={() => changeModo(m)}
+                  style={[styles.modoChip, modo === m ? styles.modoChipActive : null]}
+                >
+                  <Text style={[styles.modoChipText, modo === m ? styles.modoChipTextActive : null]}>
+                    {m === 'facil' ? 'Fácil' : 'Normal'}
+                  </Text>
+                </PressableScale>
+              ))}
+            </View>
             <LevelPicker
-              maxUnlocked={maxLevel}
+              maxUnlocked={modo === 'facil' ? maxLevelFacil : maxLevel}
               current={runLevel}
               onPick={startLevel}
             />
@@ -682,14 +760,18 @@ export default function WakWakScreen({ onExit, onGameEnd, initialSeed }: GameScr
         <EndOverlay
           status={status}
           score={score}
-          stats={{ level: finalWin ? MAX_LEVEL : runLevel, bestChain }}
+          stats={{ level: finalWin ? MAX_LEVEL : runLevel, bestChain, mode: runMode }}
           onRestart={restart}
           onExit={onExit}
           picker={
-            maxLevel > 1 ? (
+            (modo === 'facil' ? maxLevelFacil : maxLevel) > 1 ? (
               <View style={styles.pickerInOverlay}>
                 <Text style={styles.pickerInOverlayLabel}>Empezar en:</Text>
-                <LevelPicker maxUnlocked={maxLevel} current={1} onPick={startLevel} />
+                <LevelPicker
+                  maxUnlocked={modo === 'facil' ? maxLevelFacil : maxLevel}
+                  current={1}
+                  onPick={startLevel}
+                />
               </View>
             ) : null
           }
@@ -833,6 +915,30 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 14,
     fontWeight: '600',
+  },
+  modoRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  modoChip: {
+    borderWidth: 1,
+    borderColor: '#33415C',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  modoChipActive: {
+    backgroundColor: '#60A5FA',
+    borderColor: '#60A5FA',
+  },
+  modoChipText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modoChipTextActive: {
+    color: '#0B1220',
   },
   pickerInOverlay: {
     width: '100%',

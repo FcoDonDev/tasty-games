@@ -232,6 +232,21 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
       Normal (D8); el toggle aplica a la PRÓXIMA run; desbloqueo separado por
       modo (D8). Gating: el modo se resuelve ANTES de crear el estado del
       nivel 1 (D-3). Modo visible en HUD/EndOverlay.
+      → EN CURSO (código listo, falta E2E nuevo): `mazeFor('facil')`
+      registrado (FACIL_LAYOUT en engine/maze.ts; preview re-exporta);
+      `LEVELS_FACIL` con invariante M1 candea en levels.test; `levelConfig(
+      level, mode)`; store: setting `mode` + `setMode` (aplica a PRÓXIMA run,
+      no reinicia), prioridad sentinela > URL > setting (defaultConfig SIN
+      pin — solo sentinelas + perf fixtures pinnean normal); renderer por
+      modo: `MazeLayer` props maze/bonusCell, `EntitiesLayer` droneCount
+      dinámico (2 fácil / 4 normal), cellSize/board/spawnPopup derivados del
+      maze activo; toggle de modo en el picker (chips Fácil/Normal, labels
+      `wakwak-modo-normal/facil`); HUD muestra "FÁCIL" (`wakwak-modo`);
+      EndOverlay suffix "· FÁCIL"; `recordGameId(game.mode)` en endRun;
+      desbloqueo `wakwak.maxLevel`/`wakwak.maxLevelFacil` según modo de la
+      run; `onActiveGameId` en cada cambio de game.mode; `?difficulty=facil`
+      por URL (gate E2E) → modeParam del reset inicial. Visual verificado
+      (360×640: tablero ~×1.8 celdas, 2 drones, HUD FÁCIL, toggle persiste).
 - [ ] **T4d — Récords, seeds, E2E (~0,5-1 día)**: `wakwak-facil` en `onGameEnd`
       (D1+D6); seeds sentinelas nuevos para el layout fácil; E2E fácil (nivel 1
       fácil ganado/perdido vía seed); ajustar contadores de récords si algún
@@ -315,6 +330,17 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
   `WorldSnapshot` ("siempre 4 drones").
   `fix-wrap` (robo-jump) flake CONFIRMADO: falla y pasa alternando en el mismo
   árbol limpio (falló 4×, pasó en 2 corridas completas) — investigar aparte.
+- **T4c hallazgos**: (1) `defaultConfig` de wakwak NO debe pinnear
+  `mode:'normal'` — la prioridad sentinela > URL > setting necesita el default
+  ABIERTO al setting (solo sentinelas y perf fixtures pinnean; los perf por
+  baselines ADR 0011). Candea seed.test. (2) Dev server web necesita
+  `EXPO_PUBLIC_E2E=1` inline para que `?seed`/`?difficulty` lleguen al juego
+  (el gate vive en `[id].tsx`) + `--clear` si el bundle quedó raro: sin la
+  env, el modo fácil de URL no aplica y el juego arranca normal (me confundió
+  en la verificación visual). AGENTS.md menciona un `.env` con EXPO_PUBLIC_E2E
+  que NO existe en este worktree: crearlo inline en el comando, no como
+  archivo. (3) `droneChainPoints` con 2 drones: cadena 1 = 200, cadena 2 =
+  400, suma máx por power = 600 (SCORE_DRONE_MAX 3200 queda intocado).
 
 - Cubicación previa: total ~5-5,5 días; con la revisión, T3 sube a ~2 días
   (reescribir specs táctiles por el default 'botones') y T4 a ~3 días

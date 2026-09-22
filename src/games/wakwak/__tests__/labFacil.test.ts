@@ -56,8 +56,11 @@ describe('LAB_FACIL (modo fácil, T4b): invariantes del candidato', () => {
     expect(p.grid[toIndex(8, 10, 11)]).toBe('wall');
   });
 
-  it('el maze del modo fácil solo existirá cuando mazeFor lo registre (T4c)', () => {
-    expect(() => mazeFor('facil')).toThrow();
+  it('el layout fácil está registrado como modo en mazeFor (T4c)', () => {
+    const facil = mazeFor('facil');
+    expect(facil.cols).toBe(11);
+    expect(facil.rows).toBe(13);
+    expect(facil.bonusCell).toBe(toIndex(8, 5, 11));
   });
 });
 

@@ -22,7 +22,7 @@ export interface Pose {
 
 export interface WorldSnapshot {
   robot: Pose & { powered: boolean };
-  /** siempre 4 drones, con su id estable */
+  /** drones del modo activo (4 normal / 2 fácil, T4c), con su id estable */
   drones: Array<Pose & { id: number; mode: DroneMode; powered: boolean }>;
   /** fracción de comestibles restantes (para efectos opcionales) */
   remaining: number;

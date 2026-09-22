@@ -12,15 +12,23 @@ export function Hud() {
   const score = useWakWakStore((s) => s.game.score);
   const lives = useWakWakStore((s) => s.game.lives);
   const level = useWakWakStore((s) => s.game.level);
+  const mode = useWakWakStore((s) => s.game.mode);
 
   return (
     <View style={styles.row}>
       <Text style={styles.value} accessibilityLabel="marcador-puntos">
         {score} pts
       </Text>
-      <Text style={styles.level} accessibilityLabel="wakwak-nivel">
-        NVL {level}
-      </Text>
+      <View style={styles.mid}>
+        <Text style={styles.level} accessibilityLabel="wakwak-nivel">
+          NVL {level}
+        </Text>
+        {mode === 'facil' ? (
+          <Text style={[styles.level, styles.modoFacil]} accessibilityLabel="wakwak-modo">
+            FÁCIL
+          </Text>
+        ) : null}
+      </View>
       <Text style={styles.value} accessibilityLabel="vidas-restantes">
         {'🔋'.repeat(Math.max(0, lives))}
       </Text>
@@ -42,6 +50,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
+  },
+  mid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modoFacil: {
+    color: '#FBBF24',
   },
   value: {
     color: '#94A3B8',

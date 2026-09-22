@@ -10,7 +10,7 @@ import {
   type GameEvent,
   type GameState,
 } from '../engine/rules';
-import { MAZE, toIndex } from '../engine/maze';
+import { MAZE, mazeFor, toIndex } from '../engine/maze';
 import { seedConfig } from '../engine/seed';
 import { levelConfig } from '../engine/levels';
 
@@ -42,10 +42,18 @@ describe('rules: creación y determinismo', () => {
     expect(state.drones).toHaveLength(4); // el fácil (T4c) tendrá 2
   });
 
-  it('modo explícito en la config se respeta (createGameState es la resolución por modo)', () => {
+  it('modo fácil: 2 drones con personalidades [0,1] y knobs de LEVELS_FACIL (T4c)', () => {
     const config = { ...seedConfig(), mode: 'facil' as const };
-    // T4a: 'facil' aún no tiene laberinto (T4b); createGameState propaga el error
-    expect(() => createGameState(config)).toThrow(/facil/);
+    const state = createGameState(config);
+    expect(state.mode).toBe('facil');
+    expect(state.maze).toBe(mazeFor('facil'));
+    expect(state.maze.cols).toBe(11);
+    expect(state.drones).toHaveLength(2);
+    expect(state.drones.map((d) => d.personality)).toEqual([0, 1]); // Cazador + Emboscador
+    expect(state.robot.cell).toBe(state.maze.robotSpawn);
+    // config del nivel fácil (powerMs ≥1.5× normal; nivel 1: 12000 ≥ 12000)
+    expect(state.cfg).toBe(levelConfig(1, 'facil'));
+    expect(state.cfg.powerMs).toBeGreaterThanOrEqual(1.5 * levelConfig(1, 'normal').powerMs);
   });
 
   it('estado inicial: robot en spawn, drones en corral esperando', () => {

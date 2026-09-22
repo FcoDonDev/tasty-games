@@ -34,6 +34,8 @@ export function PauseOverlay({ onResume }: { onResume: () => void }) {
 export interface RunStats {
   level: number;
   bestChain: number;
+  /** modo de la run (T4c): 'FÁCIL' visible en el overlay de fin */
+  mode?: string;
 }
 
 export function EndOverlay({
@@ -54,6 +56,7 @@ export function EndOverlay({
 }) {
   const won = status === 'won';
   const reduced = useReducedMotion();
+  const modo = stats.mode === 'facil' ? ' · FÁCIL' : '';
   return (
     <OverlayFrame label="modal-fin-wakwak">
       <Animated.View
@@ -65,8 +68,8 @@ export function EndOverlay({
         </Text>
         <Text style={styles.subtitle}>
           {won
-            ? `Despejaste los 8 niveles · nivel ${stats.level}`
-            : `Llegaste al nivel ${stats.level} · ${score} pts`}
+            ? `Despejaste los 8 niveles · nivel ${stats.level}${modo}`
+            : `Llegaste al nivel ${stats.level} · ${score} pts${modo}`}
         </Text>
         <Text style={styles.stats}>
           Mejor combo: {stats.bestChain >= 2 ? `×${stats.bestChain}` : '—'} · {score} pts

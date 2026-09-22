@@ -1,6 +1,6 @@
 import { TICK_MS, type GameEvent } from '../engine/rules';
-import { toIndex } from '../engine/maze';
-import { MAX_LEVEL } from '../engine/levels';
+import { toIndex, mazeFor } from '../engine/maze';
+import { levelConfig, MAX_LEVEL } from '../engine/levels';
 import { drainTickStats, setTickStatsEnabled, useWakWakStore } from '../engine/state';
 
 describe('state: store zustand', () => {
@@ -148,6 +148,66 @@ describe('state: run continua de niveles', () => {
     store.advanceLevel();
     expect(useWakWakStore.getState().game.rng()).toBe(seed2);
     expect(seed2).not.toBe(seed1);
+  });
+});
+
+describe('state: modo fácil/normal (T4c, PLAN-ACCESIBILIDAD)', () => {
+  beforeEach(() => {
+    useWakWakStore.getState().reset();
+    useWakWakStore.getState().setMode('normal');
+  });
+
+  it('sin param ni setting: modo normal (D8, default protegido)', () => {
+    useWakWakStore.getState().startRun(1);
+    const { game } = useWakWakStore.getState();
+    expect(game.mode).toBe('normal');
+    expect(game.maze).toBe(game.maze); // 19×21 normal
+    expect(game.drones).toHaveLength(4);
+    expect(game.totalEdibles).toBeGreaterThan(100);
+  });
+
+  it('setting del picker rige la PRÓXIMA run (aplica al startRun sin param)', () => {
+    useWakWakStore.getState().setMode('facil');
+    useWakWakStore.getState().startRun(1);
+    const { game } = useWakWakStore.getState();
+    expect(game.mode).toBe('facil');
+    expect(game.maze.cols).toBe(11);
+    expect(game.drones).toHaveLength(2); // personalidades [0,1]
+    expect(game.drones.map((d) => d.personality)).toEqual([0, 1]);
+    expect(game.cfg).toBe(levelConfig(1, 'facil'));
+    // el setting no reinicia la run en curso (aplica a la próxima)
+    useWakWakStore.getState().setMode('normal');
+    expect(useWakWakStore.getState().game.mode).toBe('facil');
+  });
+
+  it('URL param (E2E) pisa el setting del picker', () => {
+    useWakWakStore.getState().setMode('normal');
+    useWakWakStore.getState().startRun(1, undefined, 'facil');
+    expect(useWakWakStore.getState().game.mode).toBe('facil');
+  });
+
+  it('el sentinela PINNEA mode normal y pisa el modeParam (carga geometría)', () => {
+    useWakWakStore.getState().startRun(1, 'test-win', 'facil');
+    const { game } = useWakWakStore.getState();
+    expect(game.mode).toBe('normal');
+    expect(game.maze.cols).toBe(19); // geometría de la fila 15 intacta
+  });
+
+  it('advanceLevel conserva el modo de la run (nivel 2 fácil = fácil)', () => {
+    useWakWakStore.getState().startRun(1, undefined, 'facil');
+    useWakWakStore.setState((s) => ({ game: { ...s.game, status: 'won' } }));
+    useWakWakStore.getState().advanceLevel();
+    const { game, runLevel } = useWakWakStore.getState();
+    expect(runLevel).toBe(2);
+    expect(game.mode).toBe('facil');
+    expect(game.maze.cols).toBe(11);
+    expect(game.cfg).toBe(levelConfig(2, 'facil'));
+  });
+
+  it('setMode no muta el setting de la run; reset mantiene el setting', () => {
+    useWakWakStore.getState().setMode('facil');
+    useWakWakStore.getState().reset();
+    expect(useWakWakStore.getState().game.mode).toBe('facil');
   });
 });
 

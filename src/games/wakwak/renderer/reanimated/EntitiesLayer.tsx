@@ -503,6 +503,8 @@ export interface EntitiesHandle {
 
 export interface EntitiesLayerProps {
   cellSize: number;
+  /** entidades drone del modo activo: 4 normal / 2 fácil (T4c) */
+  droneCount?: number;
 }
 
 /**
@@ -510,7 +512,7 @@ export interface EntitiesLayerProps {
  * loops). `present` escribe todas las shared values en un solo pase.
  */
 export const EntitiesLayer = forwardRef<EntitiesHandle, EntitiesLayerProps>(
-  function EntitiesLayer({ cellSize }, ref) {
+  function EntitiesLayer({ cellSize, droneCount = 4 }, ref) {
     const robotRef = useRef<EntityHandle | null>(null);
     const droneRefs = [
       useRef<EntityHandle | null>(null),
@@ -555,20 +557,24 @@ export const EntitiesLayer = forwardRef<EntitiesHandle, EntitiesLayerProps>(
 
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {DRONE_COLORS.map((color, i) => (
-          <EntityImpl
-            key={`drone-${i}`}
-            ref={droneRefs[i]}
-            cellSize={cellSize}
-            color={color}
-            hiddenColor={POWERED_DRONE_COLOR}
-            borderRadius={cellSize * 0.12}
-            scale={DRONE_TUNE[i].scale}
-            rotated
-            variant={i}
-            accessibilityLabel={`wakwak-drone-${i}`}
-          />
-        ))}
+        {DRONE_COLORS.map((color, i) =>
+          // solo las entidades del modo activo (4 normal / 2 fácil, T4c):
+          // sin entidades fantasma sin snapshot
+          i < droneCount ? (
+            <EntityImpl
+              key={`drone-${i}`}
+              ref={droneRefs[i]}
+              cellSize={cellSize}
+              color={color}
+              hiddenColor={POWERED_DRONE_COLOR}
+              borderRadius={cellSize * 0.12}
+              scale={DRONE_TUNE[i].scale}
+              rotated
+              variant={i}
+              accessibilityLabel={`wakwak-drone-${i}`}
+            />
+          ) : null,
+        )}
         <EntityImpl
           ref={robotRef}
           cellSize={cellSize}

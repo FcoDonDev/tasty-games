@@ -78,6 +78,30 @@ export const LAYOUT: readonly string[] = [
   '###################',
 ];
 
+/**
+ * Layout FÁCIL (PLAN-ACCESIBILIDAD T4b, versión final del usuario): 11×13 con
+ * 2 drones y 4 súper — personajes y escenario ×2 al render (cellSize lo
+ * calcula la pantalla del maze activo). Pines (candeados por
+ * validateLayoutEasy y labFacil.test): spawn (8,5) + corredor c1..c9,
+ * corral sellado fila 6 con puerta (5,5), chip en el spawn (8,5),
+ * corners scatter (1,1),(1,9),(11,1),(11,9).
+ */
+export const FACIL_LAYOUT: readonly string[] = [
+  '###########',
+  '#o.......o#',
+  '#.##.#.##.#',
+  '#....#....#',
+  '##.#...#.##',
+  '##.##-##.##',
+  '...#D D#...',
+  '##.#####.##',
+  '#....R....#',
+  '#.#.#.#.#.#',
+  '#.#.#.#.#.#',
+  '#o.......o#',
+  '###########',
+];
+
 export interface MazeData {
   /** Dims del modo: los helpers aceptan un maze para los modos no-normales */
   cols: number;
@@ -209,20 +233,19 @@ interface MazeSpec {
 
 const SPECS: Partial<Record<MazeMode, MazeSpec>> = {
   normal: { layout: LAYOUT, expectedDrones: 4, bonusCell: { row: 11, col: 9 } },
-  // 'facil' se diseña en T4b (checkpoint con el usuario) y entra acá en T4c.
+  facil: { layout: FACIL_LAYOUT, expectedDrones: 2, bonusCell: { row: 8, col: 5 } },
 };
 
 const built: Partial<Record<MazeMode, MazeData>> = {};
 
 /**
- * Laberinto del modo (memoizado). Lanza si el modo aún no tiene laberinto:
- * hasta T4b solo existe el normal.
+ * Laberinto del modo (memoizado). Lanza si el modo aún no tiene laberinto.
  */
 export function mazeFor(mode: MazeMode): MazeData {
   const cached = built[mode];
   if (cached) return cached;
   const spec = SPECS[mode];
-  if (!spec) throw new Error(`maze: el modo '${mode}' aún no tiene laberinto (T4b)`);
+  if (!spec) throw new Error(`maze: el modo '${mode}' aún no tiene laberinto`);
   const maze = parseLayout(spec.layout, spec.expectedDrones);
   maze.bonusCell = toIndex(spec.bonusCell.row, spec.bonusCell.col, maze.cols);
   built[mode] = maze;
@@ -232,6 +255,14 @@ export function mazeFor(mode: MazeMode): MazeData {
 /** Celda del chip dorado del modo (camino SIN batería en su layout). */
 export function bonusCellFor(mode: MazeMode): number {
   return mazeFor(mode).bonusCell;
+}
+
+/**
+ * Id de RÉCORD del modo (D1/D6, PLAN-ACCESIBILIDAD): claves separadas sin
+ * migración de DB — la clave base `wakwak` = modo normal (retrocompatible).
+ */
+export function recordGameId(mode: MazeMode): string {
+  return mode === 'facil' ? 'wakwak-facil' : 'wakwak';
 }
 
 export const MAZE: MazeData = buildMaze();

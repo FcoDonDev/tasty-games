@@ -26,7 +26,6 @@ import { chooseDroneDirection, type Personality } from './ai';
 import type { SeedConfig } from './seed';
 import { mulberry32 } from './seed';
 import { levelConfig, MAX_LEVEL, type LevelConfig } from './levels';
-
 // --- Constantes de juego -------------------------------------------------
 
 export const TICK_MS = 1000 / 60;
@@ -294,7 +293,7 @@ const PERSONALITIES: readonly Personality[] = [0, 1, 2, 3];
 export function createGameState(config: SeedConfig): GameState {
   const mode: MazeMode = config.mode ?? 'normal';
   const maze = mazeFor(mode);
-  const cfg = levelConfig(config.level ?? 1);
+  const cfg = levelConfig(config.level ?? 1, mode);
   const releaseBase = config.releaseBase ?? cfg.releaseBase;
   const releaseStagger = config.releaseStagger ?? cfg.releaseStagger;
   const drones = maze.droneSpawns.map((cell, i) => ({

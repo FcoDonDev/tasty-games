@@ -1,8 +1,7 @@
 import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { perfRenderCount } from '@/core/perf';
-import { MAZE, MAZE_COLS, MAZE_ROWS, colOf, rowOf, toIndex, type MazeData } from '../../engine/maze';
-import { BONUS_CELL } from '../../engine/rules';
+import { colOf, rowOf, toIndex, type MazeData } from '../../engine/maze';
 
 /**
  * Capa estática del laberinto (motor A: Views nativos, ADR 0010).
@@ -127,6 +126,10 @@ export const MazeStaticLayer = memo(function MazeStaticLayer({
 
 export interface MazeLayerProps {
   cellSize: number;
+  /** laberinto del modo activo (T4c): dims y topología van por prop */
+  maze: MazeData;
+  /** celda del chip dorado del modo activo */
+  bonusCell: number;
   /** celdas con batería restante */
   batteries: number[];
   /** celdas con súper batería restante */
@@ -167,7 +170,7 @@ const EdibleDot = memo(function EdibleDot({ x, y, size, borderRadius, color, tes
   );
 });
 
-function MazeLayerImpl({ cellSize, batteries, supers, bonusActive }: MazeLayerProps) {
+function MazeLayerImpl({ cellSize, maze, bonusCell, batteries, supers, bonusActive }: MazeLayerProps) {
   // D-WW0: frecuencia de renders del laberinto (debería ser solo pickups +
   // cambios de layout). Prefijo `renderFreq:` para no confundir con `render.board`
   // (duración, solo profiling). No-op con el gate apagado.
@@ -180,14 +183,14 @@ function MazeLayerImpl({ cellSize, batteries, supers, bonusActive }: MazeLayerPr
   const bonusSize = Math.round(cellSize * 0.6);
 
   const edibles: React.ReactNode[] = [];
-  for (let index = 0; index < MAZE_COLS * MAZE_ROWS; index++) {
+  for (let index = 0; index < maze.cols * maze.rows; index++) {
     if (batterySet.has(index)) {
       edibles.push(
         <EdibleDot
           key={`b-${index}`}
           testID={`wakwak-dot-${index}`}
-          x={colOf(index) * cellSize + (cellSize - dotSize) / 2}
-          y={rowOf(index) * cellSize + (cellSize - dotSize) / 2}
+          x={colOf(index, maze.cols) * cellSize + (cellSize - dotSize) / 2}
+          y={rowOf(index, maze.cols) * cellSize + (cellSize - dotSize) / 2}
           size={dotSize}
           borderRadius={1.5}
           color={COLORS.battery}
@@ -198,8 +201,8 @@ function MazeLayerImpl({ cellSize, batteries, supers, bonusActive }: MazeLayerPr
         <EdibleDot
           key={`s-${index}`}
           testID={`wakwak-dot-${index}`}
-          x={colOf(index) * cellSize + (cellSize - superSize) / 2}
-          y={rowOf(index) * cellSize + (cellSize - superSize) / 2}
+          x={colOf(index, maze.cols) * cellSize + (cellSize - superSize) / 2}
+          y={rowOf(index, maze.cols) * cellSize + (cellSize - superSize) / 2}
           size={superSize}
           borderRadius={3}
           color={COLORS.super}
@@ -209,16 +212,16 @@ function MazeLayerImpl({ cellSize, batteries, supers, bonusActive }: MazeLayerPr
   }
 
   return (
-    <View style={{ width: MAZE_COLS * cellSize, height: MAZE_ROWS * cellSize }}>
-      <MazeStaticLayer maze={MAZE} cellSize={cellSize} />
+    <View style={{ width: maze.cols * cellSize, height: maze.rows * cellSize }}>
+      <MazeStaticLayer maze={maze} cellSize={cellSize} />
       {edibles}
       {bonusActive ? (
         <View
           testID="wakwak-bonus"
           style={{
             position: 'absolute',
-            left: colOf(BONUS_CELL) * cellSize + (cellSize - bonusSize) / 2,
-            top: rowOf(BONUS_CELL) * cellSize + (cellSize - bonusSize) / 2,
+            left: colOf(bonusCell, maze.cols) * cellSize + (cellSize - bonusSize) / 2,
+            top: rowOf(bonusCell, maze.cols) * cellSize + (cellSize - bonusSize) / 2,
             width: bonusSize,
             height: bonusSize,
             borderRadius: 4,

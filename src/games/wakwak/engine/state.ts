@@ -18,11 +18,18 @@ export interface WakWakStore {
   /** seed base de la run: cada nivel deriva su RNG con `levelRngSeed` */
   runBaseSeed: number;
   /**
+   * Setting de modo (normal/fácil) elegido en el picker (T4c): rige la
+   * PRÓXIMA run; no reinicia la activa. El modo real vive en `game.mode`.
+   */
+  mode: MazeMode;
+  /** Fija el setting de modo (persistencia vive en la pantalla). */
+  setMode: (mode: MazeMode) => void;
+  /**
    * Inicia una run en `level` (1-based, clampeado). Con `seed` (sentinela E2E)
-   * el nivel viene fijado por la config del sentinela. Sin seed: partida
-   * normal con knobs del nivel.
-   * `modeParam` (T4, E2E vía `?difficulty=`): prioridad
-   * config del sentinela (pinned) > modeParam > 'normal' (setting en T4c).
+   * el nivel y el modo vienen fijados por la config del sentinela. Sin seed:
+   * partida normal con knobs del nivel+modo.
+   * `modeParam` (T4c, E2E vía `?difficulty=`): prioridad
+   * config del sentinela (pinned) > modeParam > setting (`mode`).
    */
   startRun: (level: number, seed?: string, modeParam?: MazeMode) => void;
   /** Compat con el flujo previo: reinicia la run en el nivel 1. */
@@ -79,15 +86,17 @@ export const useWakWakStore = create<WakWakStore>()((set, get) => ({
   paused: false,
   runLevel: 1,
   runBaseSeed: RUN_BASE_SEED,
+  mode: 'normal',
+
+  setMode: (mode) => set(() => ({ mode })),
 
   startRun: (level, seed, modeParam) => {
     const sentinel: SeedSentinel | undefined = parseGameSeed(seed);
     const nextLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(level)));
     const config = seedConfig(sentinel, nextLevel);
     // Prioridad de modo: config del sentinela (pinned a 'normal', carga
-    // geometría) > URL param (E2E) > 'normal' (el setting del usuario llega
-    // por el picker en T4c).
-    const mode: MazeMode = config.mode ?? modeParam ?? 'normal';
+    // geometría) > URL param (E2E) > setting del picker.
+    const mode: MazeMode = config.mode ?? modeParam ?? get().mode;
     set(() => ({
       game: createGameState({ ...config, mode }),
       runLevel: config.level ?? nextLevel,
@@ -109,6 +118,7 @@ export const useWakWakStore = create<WakWakStore>()((set, get) => ({
       rngSeed: levelRngSeed(runBaseSeed, nextLevel),
       label: game.seedLabel,
       // el modo es de la RUN: el nivel 2+ de una run fácil es fácil
+      // (y usa LEVELS_FACIL para su config)
       mode: game.mode,
     };
     set(() => ({

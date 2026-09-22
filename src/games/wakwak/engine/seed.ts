@@ -103,11 +103,12 @@ export function levelRngSeed(base: number, level: number): number {
   return (base + level * 7919) >>> 0;
 }
 
-/** Config de la partida normal: todo el laberinto, salida escalonada de drones. */
+/** Config de la partida normal: todo el laberinto, salida escalonada de drones.
+ * SIN `mode`: el modo lo resuelve el store (setting del picker / URL param);
+ * los SENTINELAS pinnean 'normal' (cargan geometría de 19×21). */
 function defaultConfig(level: number): SeedConfig {
   return {
     label: 'default',
-    mode: 'normal',
     rngSeed: levelRngSeed(DEFAULT_RNG_SEED, level),
     level,
     batteryCells: MAZE.batteryCells,
@@ -225,8 +226,9 @@ export function seedConfig(sentinel?: SeedSentinel, level = 1): SeedConfig {
   if (sentinel === TEST_LOSE_SEED) return testLoseConfig();
   if (sentinel === TEST_POWER_SEED) return testPowerConfig();
   if (sentinel === TEST_COMBO_SEED) return testComboConfig();
-  // Fixtures de performance: partida NORMAL determinista al nivel fijado.
-  if (sentinel === PERF_LEVEL_1_SEED) return { ...defaultConfig(1), label: PERF_LEVEL_1_SEED };
-  if (sentinel === PERF_LEVEL_8_SEED) return { ...defaultConfig(8), label: PERF_LEVEL_8_SEED };
+  // Fixtures de performance: partida NORMAL determinista al nivel fijado
+  // (pinnean mode: las baselines ADR 0011 corren SIEMPRE en normal, D8).
+  if (sentinel === PERF_LEVEL_1_SEED) return { ...defaultConfig(1), label: PERF_LEVEL_1_SEED, mode: 'normal' };
+  if (sentinel === PERF_LEVEL_8_SEED) return { ...defaultConfig(8), label: PERF_LEVEL_8_SEED, mode: 'normal' };
   return defaultConfig(level);
 }

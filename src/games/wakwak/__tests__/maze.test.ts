@@ -213,8 +213,17 @@ describe('maze: refactor paramétrico por modo (T4a)', () => {
     expect(bonusCellFor('normal')).toBe(BONUS_CELL);
   });
 
-  it('mazeFor(facil) lanza hasta que T4b diseña el layout fácil', () => {
-    expect(() => mazeFor('facil')).toThrow(/facil/);
+  it('mazeFor(facil): 11×13, 2 drones, chip en el spawn (8,5) — T4c', () => {
+    const facil = mazeFor('facil');
+    expect(facil.cols).toBe(11);
+    expect(facil.rows).toBe(13);
+    expect(facil.grid).toHaveLength(11 * 13);
+    expect(facil.droneSpawns).toHaveLength(2);
+    expect(facil.robotSpawn).toBe(toIndex(8, 5, 11));
+    expect(facil.bonusCell).toBe(toIndex(8, 5, 11));
+    expect(bonusCellFor('facil')).toBe(facil.bonusCell);
+    // memoizado: misma referencia
+    expect(mazeFor('facil')).toBe(facil);
   });
 
   it('parseLayout paramétrico: layout mini 5×6 con 2 drones', () => {

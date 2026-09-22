@@ -44,7 +44,7 @@ describe('seed: parseGameSeed', () => {
 });
 
 describe('seed: seedConfig', () => {
-  it('TODOS los sentinelas y el default pinnean mode normal (T4a)', () => {
+  it('los SENTINELAS pinnean mode normal; el default NO (el setting lo resuelve, T4c)', () => {
     for (const seed of [
       'test-win',
       'test-lose',
@@ -56,7 +56,9 @@ describe('seed: seedConfig', () => {
     ] as const) {
       expect(seedConfig(parseGameSeed(seed)).mode).toBe('normal');
     }
-    expect(seedConfig(undefined, 1).mode).toBe('normal');
+    // default sin sentinela: sin pin — la prioridad sentinela > URL > setting
+    // necesita que el default quede abierto al setting del picker
+    expect(seedConfig(undefined, 1).mode).toBeUndefined();
   });
 
   it('default: laberinto completo; knobs de salida vienen del nivel', () => {
@@ -113,8 +115,8 @@ describe('seed: seedConfig', () => {
       expect(config.releaseBase).toBeUndefined();
       // Determinista: dos llamadas producen la misma config (mismo stream)
       expect(seedConfig(seed)).toEqual(config);
-      // Y es exactamente la config default de ese nivel (solo cambia el label)
-      expect(seedConfig(undefined, level)).toEqual({ ...config, label: 'default' });
+      // Y es exactamente la config default de ese nivel (label + pin normal)
+      expect(seedConfig(undefined, level)).toEqual({ ...config, label: 'default', mode: undefined });
     }
     // Niveles distintos → streams distintos
     expect(seedConfig('__perf_level_1__').rngSeed).not.toBe(seedConfig('__perf_level_8__').rngSeed);

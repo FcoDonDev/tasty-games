@@ -1,4 +1,4 @@
-import { LEVELS, MAX_LEVEL, levelConfig, type LevelConfig } from '../engine/levels';
+import { LEVELS, MAX_LEVEL, levelConfig, LEVELS_FACIL, type LevelConfig } from '../engine/levels';
 
 describe('levels: catálogo', () => {
   it('8 niveles numerados consecutivos', () => {
@@ -48,5 +48,48 @@ describe('levels: catálogo', () => {
       expect(levelConfig(i).elroyThreshold!).toBeLessThanOrEqual(levelConfig(i - 1).elroyThreshold ?? 1);
       expect(levelConfig(i).elroyBoost).toBeGreaterThan(1);
     }
+  });
+});
+
+describe('levels: modo FÁCIL (PLAN-ACCESIBILIDAD T4c, criterios M1)', () => {
+  it('misma longitud y numeración que el modo normal', () => {
+    expect(LEVELS_FACIL).toHaveLength(LEVELS.length);
+    expect(LEVELS_FACIL.map((l) => l.level)).toEqual(LEVELS.map((l) => l.level));
+  });
+
+  it('ratio robot/droneChase ≥ 1.3 en los 8 niveles (M1)', () => {
+    for (const level of LEVELS_FACIL) {
+      const ratio = level.speeds.robot / level.speeds.droneChase;
+      expect(ratio).toBeGreaterThanOrEqual(1.3);
+    }
+  });
+
+  it('powerMs ≥ 1.5× el del nivel normal correspondiente (M1)', () => {
+    for (let i = 0; i < LEVELS.length; i++) {
+      expect(LEVELS_FACIL[i].powerMs).toBeGreaterThanOrEqual(1.5 * LEVELS[i].powerMs);
+    }
+  });
+
+  it('Elroy SIEMPRE off en fácil (D-5) y drones más lentos que en normal', () => {
+    for (let i = 0; i < LEVELS_FACIL.length; i++) {
+      expect(LEVELS_FACIL[i].elroyThreshold).toBeNull();
+      expect(LEVELS_FACIL[i].speeds.droneChase).toBeLessThan(LEVELS[i].speeds.droneChase);
+      expect(LEVELS_FACIL[i].speeds.robot).toBeLessThanOrEqual(LEVELS[i].speeds.robot);
+    }
+  });
+
+  it('scatter más largo y chase más corto que el normal (menos caza)', () => {
+    for (let i = 0; i < LEVELS_FACIL.length; i++) {
+      expect(LEVELS_FACIL[i].scatterMs).toBeGreaterThanOrEqual(LEVELS[i].scatterMs);
+      expect(LEVELS_FACIL[i].chaseMs).toBeLessThanOrEqual(LEVELS[i].chaseMs);
+    }
+  });
+
+  it('levelConfig por modo: facil → tabla fácil; normal → tabla normal', () => {
+    expect(levelConfig(1, 'facil')).toBe(LEVELS_FACIL[0]);
+    expect(levelConfig(8, 'facil')).toBe(LEVELS_FACIL[7]);
+    expect(levelConfig(3, 'facil')).not.toBe(levelConfig(3));
+    expect(levelConfig(3, 'facil').powerMs).toBeGreaterThanOrEqual(1.5 * levelConfig(3).powerMs);
+    expect(levelConfig(1)).toBe(LEVELS[0]); // default = normal
   });
 });
