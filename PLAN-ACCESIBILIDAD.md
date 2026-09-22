@@ -247,10 +247,15 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
       run; `onActiveGameId` en cada cambio de game.mode; `?difficulty=facil`
       por URL (gate E2E) → modeParam del reset inicial. Visual verificado
       (360×640: tablero ~×1.8 celdas, 2 drones, HUD FÁCIL, toggle persiste).
-- [ ] **T4d — Récords, seeds, E2E (~0,5-1 día)**: `wakwak-facil` en `onGameEnd`
-      (D1+D6); seeds sentinelas nuevos para el layout fácil; E2E fácil (nivel 1
-      fácil ganado/perdido vía seed); ajustar contadores de récords si algún
-      spec pasa a correr en fácil (los existentes quedan en Normal).
+- [x] **T4d — Récords, seeds, E2E (~0,5-1 día)**: `wakwak-facil` en `onGameEnd`
+      (D1+D6, hecho en T4c vía `recordGameId`); seeds `facil-win` (8 baterías en
+      la fila del spawn del fácil: c1..c4+c6..c9, dos press cierran la run en
+      nivel 8) y `facil-lose` (2 drones salen de inmediato, robot idle atrapado;
+      level 3) — pinnean mode 'facil' y pasan listas explícitas del maze fácil;
+      E2E `wakwak-facil.web.spec.ts` (4 tests: modo por URL con HUD FÁCIL + 2
+      drones + tablero 11×13 + 4 súper; facil-win con récord `wakwak-facil`;
+      facil-lose con subtitle FÁCIL; toggle persiste y la próxima run arranca
+      fácil). Specs existentes quedan en Normal (sin cambios).
 
 ### T5 — Modal de dificultad en el Home, primer inicio (M, ~0,5-1 día)
 

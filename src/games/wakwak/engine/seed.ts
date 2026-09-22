@@ -67,13 +67,17 @@ const DEFAULT_RNG_SEED = 20260908;
 /** Seed base de una run normal; cada nivel deriva su stream con `levelRngSeed`. */
 export const RUN_BASE_SEED = DEFAULT_RNG_SEED;
 
-import { MAZE, MAZE_COLS, type MazeMode } from './maze';
+import { MAZE, MAZE_COLS, mazeFor, type MazeMode } from './maze';
 
 const TEST_WIN_SEED = '__test_win__';
 const TEST_LOSE_SEED = '__test_lose__';
 const TEST_POWER_SEED = '__test_power__';
 const TEST_COMBO_SEED = '__test_combo__';
 const TEST_LEVEL_SEED = '__test_level__';
+/** Sentinelas del modo FÁCIL (PLAN-ACCESIBILIDAD T4d): misma gramática que sus
+ * pares normales pero con la geometría del layout fácil (11×13, 2 drones). */
+const TEST_WIN_FACIL_SEED = '__test_win_facil__';
+const TEST_LOSE_FACIL_SEED = '__test_lose_facil__';
 /** Fixtures de performance (PLAN-PERFORMANCE §7): partida normal determinista
  * (mismo defaultConfig que una run sin seed) fijada al nivel 1 u 8. */
 const PERF_LEVEL_1_SEED = '__perf_level_1__';
@@ -85,6 +89,8 @@ export type SeedSentinel =
   | typeof TEST_POWER_SEED
   | typeof TEST_COMBO_SEED
   | typeof TEST_LEVEL_SEED
+  | typeof TEST_WIN_FACIL_SEED
+  | typeof TEST_LOSE_FACIL_SEED
   | typeof PERF_LEVEL_1_SEED
   | typeof PERF_LEVEL_8_SEED;
 
@@ -95,6 +101,8 @@ export function parseGameSeed(initialSeed?: string): SeedSentinel | undefined {
   if (initialSeed === 'test-power') return TEST_POWER_SEED;
   if (initialSeed === 'test-combo') return TEST_COMBO_SEED;
   if (initialSeed === 'test-level') return TEST_LEVEL_SEED;
+  if (initialSeed === 'facil-win') return TEST_WIN_FACIL_SEED;
+  if (initialSeed === 'facil-lose') return TEST_LOSE_FACIL_SEED;
   if (initialSeed === 'perf-level-1') return PERF_LEVEL_1_SEED;
   if (initialSeed === 'perf-level-8') return PERF_LEVEL_8_SEED;
   return undefined;
@@ -226,12 +234,51 @@ function testComboConfig(): SeedConfig {
   };
 }
 
+/**
+ * E2E `facil-win` (T4d): 8 baterías en la fila del spawn del layout fácil
+ * ((8,5): c1..c4 a la izquierda + c6..c9 a la derecha, ninguna en el spawn).
+ * Dos press (derecha, luego izquierda) las comen todas y cierran la run en el
+ * nivel 8 con el récord bajo la clave `wakwak-facil`. Drones que no salen.
+ */
+function testWinFacilConfig(): SeedConfig {
+  const facil = mazeFor('facil');
+  const batteryCells: number[] = [];
+  for (let col = 1; col <= 9; col++) if (col !== 5) batteryCells.push(8 * facil.cols + col);
+  return {
+    label: TEST_WIN_FACIL_SEED,
+    mode: 'facil',
+    rngSeed: DEFAULT_RNG_SEED,
+    level: 8,
+    batteryCells,
+    superCells: [],
+    releaseBase: 600_000,
+    releaseStagger: 0,
+  };
+}
+
+/** E2E `facil-lose`: los 2 drones del fácil salen de inmediato y convergen; robot idle atrapado. */
+function testLoseFacilConfig(): SeedConfig {
+  const facil = mazeFor('facil');
+  return {
+    label: TEST_LOSE_FACIL_SEED,
+    mode: 'facil',
+    rngSeed: DEFAULT_RNG_SEED,
+    level: 3,
+    batteryCells: facil.batteryCells,
+    superCells: facil.superCells,
+    releaseBase: 500,
+    releaseStagger: 1000,
+  };
+}
+
 export function seedConfig(sentinel?: SeedSentinel, level = 1): SeedConfig {
   if (sentinel === TEST_WIN_SEED) return testWinConfig();
   if (sentinel === TEST_LEVEL_SEED) return testLevelConfig();
   if (sentinel === TEST_LOSE_SEED) return testLoseConfig();
   if (sentinel === TEST_POWER_SEED) return testPowerConfig();
   if (sentinel === TEST_COMBO_SEED) return testComboConfig();
+  if (sentinel === TEST_WIN_FACIL_SEED) return testWinFacilConfig();
+  if (sentinel === TEST_LOSE_FACIL_SEED) return testLoseFacilConfig();
   // Fixtures de performance: partida NORMAL determinista al nivel fijado
   // (pinnean mode: las baselines ADR 0011 corren SIEMPRE en normal, D8).
   if (sentinel === PERF_LEVEL_1_SEED) return { ...defaultConfig(1), label: PERF_LEVEL_1_SEED, mode: 'normal' };

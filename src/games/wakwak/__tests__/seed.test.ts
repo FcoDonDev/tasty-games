@@ -1,4 +1,5 @@
-import { MAZE, toIndex } from '../engine/maze';
+import { MAZE, toIndex, mazeFor } from '../engine/maze';
+import { createGameState } from '../engine/rules';
 import { hashSeed, levelRngSeed, mulberry32, parseGameSeed, seedConfig } from '../engine/seed';
 
 describe('seed: mulberry32', () => {
@@ -36,6 +37,8 @@ describe('seed: parseGameSeed', () => {
     expect(parseGameSeed('test-power')).toBeDefined();
     expect(parseGameSeed('test-combo')).toBeDefined();
     expect(parseGameSeed('test-level')).toBeDefined();
+    expect(parseGameSeed('facil-win')).toBeDefined();
+    expect(parseGameSeed('facil-lose')).toBeDefined();
     expect(parseGameSeed('perf-level-1')).toBeDefined();
     expect(parseGameSeed('perf-level-8')).toBeDefined();
     expect(parseGameSeed(undefined)).toBeUndefined();
@@ -56,9 +59,37 @@ describe('seed: seedConfig', () => {
     ] as const) {
       expect(seedConfig(parseGameSeed(seed)).mode).toBe('normal');
     }
+    // los sentinelas del FÁCIL (T4d) pinnean mode 'facil' (cargan geometría 11×13)
+    expect(seedConfig(parseGameSeed('facil-win')).mode).toBe('facil');
+    expect(seedConfig(parseGameSeed('facil-lose')).mode).toBe('facil');
     // default sin sentinela: sin pin — la prioridad sentinela > URL > setting
     // necesita que el default quede abierto al setting del picker
     expect(seedConfig(undefined, 1).mode).toBeUndefined();
+  });
+
+  it('facil-win: 8 baterías en la fila del spawn del fácil (c1..c9 sin el 5), sin súper, drones no salen; nivel 8 cierra la run', () => {
+    const config = seedConfig(parseGameSeed('facil-win'));
+    const facil = mazeFor('facil');
+    expect(config.level).toBe(8);
+    expect(config.superCells).toHaveLength(0);
+    const batteryCells = config.batteryCells!;
+    expect(batteryCells).toHaveLength(8);
+    for (const cell of batteryCells) {
+      expect(Math.floor(cell / facil.cols)).toBe(8); // fila del spawn
+      expect(cell % facil.cols).not.toBe(5); // el spawn queda libre
+    }
+    // con dos press (derecha y luego izquierda) el robot come TODO y gana
+    const state = createGameState(config);
+    expect(state.drones.every((d) => d.releaseAt > 60_000)).toBe(true);
+  });
+
+  it('facil-lose: salida inmediata de los 2 drones y pickups del maze fácil', () => {
+    const config = seedConfig(parseGameSeed('facil-lose'));
+    const facil = mazeFor('facil');
+    expect(config.releaseBase).toBeLessThanOrEqual(500);
+    expect(config.batteryCells).toEqual(facil.batteryCells);
+    expect(config.superCells).toEqual(facil.superCells);
+    expect(config.level).toBe(3);
   });
 
   it('default: SIN listas de pickups (el maze del modo las aporta en createGameState, T4c); knobs de salida vienen del nivel', () => {
