@@ -206,12 +206,23 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
       modeParam?)` con prioridad sentinela > URL param > 'normal';
       `advanceLevel` propaga el modo (nivel 2+ de run fácil = fácil). Suite:
       524 unit + E2E 78 passed (0 cambios de comportamiento).
-- [ ] **T4b — Sesión de diseño del layout fácil (checkpoint con el usuario)**:
+- [x] **T4b — Sesión de diseño del layout fácil (checkpoint con el usuario)**:
       iterar el laberinto reducido (~11×13, solo pasillos, corral sellado para
       2 drones, 2 súper, túnel) en `preview/LaberintoPreview.tsx` con un
       validador paramétrico que reúna las mismas invariantes (sin callejones,
       sin áreas 3×3, conectividad). Posible re-estimación al salir del
       checkpoint.
+      → APROBADO (2b3909d + ajuste del usuario): `preview/LAB_FACIL.ts` 11×13.
+      El usuario iteró el primer candidato (eliminó áreas abiertas 2×2 con
+      combs verticales en la zona inferior). Cambios aprobados respecto al
+      plan: **4 súper** (esquinas superior e inferior; el plan decía 2),
+      spawn en el centro (8,5) con corredor completo c1..c9 y topes en los
+      bordes, **chip dorado en el propio spawn (8,5)** (aparece a mitad de
+      partida, cuando la celda ya está libre). `validateLayout(layout, pins?)`
+      paramétrico (spawn/corredor+topes/corners/bonus/súper/drones/dims) con
+      defaults = pines normal; `PINS_FACIL` + `validateLayoutEasy`. Gate
+      automático: `__tests__/labFacil.test.ts` (6 invariantes). Preview
+      paramétrico (dims por card, MazeStaticLayer sin constantes de módulo).
 - [ ] **T4c — Velocidades, 2 drones, toggle (~1 día)**: tabla completa de
       Fácil por nivel (los 4 números de `LevelSpeeds`, `powerMs`,
       `scatterMs`/`chaseMs`, `releaseBase`/`releaseStagger`) con criterios

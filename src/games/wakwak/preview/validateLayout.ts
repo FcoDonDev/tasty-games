@@ -254,12 +254,14 @@ export function validateLayout(layout: readonly string[], pins?: LayoutPins): st
   return problems;
 }
 
-/** Pines del layout FÁCIL (T4b): spawn (9,2) + corredor c1..c7 con topes c0/c8,
- * corral fila 6 con puerta (5,5), corners scatter, chip (8,5), 2 súper, 2 drones. */
+/** Pines del layout FÁCIL (T4b, versión final del usuario): spawn (8,5) en el
+ * centro con corredor c1..c9 y topes en los bordes c0/c10; corral fila 6 con
+ * puerta (5,5); corners scatter; chip (8,5) = spawn (camino sin batería);
+ * 4 súper, 2 drones. */
 export const PINS_FACIL: LayoutPins = {
-  spawn: { row: 9, col: 2 },
-  corridor: { from: 1, to: 7 },
-  corridorStops: [0, 8],
+  spawn: { row: 8, col: 5 },
+  corridor: { from: 1, to: 9 },
+  corridorStops: [0, 10],
   corners: [
     [1, 1],
     [1, 9],
@@ -267,7 +269,7 @@ export const PINS_FACIL: LayoutPins = {
     [11, 9],
   ],
   bonus: { row: 8, col: 5 },
-  expectedSupers: 2,
+  expectedSupers: 4,
   expectedDrones: 2,
   dims: { cols: 11, rows: 13 },
 };
