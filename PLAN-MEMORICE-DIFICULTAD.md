@@ -45,6 +45,22 @@ primera vez.
   columnas dejan cartas ~43×58px; con 4 columnas (6 filas) suben a ~60×80px.
   T3 evalúa `columnsForWidth(width, totalCards)` con medición y elige;
   la pantalla pasa `cards.length` (no `PAIR_COUNT * 2`) a `computeCardSize`.
+- **D8 — Juice: sonidos y haptics (mejora UX solicitada)**: feedback por
+  evento usando SOLO los wrappers de `src/core/ui/` (regla del repo: los
+  juegos no importan expo-haptics ni players de audio directamente):
+  - **Voltear carta**: `soundCardMove()` (pluck, ya existe — el mismo de robar
+    del stock en solitario) + `hapticSelection()` (tick ligero).
+  - **Match**: `soundCardDrop()` (snap suave, ya existe) +
+    `hapticDropCommit()` (impacto Light, mismo frame del settle visual).
+  - **Mismatch**: sin sonido propio (el flip-back ya informa; un thud sonoro
+    castiga — si el playtest lo pide, `soundCardInvalid()` está disponible).
+  - **Victoria**: `soundGameWin()` + `hapticGameWin()` (ya presentes en la
+    pantalla).
+  - El sonido respeta el switch global `soundOn` (Ajustes, via `useAppStore`)
+    — lo gatea `play()` en `sound.ts`; los haptics son solo nativos (web
+    no-op, gate `EXPO_OS` en `haptics.ts`). Cero trabajo extra de gating.
+  - **Prime en idle** al montar la pantalla: `primeAudioPlayers(['cardMove',
+    'cardDrop', 'gameWin'])` (patrón GOTCHAS, igual que serpiente).
 
 ## Criterios de aceptación
 
@@ -62,6 +78,9 @@ primera vez.
       con seeds). Sin `difficulty` → `facil`.
 - [ ] El primer reparto ya tiene el nivel correcto SIN re-deal visible
       (dificultad inicializada sincrónicamente desde el param).
+- [ ] Juice (D8): cada flip suena + vibra (nativo), cada match suena + vibra,
+      victoria con arpegio + haptic de éxito; todo silenciable con el switch
+      de sonido de Ajustes; en web los haptics son no-op.
 - [ ] Suite E2E completa verde, incluidos los specs que hoy navegan Home →
       tap "Jugar Memorice" (memorice + navigation), adaptados al modal.
 
@@ -87,13 +106,22 @@ primera vez.
       cards.length)` (reemplaza `PAIR_COUNT * 2`); `onGameEnd` usa
       `recordGameId(difficulty)`; `onActiveGameId()` para el ScoreBoard
       (patrón `SerpienteScreen.tsx:381-397`).
+- [ ] T4b. Juice (D8) en `MemoriceScreen.tsx`: `soundCardMove()` +
+      `hapticSelection()` en cada flip; `soundCardDrop()` +
+      `hapticDropCommit()` al resolver match (el evento vive en la UI que
+      llama `flipCard` y observa `matched`); prime en idle
+      `primeAudioPlayers(['cardMove', 'cardDrop', 'gameWin'])` al montar.
+      Sin sonidos nuevos ni assets: reutiliza los 3 players existentes.
+      Nota: el flip de mismatch resuelto por timer NO suena (flip-back
+      silencioso, D8).
 - [ ] T5. `app/index.tsx`: entrada `memorice` en `DIFFICULTY_GATES` + flag
       `always: true` que salta el lookup de preferencia (D3). Al elegir →
       navegar con param `difficulty`; para gates `always`, ni elegir ni
       descartar persisten preferencia (D6).
 - [ ] T6. Tests unitarios: `difficulty.test.ts` (nuevo), `state.test.ts`
       (reset por dificultad: nº de cartas), `layout.test.ts` (20/24 cartas);
-      regresión deck/perf-fixtures.
+      regresión deck/perf-fixtures. El juice (T4b) es UI-only sobre wrappers
+      ya testeados (`sound.test.ts` core): sin unit tests nuevos.
 - [ ] T7. E2E web:
       - Nuevo flujo Home → tap card → modal → elegir Difícil → 24 cartas;
         partida completa por dificultad con récord en la clave correcta;
@@ -107,9 +135,12 @@ primera vez.
         360×640) si T3 no lo cubre por unit.
 - [ ] T8. Docs: `src/games/memorice/index.ts` (constante `RULES` in-app:
       "Encuentra los 8 pares…" → texto por nivel) + `README.md` + `RULES.md`
-      (matriz de dificultad).
+      (matriz de dificultad; sonidos/haptics respetan el switch de Ajustes).
 - [ ] T9. Verificación estándar: `pnpm typecheck` → `pnpm test` →
-      `node scripts/e2e.mjs` (suite entera verde).
+      `node scripts/e2e.mjs` (suite entera verde). El juice (D8) se verifica
+      MANUAL con dev server (los specs no miden audio/haptics): jugar 2-3
+      partidas con el switch de sonido ON y OFF en `?difficulty=` de cada
+      nivel (sección "Dev server web" de AGENTS.md).
 
 ## Notas / hallazgos
 
@@ -129,3 +160,11 @@ primera vez.
 - Layout 24 cartas narrow: medir ambas columnadas (3 vs 4) en T3 y candear la
   elegida; `computeCardSize` clamp de altura mínima 48px ya protege el caso
   peor, pero cartas de 43×58px son pequeñas para 3ª edad (D-T targets).
+- Juice (D8): cero assets nuevos — `cardMove` (pluck) y `cardDrop` (snap) ya
+  existen para solitario y calzan para flip/match; el gating `soundOn` lo hace
+  `play()` en core, y los haptics son no-op en web. El flip-back del mismatch
+  queda silencioso a propósito (no castigar sonoro); disponible
+  `soundCardInvalid()` si el playtest pide feedback de error.
+- El flip por doble-tap rápido (2 cartas en <50ms) puede amontonar 2 plays del
+  mismo player: `play()` hace seekTo(0)+play por player — aceptable, mismo
+  comportamiento que solitario con drags rápidos.
