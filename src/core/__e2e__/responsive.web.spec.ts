@@ -20,6 +20,26 @@ test('responsive 360×640: Home sin scroll', async ({ page }) => {
   await assertNoPageScroll(page);
 });
 
+test('responsive 360×640: memorice dificil (24 cartas) con tablero completo sin scroll', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.goto('/juego/memorice?difficulty=dificil');
+  await expect(page.getByLabel('carta-1', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByLabel(/^carta-\d+$/)).toHaveCount(24);
+  await assertNoPageScroll(page);
+});
+
+test('responsive 360×640: memorice medio (20 cartas) con tablero completo sin scroll', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.goto('/juego/memorice?difficulty=medio');
+  await expect(page.getByLabel('carta-1', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByLabel(/^carta-\d+$/)).toHaveCount(20);
+  await assertNoPageScroll(page);
+});
+
 for (const game of GAMES) {
   test(`responsive 360×640: ${game} con tablero completo sin scroll`, async ({ page }) => {
     test.setTimeout(60_000);

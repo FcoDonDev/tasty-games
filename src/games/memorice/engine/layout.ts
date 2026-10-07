@@ -1,14 +1,22 @@
 export const PADDING = 12;
 export const GAP = 8;
 export const NARROW_BREAKPOINT = 420;
-export const GRID_COLUMNS_WIDE = 4;
 export const GRID_COLUMNS_NARROW = 3;
-/** Total de cartas: 8 pares (PAIR_COUNT * 2). */
+export const GRID_COLUMNS_WIDE = 4;
+/** Total de cartas del nivel default: 8 pares (PAIR_COUNT * 2, fácil). */
 export const TOTAL_CARDS = 16;
 
-/** Columnas del grid según el ancho (mobile-first). */
-export function columnsForWidth(containerWidth: number): number {
-  return containerWidth < NARROW_BREAKPOINT ? GRID_COLUMNS_NARROW : GRID_COLUMNS_WIDE;
+/**
+ * Columnas del grid (mobile-first). D7: con más cartas que el default
+ * (medio/difícil) en pantallas angostas subimos a 4 columnas — 24 cartas en
+ * 3 columnas serían 8 filas de cartas ~43×58px; en 4 columnas son 6 filas de
+ * ~75×100px (targets mayores para 3ª edad, mismo grid sin scroll).
+ */
+export function columnsForWidth(containerWidth: number, totalCards: number = TOTAL_CARDS): number {
+  if (containerWidth < NARROW_BREAKPOINT) {
+    return totalCards > TOTAL_CARDS ? GRID_COLUMNS_WIDE : GRID_COLUMNS_NARROW;
+  }
+  return GRID_COLUMNS_WIDE;
 }
 
 export interface CardSize {

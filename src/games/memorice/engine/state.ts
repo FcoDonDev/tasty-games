@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { buildDeck, type CardModel } from './deck';
+import { DIFFICULTY_PAIR_COUNTS, DEFAULT_DIFFICULTY, type Difficulty } from './difficulty';
 
-export const PAIR_COUNT = 8;
+/** Pares del nivel default (fácil). Alias retrocompatible de tests/fixtures. */
+export const PAIR_COUNT = DIFFICULTY_PAIR_COUNTS[DEFAULT_DIFFICULTY];
 /** Tiempo que la UI espera antes de voltear un par fallado (ms). Consumido por la pantalla, no por el store. */
 export const MISMATCH_CLEAR_MS = 700;
 
@@ -27,7 +29,8 @@ interface MemoriceState {
   flipCard: (id: string) => void;
   /** La UI lo llama tras MISMATCH_CLEAR_MS para voltear el par fallado */
   resolveMismatch: () => void;
-  reset: (seed?: number) => void;
+  /** D1: la dificultad (nº de pares) queda fija para toda la run. */
+  reset: (seed?: number, difficulty?: Difficulty) => void;
 }
 
 export const useMemoriceStore = create<MemoriceState>()((set, get) => ({
@@ -38,9 +41,9 @@ export const useMemoriceStore = create<MemoriceState>()((set, get) => ({
   startedAt: null,
   finishedAt: null,
 
-  reset: (seed?: number) =>
+  reset: (seed?: number, difficulty: Difficulty = DEFAULT_DIFFICULTY) =>
     set({
-      cards: buildDeck(PAIR_COUNT, seed),
+      cards: buildDeck(DIFFICULTY_PAIR_COUNTS[difficulty], seed),
       flipped: [],
       matched: [],
       moves: 0,
