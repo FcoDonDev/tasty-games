@@ -59,15 +59,18 @@ module.exports = {
     in: identity,
     out: identity,
     inOut: identity,
+    bezier: () => identity,
+    bezierFn: identity,
   },
   // Helper de CSS transitions (consume PressableScale). En runtime nativo
   // normalizeTimingFunction acepta este objeto; en Jest basta con que exista.
   cubicBezier: (x1, y1, x2, y2) => ({
     normalize: () => ({ name: 'cubicBezier', x1, y1, x2, y2 }),
   }),
-  // Builders de entrada/salida: en Jest devuelven objeto inerte.
-  FadeIn: { duration: () => ({}) },
-  FadeInUp: { duration: () => ({}) },
-  FadeOut: { duration: () => ({}) },
+  // Builders de entrada/salida: en Jest devuelven objeto inerte (cadenable
+  // con .easing() — overlayAnimation.ts encadena duration().easing()).
+  FadeIn: { duration: () => ({ easing: () => ({}) }) },
+  FadeInUp: { duration: () => ({ easing: () => ({}) }) },
+  FadeOut: { duration: () => ({ easing: () => ({}) }) },
   ReduceMotion: { System: 0, Always: 1, Never: 2 },
 };

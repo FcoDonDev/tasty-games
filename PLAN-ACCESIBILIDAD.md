@@ -259,22 +259,89 @@ Desglose en subtareas commiteables (M3) para aislar el blast radius mecánico:
 
 ### T5 — Modal de dificultad en el Home, primer inicio (M, ~0,5-1 día)
 
-- [ ] Lógica de gate en `app/index.tsx`: al tocar la card de un juego con
-      modos (serpiente, wakwak), si no hay preferencia persistida
-      (`PREF_DIFFICULTY` / clave de modo wakwak) mostrar modal ANTES de
-      navegar; al elegir → persistir + navegar pasando la dificultad como
-      param (evita el race de preferencia async al montar la pantalla, D-3).
-- [ ] Descartar el modal sin elegir = default persistido (medio / normal):
-      no vuelve a preguntar. Ya elegido → navegación directa; el cambio sigue
-      disponible en Ajustes (serpiente) y en el picker (wakwak).
-- [ ] Modal con `PressableScale` + `overlayAnimation` (patrón de los modales
-      de los juegos), targets grandes (público 3ª edad), `accessibilityLabel`
-      estables (`modal-dificultad-home`, `elegir-dificultad-facil`, etc.).
-- [ ] E2E: el gate se salta si la URL/navegación lleva dificultad explícita;
-      verificar specs existentes que navegan Home→serpiente/wakwak (el modal
-      inesperado podría romperlos si asumen navegación directa).
-- [ ] Tests unitarios del gate (sin preferencia → modal; con preferencia →
-      navega directo).
+**Estado**: planificado con el usuario (sep 2026), sin iniciar. Contexto
+levantado en la sesión: el Home (`app/index.tsx:76`) navega directo con
+`router.push({pathname:'/juego/[id]', params:{id}})`; `[id].tsx` solo
+propaga `difficulty` en builds E2E (línea 27) — en producción la pref async
+del screen no alcanza a la primera run (race D-3 que el param elimina).
+
+**Decisiones de diseño (aprobadas)**
+
+- D-T5-1 **Gate en el TAP, no en el mount**: al tocar la card se lee la pref
+  en el momento (`preferencesRepository.get`, ~ms) → existe: navegar directo
+  CON el param `difficulty=<pref>` (la run arranca ya con la pref vigente,
+  sin depender del load async del screen); no existe: abrir el modal.
+  Alternativa descartada: cachear prefs al montar (race del tap temprano).
+- D-T5-2 **Descartar el modal = persistir el default (medio / normal) y
+  quedarse en el Home** ("no vuelve a preguntar"): la próxima vez la card
+  navega directo con ese default. Alternativa descartada: volver a
+  preguntar en cada visita (molesta a 3ª edad) / no persistir nada.
+- D-T5-3 **`difficulty` pasa SIEMPRE por URL** (se quita el gate
+  `EXPO_PUBLIC_E2E` de esa prop en `app/juego/[id].tsx:27`): es una elección
+  del usuario, no canal de tampering — el `seed` sigue gateado. Los screens
+  ya la consumen: serpiente `parseSerpienteDifficulty` (URL manda en cada
+  reset), wakwak `modeParam` en el reset del mount (prioridad sentinela >
+  URL > setting, T4a). Deep-link directo sin param: primera run usa el
+  default del screen (race de pref async aceptable y documentado).
+- D-T5-4 **Modal genérico en core/ui** (`DifficultyModal`), opción-driven:
+  `title`, `options: {value,label,hint?}[]`, `onChoose(value)`,
+  `onDismiss()`. El mapeo por juego (pref key + opciones + valor default)
+  vive como mapa de DATA en `app/index.tsx` (2 juegos hoy; si un tercero
+  suma modos se generaliza a un campo del game-registry).
+
+**Checklist de tareas (orden de ejecución)**
+
+- [x] T5a — `src/core/ui/DifficultyModal.tsx`: modal genérico (patrón
+      HelpModal/SettingsModal: `overlayEnter/overlayExit` + `PressableScale`
+      + theme). Targets grandes (padding ≥14px, fontSize ≥16-17, público 3ª
+      edad). Labels E2E: `modal-dificultad-home` (overlay),
+      `elegir-dificultad-home-<value>` (opción), `cerrar-dificultad-home-<gameId>`
+      ("Ahora no"). Tests del componente (4 ✓). Mock de Reanimated extendido
+      (`Easing.bezier` + cadena `duration().easing()` — hallazgo abajo).
+- [x] T5b — Gate en `app/index.tsx`: mapa `DIFFICULTY_GATES` (serpiente:
+      pref `serpiente.dificultad`, Fácil/Medio/Difícil, default medio;
+      wakwak: pref `wakwak.modo`, Fácil/Normal, default normal); `openGame`
+      lee la pref EN EL TAP: existe → `router.push` con param; no existe →
+      modal; elegir → persistir + navegar con param; descartar → persistir
+      default y quedarse en el Home (D-T5-2).
+- [x] T5c — `app/juego/[id].tsx`: `difficulty` fuera del gate E2E (D-T5-3);
+      el `seed` queda gateado. Screens sin cambios (ya consumían el param).
+- [x] T5d — E2E `src/__e2e__/home-dificultad.web.spec.ts` (4 tests: modal
+      1ª visita + elegir Fácil wakwak con HUD FÁCIL + pref; cancelar →
+      default 'normal' persistido sin navegar; pref preexistente → directa;
+      serpiente 3 opciones). Specs ajustados: `serpiente.web.spec.ts:158` y
+      `wakwak.web.spec.ts:190` (Home→jugar→salir ahora manejan el modal,
+      contexto fresh). **E2E PENDIENTE DE EJECUTAR** (sesión corre solo
+      unit por decisión del usuario; quedó en checklist T6).
+- [ ] T5e — Verificación estándar (T6) + visual 360×640 del modal (targets,
+      texto, sin scroll). PARCIAL: typecheck ✓ + 550 unit ✓ (2 corridas);
+      e2e completo + visual pendientes de la sesión que corra E2E.
+
+**Riesgos / notas**
+
+- Specs que navegan Home→juego con contexto fresh SIEMPRE verán el modal:
+  auditados (sep 2026): **solo `serpiente.web.spec.ts:160` y
+  `wakwak.web.spec.ts:192` navegan a un juego con modos** (memorice,
+  robo-jump y solitario navegan a juegos sin modos: sin impacto; damas no
+  navega por card). Ajustar esos 2 tests a manejar el modal (elegir y
+  continuar) en la tarea T5d.
+- El récord y las claves de dificultad ya existen (T2/D1: `recordGameId`);
+  el modal del Home no toca récords.
+- En móvil nativo la lectura de pref en el tap es async: la navegación se
+  dispara en el `then` (latencia imperceptible; la card ya tiene
+  PressableScale feedback).
+- **Hallazgo T5a (Jest)**: el mock de Reanimated (`__mocks__/`) no tenía
+  `Easing.bezier` ni la cadena `FadeIn.duration().easing()` que
+  `overlayAnimation.ts` usa — primer componente core testado que invoca los
+  builders en render real. Mock extendido (patrón GOTCHAS "extenderlo por
+  necesidad"). Al migrar a GOTCHAS: consolidar con las 2 entradas existentes
+  de mock de Reanimated.
+- **Ruido de entorno**: la máquina WSL con otra sesión agente en paralelo
+  llegó a load 31 → suites de 265s y un "1 failed" transitorio no
+  reproducible (550/550 verde en corrida con `--maxWorkers=2`). Si la suite
+  se cuelga/lentúa sin causa en el diff, verificar `uptime` antes de
+  debuggear el código.
+
 
 ### T6 — Verificación estándar (por tarea y al cierre)
 

@@ -159,6 +159,11 @@ test('serpiente: Home → jugar → salir', async ({ page }) => {
   test.setTimeout(30_000);
   await page.goto('/');
   await page.getByLabel('Jugar Serpiente').click();
+  // T5: primer inicio sin pref → el Home abre el modal de dificultad; elegir
+  // para navegar (contexto fresh = modal siempre en este spec)
+  const gate = page.getByLabel('modal-dificultad-home', { exact: true });
+  await expect(gate).toBeVisible({ timeout: 5_000 });
+  await page.getByLabel('elegir-dificultad-home-medio', { exact: true }).click();
   await expect(page.getByLabel('tablero-serpiente', { exact: true })).toBeVisible({ timeout: 15_000 });
   await page.getByLabel('salir-serpiente', { exact: true }).click();
   await expect(page.getByText('Tasty Games')).toBeVisible();

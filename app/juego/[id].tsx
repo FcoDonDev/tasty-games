@@ -21,10 +21,12 @@ export default function GameScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const game = getGameById(id);
-  // Seed y modo (dificultad) solo llegan al juego en builds E2E
-  // (EXPO_PUBLIC_E2E=1): en producción nunca existe un canal para alterarlo.
+  // Seed solo llega al juego en builds E2E (EXPO_PUBLIC_E2E=1): en producción
+  // no existe canal para alterarlo. La DIFICULTAD pasa siempre (T5, D-T5-3):
+  // es la elección del usuario en el modal del Home — el race D-3 lo elimina
+  // el param, no el gate.
   const initialSeed = process.env.EXPO_PUBLIC_E2E === '1' ? seed : undefined;
-  const initialDifficulty = process.env.EXPO_PUBLIC_E2E === '1' ? difficulty : undefined;
+  const initialDifficulty = difficulty;
   const [showHelp, setShowHelp] = useState(false);
   /** Refresca el ScoreBoard del chrome tras guardar una partida. */
   const [recordVersion, setRecordVersion] = useState(0);

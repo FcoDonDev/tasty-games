@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Platform, FlatList, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Easing } from 'react-native-reanimated';
@@ -6,19 +7,50 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GAME_REGISTRY, getVisibleGames } from '@/core/game-registry';
 import { GameCard } from '@/core/ui/GameCard';
+import { DifficultyModal, type DifficultyOption } from '@/core/ui/DifficultyModal';
 import { PressableScale } from '@/core/ui/PressableScale';
 import { useTheme } from '@/core/ui/ThemeProvider';
 import { useContainerSize } from '@/core/ui/useContainerSize';
 import { columnsForWidth } from '@/core/ui/responsiveColumns';
+import { preferencesRepository } from '@/core/db/repositories/preferencesRepository';
+import type { GameDefinition } from '@/core/types';
 
 // Entrada de la lista: se anima el CONTENEDOR una vez en mount (la lista es
 // virtualizada: nunca `entering` por fila). Ocasional / delight, ≤250ms.
 const LIST_ENTER = FadeIn.duration(250).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
+/**
+ * Juegos con modos (PLAN-ACCESIBILIDAD T5, D-T5-1/D-T5-4): si el usuario no
+ * eligió aún, el Home muestra el modal de dificultad ANTES de navegar. Data
+ * pura (claves y opciones como strings): si un tercer juego suma modos se
+ * generaliza a un campo del game-registry.
+ */
+const DIFFICULTY_GATES: Record<string, { prefKey: string; default: string; options: DifficultyOption[] }> = {
+  serpiente: {
+    prefKey: 'serpiente.dificultad',
+    default: 'medio',
+    options: [
+      { value: 'facil', label: 'Fácil', hint: 'Serpiente más lenta' },
+      { value: 'medio', label: 'Medio' },
+      { value: 'dificil', label: 'Difícil' },
+    ],
+  },
+  wakwak: {
+    prefKey: 'wakwak.modo',
+    default: 'normal',
+    options: [
+      { value: 'facil', label: 'Fácil', hint: 'Escenario y personajes ×2, 2 drones' },
+      { value: 'normal', label: 'Normal' },
+    ],
+  },
+};
+
 export default function HomeScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  /** Juego esperando la elección del modal (null = cerrado). */
+  const [promptGame, setPromptGame] = useState<GameDefinition | null>(null);
   // Tamaño real del área de lista (onLayout): las columnas se derivan del
   // ancho medido, no de useWindowDimensions → reflow automático al
   // rotar/redimensionar (el `key={numColumns}` remonta la lista).
@@ -28,6 +60,45 @@ export default function HomeScreen() {
   const { size, onLayout } = useContainerSize();
   const numColumns: 1 | 2 | 3 =
     Platform.OS === 'web' ? 1 : size ? columnsForWidth(size.width) : 1;
+
+  // D-T5-1: el gate se lee en el TAP (no en el mount): sin pref → modal;
+  // con pref → navegación directa CON el param (la run arranca ya con la
+  // preferencia vigente, sin la carrera del load async del screen).
+  const openGame = (game: GameDefinition) => {
+    const gate = DIFFICULTY_GATES[game.id];
+    if (!gate) {
+      router.push({ pathname: '/juego/[id]', params: { id: game.id } });
+      return;
+    }
+    void preferencesRepository.get(gate.prefKey).then((raw) => {
+      if (raw) {
+        router.push({ pathname: '/juego/[id]', params: { id: game.id, difficulty: raw } });
+        return;
+      }
+      setPromptGame(game);
+    });
+  };
+
+  // Al elegir: persistir + navegar con el param (el screen lo aplica al reset
+  // del mount — ambos juegos ya lo consumen). D-T5-2: descartar persiste el
+  // default ("no vuelve a preguntar") y se queda en el Home.
+  const chooseDifficulty = (value: string) => {
+    const game = promptGame;
+    if (!game) return;
+    const gate = DIFFICULTY_GATES[game.id];
+    void preferencesRepository.set(gate.prefKey, value);
+    setPromptGame(null);
+    router.push({ pathname: '/juego/[id]', params: { id: game.id, difficulty: value } });
+  };
+
+  const dismissDifficulty = () => {
+    const game = promptGame;
+    if (game) {
+      const gate = DIFFICULTY_GATES[game.id];
+      void preferencesRepository.set(gate.prefKey, gate.default);
+    }
+    setPromptGame(null);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top + 12 }]}>
@@ -73,12 +144,21 @@ export default function HomeScreen() {
             renderItem={({ item }) => (
               <GameCard
                 game={item}
-                onPress={() => router.push({ pathname: '/juego/[id]', params: { id: item.id } })}
+                onPress={() => openGame(item)}
               />
             )}
           />
         </Animated.View>
       )}
+      {promptGame ? (
+        <DifficultyModal
+          gameId={promptGame.id}
+          visible
+          options={DIFFICULTY_GATES[promptGame.id].options}
+          onChoose={chooseDifficulty}
+          onDismiss={dismissDifficulty}
+        />
+      ) : null}
     </View>
   );
 }
