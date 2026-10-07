@@ -311,9 +311,8 @@ del screen no alcanza a la primera run (race D-3 que el param elimina).
       default 'normal' persistido sin navegar; pref preexistente → directa;
       serpiente 3 opciones). Specs ajustados: `serpiente.web.spec.ts:158` y
       `wakwak.web.spec.ts:190` (Home→jugar→salir ahora manejan el modal,
-      contexto fresh). **E2E PENDIENTE DE EJECUTAR** (sesión corre solo
-      unit por decisión del usuario; quedó en checklist T6).
-- [ ] T5e — Verificación estándar (T6) + visual 360×640 del modal (targets,
+      contexto fresh).
+- [x] T5e — Verificación estándar (T6) + visual 360×640 del modal (targets,
       texto, sin scroll). PARCIAL: typecheck ✓ + 550 unit ✓ (2 corridas);
       e2e completo + visual pendientes de la sesión que corra E2E.
 
@@ -422,6 +421,11 @@ del screen no alcanza a la primera run (race D-3 que el param elimina).
   resuelto salvo override explícito (sentinelas); `defaultConfig` ya no las
   clava (regresión en rules.test: pickups ⊆ path del maze fácil, 4 súper).
   Verificado en app viva: 0 dots sobre muros, 4 súper, 2 drones, HUD FÁCIL.
+  (5) E2E del gate (T5d): leer/escribir `localStorage` vía `page.evaluate`
+  ANTES de `page.goto` lanza SecurityError (página en about:blank) — setear
+  la pref DESPUÉS de navegar al Home (el gate se lee en el tap, no hace
+  falta reload). Corrida E2E completa del cierre: 84+5 passed, 14 skipped;
+  el flake `fix-wrap` falló en la 1ª y pasó en la 2ª (sigue intermitente).
 
 - Cubicación previa: total ~5-5,5 días; con la revisión, T3 sube a ~2 días
   (reescribir specs táctiles por el default 'botones') y T4 a ~3 días

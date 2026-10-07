@@ -47,11 +47,12 @@ test('home: cancelar el modal persiste el default (medio/normal) y NO navega', a
 
 test('home: con preferencia ya elegida la navegación es directa (sin modal)', async ({ page }) => {
   test.setTimeout(30_000);
-  // pref preexistente: D-T5-1 navega directo pasando el param
+  await page.goto('/');
+  // pref preexistente (D-T5-1 navega directo pasando el param): el gate se
+  // lee en el TAP — no hace falta recargar
   await page.evaluate(() => {
     localStorage.setItem('preferences', JSON.stringify({ 'wakwak.modo': 'facil' }));
   });
-  await page.goto('/');
   await page.getByLabel('Jugar Wak Wak').click();
 
   await expect(page.getByLabel('modal-dificultad-home', { exact: true })).toHaveCount(0);
