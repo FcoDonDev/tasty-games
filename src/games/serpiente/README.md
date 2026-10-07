@@ -24,5 +24,14 @@ propio 20×20, velocidad progresiva, especial cada 5 comidas.
 - Ticks fijos (D8/D21): `advance` consume `dtMs` en pasos y devuelve
   `leftoverMs`; el acumulador vive SOLO en el store (`tickAccumMs`) y es la
   única fuente de verdad del tiempo fraccionario.
+- **Dificultad Fácil/Medio/Difícil (PLAN-ACCESIBILIDAD T2**, diseño en
+  [ADR 0017](../../../docs/adr/0017-modos-por-juego-gate-home.md)**)**:
+  tabla de velocidad por modo en `engine/rules.ts`
+  (`DIFFICULTY_SPEEDS`: paso base, descenso por comida y piso; medio
+  conserva los números originales). Fijada al crear el estado
+  (`state.difficulty`); el cambio en Ajustes reinicia la partida activa con
+  la nueva tabla (D5). Récord por clave del modo (`serpiente-facil`/
+  `serpiente-dificil`, D1). Selector en Ajustes (desktop y móvil) con labels
+  `serpiente-dificultad-<modo>`; `?difficulty=` por URL en E2E.
 - Deuda diferida: validación nativa y baselines throttle ×4 — ver
   `docs/ROADMAP.md` (sección Serpiente).

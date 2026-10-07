@@ -102,6 +102,15 @@ background están en `AGENTS.md`, no acá.
   render y se memoizan (como constantes de module scope, `game-registry.test`
   falla con `Cannot read properties of undefined (reading 'duration')` porque
   el registro importa pantallas → GameHeader → overlayAnimation).
+- **Extender el mock de Reanimated por necesidad, no por completitud**
+  (PLAN-ACCESIBILIDAD T5a): el primer componente core testado que invocaba
+  `overlayEnter/overlayExit` en render real destapó dos huecos del mock —
+  `Easing.bezier` (usada por `buildEnter`) y la cadena `FadeIn.duration().easing()`
+  (el objeto de `duration` debe devolver `{ easing: () => ({}) }` cadenable).
+  Al sumar APIs reales a componentes testeables, correr primero el test del
+  componente y extender `__mocks__/react-native-reanimated.js` con lo que
+  reclame. (Ver también la entrada de `__mocks__/` en la sección de E2E por
+  los mocks `.js` invisibles al glob `*.ts*`).
 - **@testing-library/react-native v14: `render` es `async`** — hay que
   `await render(<X />)`; si se llama síncrono, `render` devuelve un Promise
   (keys `[]`) y `screen.*` falla con `render function has not been called`
@@ -113,6 +122,10 @@ background están en `AGENTS.md`, no acá.
 - **Clicks sobre botones `disabled` se difieren** hasta que se habilitan: en
   juegos con estados bloqueantes, el spec debe esperar el estado antes de
   clickear.
+- **`localStorage` con `page.evaluate` ANTES de la primera `page.goto`
+  lanza `SecurityError`** (la página está en about:blank, origen opaco —
+  PLAN-ACCESIBILIDAD T5d): setear/leer la pref DESPUÉS de navegar al Home;
+  si el gate se lee en el tap (T5), no hace falta recargar tras escribir.
 - **`page.reload()` resetea el historial del router**: tras recargar,
   `router.back()` ya no vuelve al Home. Cubierto por `exitToHome`
   (`src/core/navigation.ts`): sin historial en el stack hace `router.replace('/')`.

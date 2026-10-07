@@ -68,6 +68,17 @@ el Android más lento soportado (Expo Go / simulador no cuentan):
 - [ ] Asset de explosión propio (`explosion.wav` sintetizado) si se quiere más
       dramatismo en la muerte (hoy: `hit.wav` con rate 0.7, verificado).
 
+## Accesibilidad / modos (diferido del cierre de PLAN-ACCESIBILIDAD)
+
+- [ ] **Validación nativa Android** (requiere toolchain, ADR 0003) de los
+      modos de dificultad: toggle Fácil/Normal de wakwak (layout 11×13, 2
+      drones), selector de dificultad de serpiente y modal de primer inicio
+      del Home ([ADR 0017](adr/0017-modos-por-juego-gate-home.md)) — todo
+      verificado solo en web a la fecha.
+- [ ] **E2E `fix-wrap` (robo-jump) sigue intermitente** (reconfirmado en el
+      cierre: falla y pasa alternando en el mismo árbol limpio) — ver
+      entrada detallada abajo en Deudas técnicas.
+
 ## Solitario — animaciones fuera de alcance (diferido de PLAN-ESCALA-CONTENIDO)
 
 - [ ] Shake en drop inválido (el snap-back spring + `soundCardInvalid` ya lo

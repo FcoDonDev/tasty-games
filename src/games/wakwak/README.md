@@ -145,3 +145,36 @@ src/games/wakwak/
   sonido de combo con playback rate creciente + haptic Medium en cadena ≥2.
 - **E2E v2:** `test-win` fijado al nivel 8 (cierra la run), `test-level`
   (nivel 1 → interstitial + avance), `test-combo` (cadena 200+400 = 650 pts).
+
+## Modo Fácil (PLAN-ACCESIBILIDAD T4)
+
+Segunda geometría del juego, orientada a 3ª edad / novatos (detalles de
+diseño en [ADR 0017](../../../docs/adr/0017-modos-por-juego-gate-home.md)):
+
+- **Layout propio 11×13** (`FACIL_LAYOUT` en `engine/maze.ts`, aprobado por
+  el usuario en el checkpoint del preview): combs verticales abajo (sin
+  áreas abiertas 2×2), spawn del robot en el centro (8,5) con corredor
+  completo c1..c9 (topes en los bordes), corral de 2 drones sellado en la
+  fila 6 con puerta (5,5), 4 súper (esquinas r1/r11), chip dorado en el
+  propio spawn (aparece a mitad de partida, cuando la celda ya está libre),
+  1 sola fila de túnel (la 6). Validado con `parseLayout(layout, pins)` +
+  `PINS_FACIL` (gate automático en `__tests__/labFacil.test.ts`).
+- **`LEVELS_FACIL`** (`engine/levels.ts`): 8 niveles con invariantes medibles
+  (candeadas en `levels.test`): robot/droneChase ≥1.3, powerMs ≥1.5× el del
+  modo normal del mismo nivel, `elroyThreshold: null` (sin Elroy), scatter
+  más largo / chase más corto.
+- **Escenario y personajes ×2 al render**: `cellSize` se deriva del maze
+  activo (`state.maze`, el laberinto viaja en el GameState — T4a); el
+  tablero 11×13 llena los 360px con celdas ~1.8×.
+- **Toggle Fácil/Normal** en el picker de niveles (chips
+  `wakwak-modo-facil/normal`): persiste `wakwak.modo` y aplica a la PRÓXIMA
+  partida; el modo real de la run vive en `game.mode` (prioridad del reset:
+  config del sentinela E2E > `?difficulty=` por URL > setting). HUD muestra
+  "FÁCIL" (`wakwak-modo`); desbloqueo de niveles separado por modo
+  (`wakwak.maxLevel` / `wakwak.maxLevelFacil`).
+- **Récord por clave del modo (D1):** `recordGameId(mode)` → `wakwak-facil`;
+  el chrome lo consulta vía `onActiveGameId`.
+- **Seeds E2E propias:** `facil-win` (8 baterías en la fila del spawn: dos
+  press cierran la run en nivel 8) y `facil-lose` (los 2 drones salen de
+  inmediato); specs en `__e2e__/wakwak-facil.web.spec.ts`. Los sentinelas
+  v2 (`test-win`, etc.) siguen pinneados a `normal` con la geometría 19×21.

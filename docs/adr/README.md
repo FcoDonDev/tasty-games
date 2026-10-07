@@ -28,3 +28,5 @@ Para proponer un cambio que contradiga un ADR: crear un nuevo ADR que lo reempla
 | [0013](0013-pwa-instalable-sin-service-worker.md) | Aceptada | PWA instalable (manifest standalone + metas Apple) sin Service Worker |
 | [0014](0014-realtime-timestep-interpolacion.md) | Aceptada | Juegos de acción en tiempo real: timestep fijo con acumulador en el store + interpolación de renderer + render toroidal |
 | [0015](0015-audio-web-webaudio-api.md) | Aceptada | Audio en web: ruta primaria Web Audio API + desbloqueo centralizado a nivel app (fallback a expo-audio) |
+| [0016](0016-best-score-sin-filtro-won.md) | Aceptada | Best score sin filtro por victoria + refresh del ScoreBoard |
+| [0017](0017-modos-por-juego-gate-home.md) | Aceptada (validación device pendiente) | Modos por juego, récord por clave del modo y gate de primer inicio en el Home |
