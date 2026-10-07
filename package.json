@@ -53,6 +53,7 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "maxWorkers": 2,
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1",
       "\\.(wav)$": "<rootDir>/__mocks__/assetStub.ts"

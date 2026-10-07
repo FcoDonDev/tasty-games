@@ -6,6 +6,7 @@ App de juegos 2D simples (Web + Android) con Expo SDK 57 / Expo Router / React N
 ## Comandos
 
 - Gestor de paquetes: **pnpm únicamente** (no npm/yarn). `.npmrc` fija `node-linker=hoisted` — requerido por Metro, no borrar.
+- Footprint de pruebas acotado: `pnpm test` corre con **`maxWorkers: 2`** (fijo en la config jest de `package.json` — JSON no admite comentarios) y Playwright con **`workers: 1`** (`playwright.config.ts`, serial por diseño): la máquina suele tener sesiones agente/dev-server en paralelo y el load alto derrite la suite a minutos (265s/suite observados). Si una corrida se cuelga o enlentece sin causa en el diff, verificar `uptime` antes de debuggear el código. Forzar paralelismo ad-hoc: `pnpm exec jest --maxWorkers=6` / `pnpm exec playwright test --workers=4`.
 - Instalar paquetes nativos/de Expo **solo** con `pnpm exec expo install <pkg>` (respeta la matriz de compatibilidad del SDK). `pnpm add` directo solo para paquetes JS puros (ej. zustand).
 - Verificación: `pnpm typecheck` (tsc --noEmit) → `pnpm test` (jest, preset jest-expo). Un solo test: `pnpm test -- <patron>`.
 - Verificar build web sin dev server: `CI=1 pnpm exec expo export --platform web` (genera `dist/`, ya gitignored).
