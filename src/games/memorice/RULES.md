@@ -11,10 +11,13 @@ Encontrar todos los pares de cartas iguales memorizando sus posiciones.
 
 | Parámetro | Valor implementado |
 |---|---|
-| Cartas | 16 (8 pares) |
+| Cartas | 16 (8 pares) fácil · 20 (10 pares) medio · 24 (12 pares) difícil |
+| Dificultad | Se elige en un modal del Home ANTES de cada inicio (siempre pregunta); default fácil |
+| Récords | Clave separada por nivel: `memorice` (fácil), `memorice-medio`, `memorice-dificil` |
 | Símbolos | Emojis de frutas/verduras (`engine/deck.ts: MEMORICE_SYMBOLS`) |
 | Baraja | Aleatoria en cada partida (Fisher-Yates con `Math.random()`) |
-| Grid | 4 columnas (3 en pantallas angostas, ancho < 420 px) |
+| Grid | 4 columnas SIEMPRE: grilla 4×4 (fácil) / 4×5 (medio) / 4×6 (difícil) |
+| Juice | Voltear: pluck + vibración · Match: snap + vibración · Victoria: arpegio + haptic de éxito. Respeta el switch de sonido de Ajustes; haptics solo en nativo |
 
 ## Reglas de juego
 
@@ -32,21 +35,21 @@ Encontrar todos los pares de cartas iguales memorizando sus posiciones.
 
 ## Fin del juego
 
-- **Victoria**: cuando los 8 pares están encontrados. Aparece un modal con
-  puntaje e intentos, y opciones "Jugar de nuevo" y "Salir".
+- **Victoria**: cuando todos los pares del nivel están encontrados. Aparece un
+  modal con puntaje e intentos, y opciones "Jugar de nuevo" (mismo nivel) y
+  "Salir".
 - No hay derrota ni límite de tiempo: se puede seguir intentando indefinidamente.
 
 ## Puntaje
 
 - `score = max(0, 100 - intentos)` — **más puntaje es mejor** (convención global
   de la app, ver `src/core/types.ts`).
-- Partida perfecta: 8 intentos → 92 puntos.
+- Partida perfecta: 8 intentos → 92 puntos (fácil); los récords se comparan
+  solo dentro de cada nivel (claves separadas).
 - Solo se registra el resultado al ganar (`won: true` siempre al terminar).
 - El récord se guarda al cerrar el modal (vía el contenedor del juego, no el
   juego mismo).
 
 ## Fuera de alcance del MVP
 
-- Dificultades (4×4 / 6×6 / pares con tiempo).
 - Multijugador por turnos.
-- Sonido/animación de celebración.

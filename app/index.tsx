@@ -19,13 +19,25 @@ import type { GameDefinition } from '@/core/types';
 // virtualizada: nunca `entering` por fila). Ocasional / delight, ≤250ms.
 const LIST_ENTER = FadeIn.duration(250).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
+interface DifficultyGate {
+  prefKey: string;
+  default: string;
+  options: DifficultyOption[];
+  /**
+   * Modal SIEMPRE antes de cada inicio (memorice): el tap abre el modal sin
+   * consultar la preferencia y la elección no se persiste (nadie la lee —
+   * el gate no consulta pref). Sin `always` = patrón "primer inicio" de
+   * serpiente/wakwak.
+   */
+  always?: boolean;
+}
+
 /**
  * Juegos con modos (PLAN-ACCESIBILIDAD T5, D-T5-1/D-T5-4): si el usuario no
  * eligió aún, el Home muestra el modal de dificultad ANTES de navegar. Data
- * pura (claves y opciones como strings): si un tercer juego suma modos se
- * generaliza a un campo del game-registry.
+ * pura (claves y opciones como strings).
  */
-const DIFFICULTY_GATES: Record<string, { prefKey: string; default: string; options: DifficultyOption[] }> = {
+const DIFFICULTY_GATES: Record<string, DifficultyGate> = {
   serpiente: {
     prefKey: 'serpiente.dificultad',
     default: 'medio',
@@ -41,6 +53,18 @@ const DIFFICULTY_GATES: Record<string, { prefKey: string; default: string; optio
     options: [
       { value: 'facil', label: 'Fácil', hint: 'Escenario y personajes ×2, 2 drones' },
       { value: 'normal', label: 'Normal' },
+    ],
+  },
+  memorice: {
+    prefKey: 'memorice.dificultad',
+    default: 'facil',
+    // D3 (PLAN-MEMORICE-DIFICULTAD): el usuario pidió el modal SIEMPRE antes
+    // de cada inicio; la dificultad no se persiste (D6).
+    always: true,
+    options: [
+      { value: 'facil', label: 'Fácil', hint: '8 pares' },
+      { value: 'medio', label: 'Medio', hint: '10 pares' },
+      { value: 'dificil', label: 'Difícil', hint: '12 pares' },
     ],
   },
 };
@@ -64,10 +88,16 @@ export default function HomeScreen() {
   // D-T5-1: el gate se lee en el TAP (no en el mount): sin pref → modal;
   // con pref → navegación directa CON el param (la run arranca ya con la
   // preferencia vigente, sin la carrera del load async del screen).
+  // Gates `always` (memorice): el modal aparece en CADA tap (D3/D6) — sin
+  // lookup ni persistencia.
   const openGame = (game: GameDefinition) => {
     const gate = DIFFICULTY_GATES[game.id];
     if (!gate) {
       router.push({ pathname: '/juego/[id]', params: { id: game.id } });
+      return;
+    }
+    if (gate.always) {
+      setPromptGame(game);
       return;
     }
     void preferencesRepository.get(gate.prefKey).then((raw) => {
@@ -81,12 +111,15 @@ export default function HomeScreen() {
 
   // Al elegir: persistir + navegar con el param (el screen lo aplica al reset
   // del mount — ambos juegos ya lo consumen). D-T5-2: descartar persiste el
-  // default ("no vuelve a preguntar") y se queda en el Home.
+  // default ("no vuelve a preguntar") y se queda en el Home. Los gates
+  // `always` NO persisten (D6): la elección solo navega.
   const chooseDifficulty = (value: string) => {
     const game = promptGame;
     if (!game) return;
     const gate = DIFFICULTY_GATES[game.id];
-    void preferencesRepository.set(gate.prefKey, value);
+    if (!gate.always) {
+      void preferencesRepository.set(gate.prefKey, value);
+    }
     setPromptGame(null);
     router.push({ pathname: '/juego/[id]', params: { id: game.id, difficulty: value } });
   };
@@ -95,7 +128,9 @@ export default function HomeScreen() {
     const game = promptGame;
     if (game) {
       const gate = DIFFICULTY_GATES[game.id];
-      void preferencesRepository.set(gate.prefKey, gate.default);
+      if (!gate.always) {
+        void preferencesRepository.set(gate.prefKey, gate.default);
+      }
     }
     setPromptGame(null);
   };

@@ -10,7 +10,7 @@ test('ayuda in-app: accesible desde el header del juego y desde el contenedor', 
   // Vía 1: botón ? del header del juego
   await page.getByLabel('ayuda-memorice', { exact: true }).click();
   await expect(modal).toBeVisible();
-  await expect(modal.getByText(/Encuentra los 8 pares/)).toBeVisible();
+  await expect(modal.getByText(/Encuentra todos los pares/)).toBeVisible();
   await modal.getByLabel('cerrar-ayuda-memorice', { exact: true }).click();
   await expect(modal).toBeHidden();
 

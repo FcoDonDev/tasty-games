@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const CARD_COUNT = 16; // 8 pares
+const CARD_COUNT = 16; // 8 pares (fácil)
 
 /** Voltea una carta y espera a que muestre su símbolo. Devuelve el símbolo. */
 async function flip(page: Page, position: number): Promise<string> {
@@ -10,16 +10,27 @@ async function flip(page: Page, position: number): Promise<string> {
   return (await card.textContent())?.trim() ?? '';
 }
 
+/**
+ * Home → tap en la card → modal de dificultad (SIEMPRE, D3) → elegir nivel.
+ * Devuelve al juego ya iniciado con el nivel elegido.
+ */
+async function enterGame(page: Page, difficulty: 'facil' | 'medio' | 'dificil'): Promise<void> {
+  await page.getByLabel('Jugar Memorice').click();
+  const difficultyModal = page.getByLabel('modal-dificultad-home', { exact: true });
+  await expect(difficultyModal).toBeVisible();
+  await difficultyModal.getByLabel(`elegir-dificultad-home-${difficulty}`, { exact: true }).click();
+  await expect(page.getByText(/Intentos:/)).toBeVisible();
+}
+
 test('memorice: partida completa web → modal de victoria + récord persistido', async ({
   page,
 }) => {
   test.setTimeout(240_000);
 
-  // 1. Home → tarjeta del juego
+  // 1. Home → tarjeta del juego → modal SIEMPRE (elegir fácil)
   await page.goto('/');
   await expect(page.getByText('Tasty Games')).toBeVisible();
-  await page.getByLabel('Jugar Memorice').click();
-  await expect(page.getByText(/Intentos:/)).toBeVisible();
+  await enterGame(page, 'facil');
 
   // 2. Partida: algoritmo de memorice determinista
   //    - unknown: posiciones boca abajo aún sin símbolo conocido
@@ -99,15 +110,64 @@ test('memorice: partida completa web → modal de victoria + récord persistido'
   expect(memoriceRecord).toBeDefined();
   expect(memoriceRecord!.score).toBeGreaterThan(0);
 
-  // 5. Tras recargar (seguimos en la ruta del juego), el récord aparece en el ScoreBoard compacto del header
+  // 5. Bug reportado (PLAN): salir → Home → re-entrar SIN recarga (SPA) NO
+  //    debe mostrar el modal de victoria "fantasma" (el store sobrevive al
+  //    desmonte; el efecto de victoria corría con valores stale antes del
+  //    reset del mount).
+  await page.getByLabel('salir-al-home-memorice', { exact: true }).click();
+  await expect(page.getByText('Tasty Games')).toBeVisible();
+  await enterGame(page, 'facil');
+  await expect(page.getByLabel('modal-victoria-memorice')).not.toBeVisible();
+  await expect(page.getByText('Intentos: 0')).toBeVisible();
+
+  // 6. Tras recargar (seguimos en la ruta del juego), el récord aparece en el
+  //    ScoreBoard compacto del header
   await page.reload();
   await expect(page.getByLabel('record-memorice')).toHaveText(/\d+ pts/, { timeout: 15_000 });
 });
 
 test('memorice: salir vuelve al Home', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Jugar Memorice').click();
-  await expect(page.getByText(/Intentos:/)).toBeVisible();
+  await enterGame(page, 'facil');
   await page.getByLabel('salir-memorice').click();
   await expect(page.getByText('Tasty Games')).toBeVisible();
+});
+
+test('memorice: el modal de dificultad aparece SIEMPRE (D3) y "Ahora no" queda en el Home', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByLabel('Jugar Memorice').click();
+  await expect(page.getByLabel('modal-dificultad-home', { exact: true })).toBeVisible();
+
+  // Descartar: se queda en el Home (sin persistir nada, D4/D6)
+  await page.getByLabel('cerrar-dificultad-home-memorice', { exact: true }).click();
+  await expect(page.getByText('Tasty Games')).toBeVisible();
+  const prefsRaw = await page.evaluate(() => localStorage.getItem('preferences'));
+  expect(prefsRaw ? JSON.parse(prefsRaw)['memorice.dificultad'] : undefined).toBeUndefined();
+
+  // Volver a tocar la card: el modal reaparece (no es solo el primer inicio)
+  await page.getByLabel('Jugar Memorice').click();
+  await expect(page.getByLabel('modal-dificultad-home', { exact: true })).toBeVisible();
+
+  // Elegir difícil: 24 cartas
+  await page
+    .getByLabel('modal-dificultad-home', { exact: true })
+    .getByLabel('elegir-dificultad-home-dificil', { exact: true })
+    .click();
+  await expect(page.getByText(/Intentos:/)).toBeVisible();
+  await expect(page.getByLabel(/^carta-\d+$/)).toHaveCount(24);
+});
+
+test('memorice: deep-link respeta la dificultad del nivel (sin pasar por el Home)', async ({
+  page,
+}) => {
+  await page.goto('/juego/memorice?difficulty=medio');
+  await expect(page.getByText(/Intentos:/)).toBeVisible();
+  await expect(page.getByLabel(/^carta-\d+$/)).toHaveCount(20);
+
+  await page.goto('/juego/memorice');
+  await expect(page.getByText(/Intentos:/)).toBeVisible();
+  // sin param → default fácil (D5)
+  await expect(page.getByLabel(/^carta-\d+$/)).toHaveCount(16);
 });

@@ -30,7 +30,14 @@ test.describe('navegación back', () => {
     await page.goto('/');
     await expect(page.getByText('Tasty Games')).toBeVisible({ timeout: 15_000 });
 
+    // memorice: el Home muestra SIEMPRE el modal de dificultad antes de entrar
     await page.getByLabel('Jugar Memorice').click();
+    const difficultyModal = page.getByLabel('modal-dificultad-home', { exact: true });
+    await expect(difficultyModal).toBeVisible({ timeout: 15_000 });
+    await difficultyModal
+      .getByLabel('elegir-dificultad-home-facil', { exact: true })
+      .click();
+
     await expect(page.getByLabel('salir-memorice', { exact: true })).toBeVisible({ timeout: 15_000 });
 
     await page.getByLabel('salir-memorice', { exact: true }).click();

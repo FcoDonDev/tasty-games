@@ -1,14 +1,18 @@
 export const PADDING = 12;
 export const GAP = 8;
-export const NARROW_BREAKPOINT = 420;
 export const GRID_COLUMNS_WIDE = 4;
-export const GRID_COLUMNS_NARROW = 3;
-/** Total de cartas: 8 pares (PAIR_COUNT * 2). */
+/** Total de cartas del nivel default: 8 pares (PAIR_COUNT * 2, fácil). */
 export const TOTAL_CARDS = 16;
 
-/** Columnas del grid según el ancho (mobile-first). */
-export function columnsForWidth(containerWidth: number): number {
-  return containerWidth < NARROW_BREAKPOINT ? GRID_COLUMNS_NARROW : GRID_COLUMNS_WIDE;
+/**
+ * Columnas del grid, ESTANDARIZADAS en 4 para los tres niveles: fácil 4×4,
+ * medio 4×5 y difícil 4×6 (feedback de playtest: misma forma mental de
+ * escanear el tablero en cualquier nivel, targets más grandes en angosto —
+ * antes 16 cartas usaban 3 columnas con cartas ~63×84px).
+ * Los params quedan por compatibilidad con tests/callers.
+ */
+export function columnsForWidth(_containerWidth?: number, _totalCards?: number): number {
+  return GRID_COLUMNS_WIDE;
 }
 
 export interface CardSize {

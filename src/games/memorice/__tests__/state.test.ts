@@ -43,6 +43,39 @@ describe('memorice state', () => {
     expect(s.finishedAt).toBeNull();
   });
 
+  it('reset sin dificultad usa el default (facil, 8 pares)', () => {
+    const s = fresh(7);
+    expect(s.cards).toHaveLength(16);
+    const pairIds = new Set(s.cards.map((c) => c.pairId));
+    expect(pairIds.size).toBe(8);
+  });
+
+  it('reset con dificultad arma el nº de pares del nivel (D1)', () => {
+    useMemoriceStore.getState().reset(7, 'medio');
+    const medio = new Set(useMemoriceStore.getState().cards.map((c) => c.pairId));
+    expect(useMemoriceStore.getState().cards).toHaveLength(20);
+    expect(medio.size).toBe(10);
+
+    useMemoriceStore.getState().reset(7, 'dificil');
+    const dificil = new Set(useMemoriceStore.getState().cards.map((c) => c.pairId));
+    expect(useMemoriceStore.getState().cards).toHaveLength(24);
+    expect(dificil.size).toBe(12);
+
+    useMemoriceStore.getState().reset(7, 'facil');
+    expect(useMemoriceStore.getState().cards).toHaveLength(16);
+  });
+
+  it('cada dificultad baraja con el mismo seed de forma distinta pero determinista', () => {
+    useMemoriceStore.getState().reset(42, 'medio');
+    const medioA = useMemoriceStore.getState().cards.map((c) => c.id).join(',');
+    useMemoriceStore.getState().reset(42, 'medio');
+    const medioB = useMemoriceStore.getState().cards.map((c) => c.id).join(',');
+    useMemoriceStore.getState().reset(42, 'dificil');
+    const dificil = useMemoriceStore.getState().cards.map((c) => c.id).join(',');
+    expect(medioA).toBe(medioB);
+    expect(dificil).not.toBe(medioA);
+  });
+
   it('scoreFor: más movimientos = menos score, nunca negativo', () => {
     expect(scoreFor(0)).toBe(100);
     expect(scoreFor(8)).toBe(92);

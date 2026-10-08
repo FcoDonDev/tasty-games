@@ -16,6 +16,9 @@ de desarrollo). Ver [ADR 0003](adr/0003-e2e-android-dev-build.md).
 - [ ] Récords: insertar/leer en Android (expo-sqlite) — verificar DDL +
       `PRAGMA user_version`
 - [ ] `memorice.android.yaml` (Maestro): partida completa → modal + récord
+      (cubierto además por [ADR 0018](adr/0018-gate-dificultad-siempre-memorice.md):
+      validar en Android el modal SIEMPRE de dificultad y los 3 niveles
+      4×4 / 4×5 / 4×6 con sus récords por clave)
 - [ ] `solitario.android.yaml`: movimiento legal, ilegal con snap-back,
       victoria forzada
 - [ ] `damas.android.yaml`: partida corta hasta captura y fin
