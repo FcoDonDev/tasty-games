@@ -30,3 +30,4 @@ Para proponer un cambio que contradiga un ADR: crear un nuevo ADR que lo reempla
 | [0015](0015-audio-web-webaudio-api.md) | Aceptada | Audio en web: ruta primaria Web Audio API + desbloqueo centralizado a nivel app (fallback a expo-audio) |
 | [0016](0016-best-score-sin-filtro-won.md) | Aceptada | Best score sin filtro por victoria + refresh del ScoreBoard |
 | [0017](0017-modos-por-juego-gate-home.md) | Aceptada (validación device pendiente) | Modos por juego, récord por clave del modo y gate de primer inicio en el Home |
+| [0018](0018-gate-dificultad-siempre-memorice.md) | Aceptada (validación device pendiente) | Gate de dificultad SIEMPRE (modal en cada inicio) — memorice |

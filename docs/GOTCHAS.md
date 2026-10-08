@@ -25,6 +25,18 @@ background están en `AGENTS.md`, no acá.
   `expect(switch).toBeChecked()`, no `getAttribute('aria-checked')`.
 - **Overlays de core bajo contenido posterior**: los siblings posteriores
   pintan encima — los modales de core necesitan `zIndex: 50`.
+- **Store zustand: singleton a nivel módulo + closures stale en efectos de
+  montaje** (PLAN-MEMORICE-DIFICULTAD): el store sobrevive al desmonte de la
+  pantalla, así que al RE-ENTRAR tras ganar, el efecto de "fin de partida"
+  corría en el primer commit con valores STALE de la partida anterior
+  (`finishedAt ≠ null` capturado en el render inicial) ANTES de que el efecto
+  de reset (declarado antes, mismo commit) limpiara el store → modal de
+  victoria "fantasma" + récord duplicado. Remedio: los efectos que detectan
+  fin/estado residual al montar re-leen SINCRÓNICAMENTE con
+  `useZustandStore.getState()` (ya ven la mutación del reset del mismo
+  commit), no usan la closure del render. Reproducible solo SIN recarga de
+  página (SPA); un `page.reload()` de por medio lo enmascara (el reload
+  recrea TODOS los módulos).
 - **Stock como Pressable**: la carta top del stock se renderiza DENTRO del
   Pressable con `pointerEvents="none"`; como hermana absoluta bloquearía el
   tap (hit-testing nativo).
@@ -97,6 +109,9 @@ background están en `AGENTS.md`, no acá.
 
 - **Reanimated en Jest requiere mocks propios** (`__mocks__/`): el mock oficial
   de reanimated inicializa worklets nativo y falla en Node.
+- **Los `Set` no tienen `toHaveLength`** (PLAN-MEMORICE-DIFICULTAD): `expect(new Set([...])).toHaveLength(n)` falla con "received value must have a length
+  property" — usar `expect(set.size).toBe(n)` (los matchers de length de jest
+  solo miran `.length`).
 - **`FadeIn`/`FadeOut` no existen al importar módulos en jest**: los builders
   de `overlayAnimation.ts` se crean perezosamente en la primera llamada de
   render y se memoizan (como constantes de module scope, `game-registry.test`
