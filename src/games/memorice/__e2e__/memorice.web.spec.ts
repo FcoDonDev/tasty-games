@@ -110,7 +110,18 @@ test('memorice: partida completa web → modal de victoria + récord persistido'
   expect(memoriceRecord).toBeDefined();
   expect(memoriceRecord!.score).toBeGreaterThan(0);
 
-  // 5. Tras recargar (seguimos en la ruta del juego), el récord aparece en el ScoreBoard compacto del header
+  // 5. Bug reportado (PLAN): salir → Home → re-entrar SIN recarga (SPA) NO
+  //    debe mostrar el modal de victoria "fantasma" (el store sobrevive al
+  //    desmonte; el efecto de victoria corría con valores stale antes del
+  //    reset del mount).
+  await page.getByLabel('salir-al-home-memorice', { exact: true }).click();
+  await expect(page.getByText('Tasty Games')).toBeVisible();
+  await enterGame(page, 'facil');
+  await expect(page.getByLabel('modal-victoria-memorice')).not.toBeVisible();
+  await expect(page.getByText('Intentos: 0')).toBeVisible();
+
+  // 6. Tras recargar (seguimos en la ruta del juego), el récord aparece en el
+  //    ScoreBoard compacto del header
   await page.reload();
   await expect(page.getByLabel('record-memorice')).toHaveText(/\d+ pts/, { timeout: 15_000 });
 });

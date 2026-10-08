@@ -155,3 +155,14 @@ primera vez.
   cartas más grandes que 3 columnas) + E2E responsive con `?difficulty=`
   para medio/difícil sin scroll a 360×640.
 - `state.test.ts`: los Set no tienen `toHaveLength` — usar `size`.
+- BUG reportado por el usuario y CONFIRMADO (reproducido con E2E): modal de
+  victoria "fantasma" al salir del overlay → Home → re-entrar (sin recarga).
+  Causa: el store zustand es un singleton a nivel módulo que sobrevive al
+  desmonte; el efecto de victoria corría en el primer commit con valores
+  STALE de la partida ganada (antes del reset del mount) y encima re-reportaba
+  el récord. Fix: el efecto re-lee el estado con `useMemoriceStore.getState()`
+  (el reset, declarado antes, ya corrió en ese commit). Nota: "Jugar de
+  nuevo" no lo disparaba porque no hay remonte.
+- Reproducción del bug en E2E: el click sobre `salir-memorice` (header) es
+  interceptado por el overlay de victoria — en la secuencia real se usa el
+  botón "Salir" del overlay (`salir-al-home-memorice`).

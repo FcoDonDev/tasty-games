@@ -115,17 +115,25 @@ export default function MemoriceScreen({
     return () => clearTimeout(timer);
   }, [flipped, resolveMismatch]);
 
-  // Fin del juego: reporta una única vez vía el contrato
+  // Fin del juego: reporta una única vez vía el contrato. Los valores se
+  // re-leen SINCRÓNICAMENTE del store (`getState()`), no de la closure del
+  // render: el store es un singleton que sobrevive al desmonte y al re-entrar
+  // tras ganar este efecto corre en el MISMO commit que el reset (orden de
+  // declaración) con valores STALE — ver el estado recién reseteado corta el
+  // modal de victoria "fantasma" y el doble reporte del récord (bug PLAN).
   useEffect(() => {
-    if (finishedAt === null || cards.length === 0 || hasReportedRef.current) return;
+    if (hasReportedRef.current) return;
+    const fresh = useMemoriceStore.getState();
+    if (fresh.finishedAt === null || fresh.cards.length === 0) return;
     hasReportedRef.current = true;
-    const durationMs = startedAt !== null ? Math.max(0, finishedAt - startedAt) : 0;
+    const durationMs =
+      fresh.startedAt !== null ? Math.max(0, fresh.finishedAt - fresh.startedAt) : 0;
     const result: GameResult = {
       gameId: recordGameId(difficulty),
       won: true,
-      score: scoreFor(moves),
+      score: scoreFor(fresh.moves),
       durationMs,
-      finishedAt: new Date(finishedAt).toISOString(),
+      finishedAt: new Date(fresh.finishedAt).toISOString(),
     };
     void onGameEnd(result);
     soundGameWin();
