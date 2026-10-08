@@ -41,10 +41,12 @@ primera vez.
 - **D6 — Gate `always` sin persistencia**: para memorice ni `chooseDifficulty`
   ni `dismissDifficulty` escriben en `preferencesRepository` (nadie leería la
   clave — el gate no consulta pref). Solo navegar con el param / quedarse.
-- **D7 — Layout por total de cartas**: en narrow (360px) 24 cartas con 3
-  columnas dejan cartas ~43×58px; con 4 columnas (6 filas) suben a ~60×80px.
-  T3 evalúa `columnsForWidth(width, totalCards)` con medición y elige;
-  la pantalla pasa `cards.length` (no `PAIR_COUNT * 2`) a `computeCardSize`.
+- **D7 — Layout por total de cartas**: inicialmente columnas por total
+  (4 para 20/24 cartas en angosto). **AMEND por playtest del usuario**: la
+  grilla queda ESTANDARIZADA en 4 columnas para los tres niveles — fácil 4×4,
+  medio 4×5, difícil 4×6 — misma forma mental de escanear el tablero y cartas
+  más grandes en angosto. `columnsForWidth` ahora devuelve 4 SIEMPRE (sin
+  breakpoint narrow); la pantalla pasa `cards.length` a `computeCardSize`.
 - **D8 — Juice: sonidos y haptics (mejora UX solicitada)**: feedback por
   evento usando SOLO los wrappers de `src/core/ui/` (regla del repo: los
   juegos no importan expo-haptics ni players de audio directamente):
@@ -78,11 +80,10 @@ primera vez.
       con seeds). Sin `difficulty` → `facil`.
 - [x] El primer reparto ya tiene el nivel correcto SIN re-deal visible
       (dificultad inicializada sincrónicamente desde el param).
-- [ ] Juice (D8): cada flip suena + vibra (nativo), cada match suena + vibra,
+- [x] Juice (D8): cada flip suena + vibra (nativo), cada match suena + vibra,
       victoria con arpegio + haptic de éxito; todo silenciable con el switch
-      de sonido de Ajustes; en web los haptics son no-op.
-      **PENDIENTE verificación manual del usuario** (dev server: jugar con
-      sonido ON/OFF en los 3 niveles).
+      de sonido de Ajustes; en web los haptics son no-op. — **CONFIRMADO por
+      el usuario en playtest.**
 - [x] Suite E2E completa verde, incluidos los specs que hoy navegan Home →
       tap "Jugar Memorice" (memorice + navigation), adaptados al modal.
 
@@ -166,3 +167,9 @@ primera vez.
 - Reproducción del bug en E2E: el click sobre `salir-memorice` (header) es
   interceptado por el overlay de victoria — en la secuencia real se usa el
   botón "Salir" del overlay (`salir-al-home-memorice`).
+- Bug de victoria confirmado CORREGIDO + sonidos CONFIRMADOS por el usuario
+  en playtest (T9/T4b cerrados).
+- Último ajuste UI (playtest): grilla estandarizada 4 columnas para los tres
+  niveles (D7 amended); `GRID_COLUMNS_NARROW`/`NARROW_BREAKPOINT` eliminados
+  de `layout.ts` (código muerto). Verificación: typecheck + 560 unit + E2E
+  memorice/responsive filtrado verde.

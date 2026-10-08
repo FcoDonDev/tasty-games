@@ -63,9 +63,9 @@ memorice/
 - Flip en dos fases en `Card.tsx`: rotación 0° → 90° (se intercambia el contenido)
   → 0°, coordinada por `useAnimatedReaction` + `scheduleOnRN` (`showFace`).
   Evita el espejo de un `rotateY` continuo, que se ve mal en RN Web.
-- Grid responsive con `columnsForWidth(width, totalCards)`: 4 columnas (3 si
-  `width < 420` con el nivel fácil); medio/difícil (20/24 cartas) usan 4
-  columnas también en pantallas angostas — menos filas, cartas más grandes.
+- Grid responsive con `columnsForWidth`: 4 columnas SIEMPRE — grilla
+  estandarizada 4×4 (fácil), 4×5 (medio) y 4×6 (difícil) también en pantallas
+  angostas (menos filas, cartas más grandes).
 
 ## Convenciones E2E
 

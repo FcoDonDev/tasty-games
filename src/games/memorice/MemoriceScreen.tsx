@@ -63,12 +63,9 @@ export default function MemoriceScreen({
   const [showWin, setShowWin] = useState(false);
   const hasReportedRef = useRef(false);
 
-  // Columnas del grid: derivan del ancho medido Y del total de cartas de la
-  // dificultad (D7: 24 cartas usan 4 columnas también en pantallas angostas).
-  const columns = useMemo(
-    () => (size ? columnsForWidth(size.width, cards.length) : 4),
-    [size, cards.length],
-  );
+  // Columnas del grid: estandarizadas en 4 para los tres niveles
+  // (4×4 / 4×5 / 4×6, PLAN-MEMORICE-DIFICULTAD — playtest).
+  const columns = useMemo(() => (size ? columnsForWidth(size.width) : 4), [size]);
 
   // Tamaño de carta derivado del área medida en AMBAS dimensiones (sin scroll)
   const { cardWidth, cardHeight } = useMemo(

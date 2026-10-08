@@ -16,7 +16,7 @@ Encontrar todos los pares de cartas iguales memorizando sus posiciones.
 | Récords | Clave separada por nivel: `memorice` (fácil), `memorice-medio`, `memorice-dificil` |
 | Símbolos | Emojis de frutas/verduras (`engine/deck.ts: MEMORICE_SYMBOLS`) |
 | Baraja | Aleatoria en cada partida (Fisher-Yates con `Math.random()`) |
-| Grid | 4 columnas (3 en pantallas angostas < 420 px con el nivel fácil; medio/difícil usan 4) |
+| Grid | 4 columnas SIEMPRE: grilla 4×4 (fácil) / 4×5 (medio) / 4×6 (difícil) |
 | Juice | Voltear: pluck + vibración · Match: snap + vibración · Victoria: arpegio + haptic de éxito. Respeta el switch de sonido de Ajustes; haptics solo en nativo |
 
 ## Reglas de juego
