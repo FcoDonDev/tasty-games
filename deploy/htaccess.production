@@ -1,0 +1,59 @@
+# Tasty Games — Apache (cPanel) para export estático de Expo Router
+#
+# El export (`CI=1 pnpm exec expo export --platform web`, web.output: "static")
+# genera un HTML por ruta (<ruta>.html) pero NO genera .htaccess. Sin estas
+# reglas, las deep links sin extensión (/juego/solitario, /ajustes) dan 404.
+#
+# El pipeline sube este archivo vía curl (FtpUpload@2 se salta dotfiles).
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # /juego/solitario -> /juego/solitario.html cuando existe el HTML prerenderizado
+  RewriteCond %{REQUEST_FILENAME}.html -f
+  RewriteRule ^(.+?)/?$ $1.html [L]
+
+  # Fallback SPA: rutas sin archivo/directorio real (ej. /juego/<id> dinámico)
+  # sirven el shell de la app y Expo Router resuelve client-side
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ /index.html [L]
+</IfModule>
+
+# Sin PHP en este sitio: el HTML manda sobre cualquier index.php heredado
+DirectoryIndex index.html
+
+# Compresión para los tipos que exporta la app
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript \
+    application/javascript application/json image/svg+xml
+</IfModule>
+
+# Política de cache — cada respuesta recibe EXACTAMENTE un Cache-Control
+# (las tres condiciones son mutuamente excluyentes).
+#
+# 1) HTML (por nombre de archivo; también cubre el fallback SPA a index.html):
+#    `no-cache` = el navegador revalida SIEMPRE (ETag/Last-Modified, 304 si no
+#    cambió). Tras un deploy, recargar basta para ver la versión nueva.
+#
+# 2) Assets CON hash de contenido en el nombre (/_expo/static y /assets —
+#    verificado en el export: entry-<hash>.js, <asset>.<hash>.png): inmutables
+#    1 año. Seguro: el HTML nuevo referencia nombres nuevos, así que una URL
+#    cacheada como immutable nunca corresponde a contenido cambiado.
+#
+# 3) Resto SIN hash (favicon.ico, icon-*.png, manifest.json de public/): cache
+#    corta — si se reemplazan, los navegadores toman la versión nueva en ≤1 h
+#    en vez de quedar clavados hasta 1 año.
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+
+  <If "%{REQUEST_URI} =~ m#^/(_expo/static|assets)/# && %{REQUEST_URI} !~ m#\.html$#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+
+  <If "%{REQUEST_URI} =~ m#\.(png|jpe?g|webp|gif|svg|ico|json|xml|txt|woff2?)$# && %{REQUEST_URI} !~ m#^/(_expo/static|assets)/#">
+    Header set Cache-Control "public, max-age=3600, must-revalidate"
+  </If>
+</IfModule>

@@ -1,0 +1,238 @@
+# Pipeline de despliegue web de tasty-games a hosting cPanel vía FTP(S).
+#
+# Build: typecheck + test + export estático de Expo (`dist/`), zip + artifact.
+# Deploy: FTP a Dev y PRD + .htaccess (el task FTP se salta dotfiles).
+#
+# Variable groups requeridos en Azure DevOps (ver README de deploy si aplica):
+#   build-tasty-games-prd, tasty-games-dev, tasty-games-prd con:
+#     FTP_DOMAIN      ej. ftps://ftp.dominio.com
+#     FTP_USER        usuario FTP
+#     FTP_PASSWORD    (secreta)
+#     FTP_PATH        ej. /public_html
+#     SITE_URL        ej. tastygames.dominio.com (verificación HTTP)
+#     DEEP_LINK_PATH  ej. /juego/solitario (verifica el rewrite de .htaccess)
+
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+# ─────────────────────────────────────────
+# STAGE 1: Build
+# ─────────────────────────────────────────
+
+- stage: Build
+  variables:
+  - group: build-tasty-games-prd
+  displayName: 'Build'
+  jobs:
+  - job: BuildJob
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSource: 'spec'
+        versionSpec: '24.x'
+      displayName: 'Install Node.js'
+
+    - script: |
+        corepack enable
+        pnpm install --frozen-lockfile
+      displayName: 'pnpm install'
+
+    - script: |
+        pnpm typecheck
+        pnpm test
+      displayName: 'Typecheck + tests'
+
+    # El repo no define script `build`: el export web es directo vía expo
+    - script: |
+        CI=1 pnpm exec expo export --platform web
+      displayName: 'Export web estático (dist/)'
+
+    # Zip del sitio estático
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: '$(Build.SourcesDirectory)/dist'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+        replaceExistingArchive: true
+
+    # .htaccess aparte: se sube con curl en el deploy (FTP omite dotfiles)
+    - bash: |
+        mkdir -p '$(Build.ArtifactStagingDirectory)/htaccess'
+        cp deploy/htaccess.production '$(Build.ArtifactStagingDirectory)/htaccess/'
+      displayName: 'Prepare .htaccess asset'
+
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/htaccess'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/htaccess.zip'
+        replaceExistingArchive: true
+
+    # Publica $(Build.BuildId).zip y htaccess.zip en el artifact 'drop'
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'
+
+# ─────────────────────────────────────────
+# STAGE 2: Deploy to DEV vía FTP
+# ─────────────────────────────────────────
+
+- stage: DeployDev
+  variables:
+  - group: tasty-games-dev
+  displayName: 'Deploy FTP - Dev'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeployWeb
+    displayName: 'FTP Upload - sitio completo'
+    environment: 'development'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: ExtractFiles@1
+            displayName: 'Extract dist zip'
+            inputs:
+              archiveFilePatterns: '$(Pipeline.Workspace)/drop/$(Build.BuildId).zip'
+              destinationFolder: '$(Pipeline.Workspace)/drop/extracted'
+              cleanDestinationFolder: true
+
+          - task: FtpUpload@2
+            displayName: 'FTP Upload dist'
+            inputs:
+              credentialsOption: inputs
+              serverUrl: '$(FTP_DOMAIN)'
+              username: '$(FTP_USER)'
+              password: '$(FTP_PASSWORD)'
+              rootDirectory: '$(Pipeline.Workspace)/drop/extracted'
+              remoteDirectory: '$(FTP_PATH)'
+              preservePaths: true
+              trustSSL: true
+              clean: false
+              cleanContents: false
+
+          - task: ExtractFiles@1
+            displayName: 'Extract htaccess zip'
+            inputs:
+              archiveFilePatterns: '$(Pipeline.Workspace)/drop/htaccess.zip'
+              destinationFolder: '$(Pipeline.Workspace)/drop/htaccess'
+              cleanDestinationFolder: true
+
+          # .htaccess de producción: upload explícito (el task FTP se salta dotfiles)
+          - bash: |
+              host="${FTP_DOMAIN#*://}"
+              curl --ssl-reqd --insecure --fail \
+                --user "$FTP_USER:$FTP_PASSWORD" \
+                -T '$(Pipeline.Workspace)/drop/htaccess/htaccess.production' \
+                "ftp://$host$FTP_PATH/.htaccess"
+            displayName: 'Upload .htaccess'
+            env:
+              FTP_DOMAIN: $(FTP_DOMAIN)
+              FTP_PATH: $(FTP_PATH)
+              FTP_USER: $(FTP_USER)
+              FTP_PASSWORD: $(FTP_PASSWORD)
+
+          # / valida el sitio; la deep link valida el rewrite de .htaccess
+          - bash: |
+              if [ -n "$SITE_URL" ]; then
+                code=$(curl -sk -o /dev/null -w '%{http_code}' "https://$SITE_URL/")
+                link=$(curl -sk -o /dev/null -w '%{http_code}' "https://$SITE_URL$DEEP_LINK_PATH")
+                echo "HTTP /: $code  HTTP $DEEP_LINK_PATH: $link"
+                if [ "$code" != "200" ] || [ "$link" != "200" ]; then
+                  echo "##vso[task.logissue type=error]Verificación fallida: / = $code, $DEEP_LINK_PATH = $link"
+                  exit 1
+                fi
+              else
+                echo "SITE_URL sin definir: verificación omitida"
+              fi
+            displayName: 'Verify HTTP 200 (/ y deep link)'
+            env:
+              SITE_URL: $(SITE_URL)
+              DEEP_LINK_PATH: $(DEEP_LINK_PATH)
+
+# ─────────────────────────────────────────
+# STAGE 3: Deploy to PRD vía FTP
+# ─────────────────────────────────────────
+
+- stage: DeployPrd
+  variables:
+  - group: tasty-games-prd
+  displayName: 'Deploy FTP - PRD'
+  dependsOn: DeployDev
+  condition: succeeded()
+  jobs:
+  - deployment: DeployWeb
+    displayName: 'FTP Upload - sitio completo'
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: ExtractFiles@1
+            displayName: 'Extract dist zip'
+            inputs:
+              archiveFilePatterns: '$(Pipeline.Workspace)/drop/$(Build.BuildId).zip'
+              destinationFolder: '$(Pipeline.Workspace)/drop/extracted'
+              cleanDestinationFolder: true
+
+          - task: FtpUpload@2
+            displayName: 'FTP Upload dist'
+            inputs:
+              credentialsOption: inputs
+              serverUrl: '$(FTP_DOMAIN)'
+              username: '$(FTP_USER)'
+              password: '$(FTP_PASSWORD)'
+              rootDirectory: '$(Pipeline.Workspace)/drop/extracted'
+              remoteDirectory: '$(FTP_PATH)'
+              preservePaths: true
+              trustSSL: true
+              clean: false
+              cleanContents: false
+
+          - task: ExtractFiles@1
+            displayName: 'Extract htaccess zip'
+            inputs:
+              archiveFilePatterns: '$(Pipeline.Workspace)/drop/htaccess.zip'
+              destinationFolder: '$(Pipeline.Workspace)/drop/htaccess'
+              cleanDestinationFolder: true
+
+          # .htaccess de producción: upload explícito (el task FTP se salta dotfiles)
+          - bash: |
+              host="${FTP_DOMAIN#*://}"
+              curl --ssl-reqd --insecure --fail \
+                --user "$FTP_USER:$FTP_PASSWORD" \
+                -T '$(Pipeline.Workspace)/drop/htaccess/htaccess.production' \
+                "ftp://$host$FTP_PATH/.htaccess"
+            displayName: 'Upload .htaccess'
+            env:
+              FTP_DOMAIN: $(FTP_DOMAIN)
+              FTP_PATH: $(FTP_PATH)
+              FTP_USER: $(FTP_USER)
+              FTP_PASSWORD: $(FTP_PASSWORD)
+
+          # / valida el sitio; la deep link valida el rewrite de .htaccess
+          - bash: |
+              if [ -n "$SITE_URL" ]; then
+                code=$(curl -sk -o /dev/null -w '%{http_code}' "https://$SITE_URL/")
+                link=$(curl -sk -o /dev/null -w '%{http_code}' "https://$SITE_URL$DEEP_LINK_PATH")
+                echo "HTTP /: $code  HTTP $DEEP_LINK_PATH: $link"
+                if [ "$code" != "200" ] || [ "$link" != "200" ]; then
+                  echo "##vso[task.logissue type=error]Verificación fallida: / = $code, $DEEP_LINK_PATH = $link"
+                  exit 1
+                fi
+              else
+                echo "SITE_URL sin definir: verificación omitida"
+              fi
+            displayName: 'Verify HTTP 200 (/ y deep link)'
+            env:
+              SITE_URL: $(SITE_URL)
+              DEEP_LINK_PATH: $(DEEP_LINK_PATH)
