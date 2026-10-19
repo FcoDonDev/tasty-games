@@ -3,14 +3,17 @@
 # Build: typecheck + test + export estático de Expo (`dist/`), zip + artifact.
 # Deploy: FTP a Dev y PRD + .htaccess (el task FTP se salta dotfiles).
 #
-# Variable groups requeridos en Azure DevOps (ver README de deploy si aplica):
-#   build-tasty-games-prd, tasty-games-dev, tasty-games-prd con:
-#     FTP_DOMAIN      ej. ftps://ftp.dominio.com
-#     FTP_USER        usuario FTP
-#     FTP_PASSWORD    (secreta)
-#     FTP_PATH        ej. /public_html
-#     SITE_URL        ej. tastygames.dominio.com (verificación HTTP)
-#     DEEP_LINK_PATH  ej. /juego/solitario (verifica el rewrite de .htaccess)
+# Variable groups requeridos en Azure DevOps:
+#   Compartidos entre apps del mismo hosting (credenciales FTP):
+#     ftp-hosting-dev / ftp-hosting-prd con:
+#       FTP_DOMAIN      ej. ftps://ftp.dominio.com
+#       FTP_USER        usuario FTP
+#       FTP_PASSWORD    (secreta)
+#   Particulares de tasty-games:
+#     tasty-games-dev / tasty-games-prd con:
+#       FTP_PATH        ej. /public_html
+#       SITE_URL        ej. tastygames.dominio.com (verificación HTTP)
+#       DEEP_LINK_PATH  ej. /juego/solitario (verifica el rewrite de .htaccess)
 
 trigger:
 - main
@@ -24,8 +27,6 @@ stages:
 # ─────────────────────────────────────────
 
 - stage: Build
-  variables:
-  - group: build-tasty-games-prd
   displayName: 'Build'
   jobs:
   - job: BuildJob
@@ -87,6 +88,7 @@ stages:
 
 - stage: DeployDev
   variables:
+  - group: ftp-hosting-dev
   - group: tasty-games-dev
   displayName: 'Deploy FTP - Dev'
   dependsOn: Build
@@ -165,6 +167,7 @@ stages:
 
 - stage: DeployPrd
   variables:
+  - group: ftp-hosting-prd
   - group: tasty-games-prd
   displayName: 'Deploy FTP - PRD'
   dependsOn: DeployDev
