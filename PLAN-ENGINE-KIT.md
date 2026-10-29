@@ -3,7 +3,7 @@
 **Estado:** En planificación — sin implementación. Decisiones §4 PENDIENTES de OK.
 **Fecha:** 2026-10-29
 **Branch:** `feature/engine-kit` (creada desde `origin/main`, pusheada vacía al crearla)
-**Antecedentes:** [ADR 0010](docs/adr/0010-wakwak-motor-agnostico.md) · [ADR 0014](docs/adr/0014-realtime-timestep-interpolacion.md) · [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [ROADMAP.md](docs/ROADMAP.md) (deuda `mulberry32`) · PLAN-WAK-WAK §4 (histórico, `git show f09c5bb:PLAN-WAK-WAK.md`)
+**Antecedentes:** [ADR 0010](docs/adr/0010-wakwak-motor-agnostico.md) · [ADR 0014](docs/adr/0014-realtime-timestep-interpolacion.md) · [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [ROADMAP.md](docs/ROADMAP.md) (deuda `mulberry32`) · PLAN-WAK-WAK §4 (histórico, `git show f09c5bb:PLAN-WAK-WAK.md`) · **[APRENDIZAJE-ENGINE-KIT.md](APRENDIZAJE-ENGINE-KIT.md)** (doc de aprendizaje del kit: patrones, autopsia RNGE y motores grandes)
 
 ---
 
@@ -46,6 +46,63 @@ Plan-WAK-WAK §4 era de may-2026 (exploración de sept-2026, artículo may-2026)
 **Conclusión de la validación:** nada nuevo en el ecosistema modifica la
 decisión ADR 0010. El único evento material es la **migración del paquete Skia**
 (scoped→unscoped, v3 Graphite) que afecta SOLO a la contingencia B, no al kit.
+
+## 2.B Antecedente clave — Por qué quedó dormida `react-native-game-engine`
+
+*(autopsia completa con código en [APRENDIZAJE-ENGINE-KIT.md](APRENDIZAJE-ENGINE-KIT.md) §10; acá la versión para decisiones.)*
+
+**¿Podemos determinarlo? SÍ**, con evidencia directa verificada el 29-oct-2026:
+código fuente del repo (6 archivos, `master`), issues propias numeradas,
+releases npm con fechas, descargas reales (api.npmjs.org) y respuestas públicas
+del autor (bberak). Lo que NO se puede documentar son los motivos personales
+del mantenedor (su última actividad fue dic-2024: actualizar el README
+para enlazar su juego comercial "Cannon Ball Sea").
+
+**Cronología:** 1.2.0 (jun-2020, última release de código) → patch-1 (2022) →
+solo edits de README (dic-2024). Issue #78 *"is there anyone who is
+maintaining this library yet?"* (2023) abierta sin respuesta. Hoy ~6.6k
+descargas/mes (se usa para prototipos) vs ~5.9M/mes de Skia.
+
+**Cuatro causas encadenadas:**
+
+1. **Modelo de render no escalable (la raíz):** `setState({entities})` por
+   frame + una View por entidad (`DefaultRenderer`). Issue #18 (abierta desde
+   2019): 60→30 fps con un GameEngine VACÍO en Android físico. El techo
+   "~50 entidades" de ADR 0010 es ESTO. El propio README del autor recomendaba
+   Godot/Unity para uso comercial — el diagnóstico fue siempre público y la
+   causa estructural, no un bug.
+2. **El tiempo estaba mal hecho:** `DefaultTimer` = rAF crudo con delta
+   variable, sin acumulador ni paso fijo; en pantallas 120 Hz la partida corre
+   ×2 (documentado en issue #64). Sin determinismo no puede haber seeds ni
+   pruebas E2E confiables — el ecosistema de tests nunca surgió.
+3. **Core con bugs pegajosos e intesteable:** el timer no paraba
+   (issue #64, 2021, con parche del usuario propuesto — el fix nunca llegó,
+   sigue abierta en 2026). El engine ES un componente React: sin unit tests,
+   el módulo más caliente del juego era el menos protegido.
+4. **Obsolescencia de ecosistema:** componentes de clase +
+   `UNSAFE_componentWillReceiveProps`, touch processor sobre RxJS (hoy
+   deuda), sin TS de serie (issues #14/#60/#80), sin
+   Fabric/New Architecture; mientras tanto RN adoptó Reanimated/Skia y el
+   rAF+bits que RNGE aportaba quedó replicable en horas.
+
+**Lecciones que fija este antecedente para el kit** (se materializan en las
+fases; mapa completo en APRENDIZAJE §10): núcleo puro testeable con el loop
+FUERA del componente (lección #64); timestep fijo obligatorio con acumulador
+de ADR 0014 (lección #64 120 Hz y "the gap"); cero reconciliación de React por
+frame (lección #18); tipos y contratos first-class; y NO pretender el
+"motor completo" que RNGE prometió — superficie acotada (D6) siguiendo el
+consejo que el propio autor daba a otros.
+
+### Descargas verificadas (api.npmjs.org, 28-oct-2026, últimos 30 días)
+
+| Paquete | Descargas/mes |
+|---|---|
+| react-native-reanimated | 37.3M |
+| @shopify/react-native-skia | 5.9M |
+| react-native-skia (unscoped, v3 Graphite) | 71k |
+| react-native-game-engine | 6.6k |
+| @penabt/pixi-expo | 241 |
+| rn-game-engine-next | **6** |
 
 ## 3. Auditoría del código existente (insumo real del kit)
 
@@ -178,6 +235,8 @@ no del core del kit); sensores/tilt (robo-jump fase 2, ROADMAP).
       a thresholds/keys inyectables (los números NO cambian).
 - [ ] `gameLoop.ts`: `useAutoPause` + `useGameLoop`; migrar las 3 pantallas
       (wakwak/serpiente/robo-jump) — el comportamiento debe quedar exacto.
+      Test de regresión del caso RNGE (APRENDIZAJE §1): `stop()` no deja rAF
+      pendiente y `start()` tras `stop()` funciona.
 - [ ] `tickStats.ts` en `src/core/engine/` (migración de los dos stores).
 
 **Criterio de verde:** `pnpm typecheck` + `pnpm test` completo verde +
@@ -227,6 +286,9 @@ tests existentes de ambos + E2E completo. **Lock:** nada (cero deps nuevas).
 - [ ] `docs/GOTCHAS.md` SOLO si apareció lección nueva reproducible.
 - [ ] README del kit (`src/core/engine/README.md`): cómo agregar "el siguiente
       juego en tiempo real" con el kit (checklist de integración).
+- [ ] Migrar APRENDIZAJE-ENGINE-KIT.md a su destino definitivo: los patrones
+      canónicos al README del kit; lecciones de toolchain a GOTCHAS si aplica;
+      eliminar el archivo de la raíz junto con este PLAN en el commit final.
 - [ ] Cierre del PLAN: eliminar este archivo en el commit final (convención).
 
 **Criterio de verde:** verificación estándar completa una última vez.
@@ -240,10 +302,10 @@ tests existentes de ambos + E2E completo. **Lock:** nada (cero deps nuevas).
    repo, así que el dato queda marcado como "a verificar si se materializa el
    adaptador B". El hecho MATERIAL (paquete transferido a wcandillon + v3
    multi-thread publicada unscoped) SÍ está verificado.
-2. **Números de descargas semanales 2026** (RNGE ~2.2k, Skia ~750k): el
-   endpoint de descargas de npm no lo consulté (requiere fetch por fecha);
-   la cifra es del artículo fuente (jun-2026) con esa atribución, sin
-   re-verificación propia.
+2. **Números de descargas semanales 2026** (RNGE ~2.2k, Skia ~750k): hoy
+   VERIFICADO con api.npmjs.org (descargas últimos 30 días, 28-oct-2026;
+   tabla en §2.B): RNGE 6.6k/mes, Skia scoped 5.9M/mes. Quedan citadas las
+   cifras del artículo (jun-2026) solo para contexto histórico.
 3. **¿Alguno game engine privado/startup RN post-may-2026?** Las búsquedas
    públicas solo cubren lo indexado en Google; un motor closed-source o muy
    nuevo (sin SEO) podría existir. Riesgo residual bajo para la decisión (el
@@ -260,10 +322,24 @@ tests existentes de ambos + E2E completo. **Lock:** nada (cero deps nuevas).
   material desde may-2026 es la transferencia del paquete Skia (scoped
   `@shopify/react-native-skia` → unscoped `react-native-skia`, v3 Graphite
   multi-thread). No cambia la decisión del kit ni la contingencia A/B.
+- (2026-10-29) Descargas verificadas vía api.npmjs.org (§2.B): RNGE 6.6k/mes
+  (se usa, nadie lo mantiene) y `rn-game-engine-next` 6 descargas/mes — el
+  "motor moderno 2026" no despegó.
+- (2026-10-29) **Autopsia RNGE (§2.B + APRENDIZAJE §10)**: podemos determinarlo
+  con evidencia directa — (1) setState-per-frame + View-per-entity era el techo
+  estructural (issue #18: 60→30 fps con engine vacío desde 2019, abierta);
+  (2) timestep variable sin acumulador/semilla (issue #64: ×2 en 120 Hz);
+  (3) core intesteable con bug del timer abierto 5 años con parche propuesto;
+  (4) obsolescencia de ecosistema (clases, sin TS, sin Fabric). Además el
+  autor mismo recomendaba Godot/Unity para comercial desde el FAQ. Lecciones
+  fijadas en las decisiones del kit (D2/D3/D6).
 - (2026-10-29) Auditoría §3: la librería RNG está copiada 5×, el gesto
   flotante 2×, el loop+auto-pausa 3×, y tickStats 2× verbatim — el kit tiene
   insumo REAL, no hipotético.
 - (2026-10-29) La convención ADR 0014 (leftover al llamador) es única fuente
   de verdad del sobrante; wakwak es el último lag en la convención — su
   migración es la prueba de fuego más valiosa del kit.
+- (2026-10-29) Creado `APRENDIZAJE-ENGINE-KIT.md` (companion: teoría con
+  fuentes Fiedler/Nystrom + autopsia RNGE por capítulo + cómo operan
+  Unity/Godot/Bevy/Phaser + mapping a módulos del kit).
 - (pendiente) …
